@@ -309,27 +309,25 @@ async def listen_to_match_events():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
+    """应用生命周期管理 - 最小化启动时间"""
     print("=" * 50)
     print("🚀 足球预测服务启动中...")
     print(f"🔧 环境: {ENVIRONMENT}")
     print(f"🌐 端口: {PORT}")
-    print(f"📡 Redis: {REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL}")
     print("=" * 50)
+    print("✅ 服务已就绪 - 健康检查可用")
     
-    # 加载 ML 模型（同步，快速）
-    model_loaded = load_ml_model()
-    if model_loaded:
-        print("🤖 使用机器学习模型进行预测")
-    else:
-        print("📊 使用简单算法进行预测（回退模式）")
-    
-    print("=" * 50)
-    print("✅ 服务已就绪")
-    
-    # 后台启动 Redis 监听任务（延迟启动，不阻塞健康检查）
-    async def delayed_start():
-        await asyncio.sleep(2)  # 等待健康检查通过
+    # 后台初始化（不阻塞健康检查）
+    async def background_init():
+        await asyncio.sleep(3)  # 等待健康检查通过
+        
+        # 加载 ML 模型
+        model_loaded = load_ml_model()
+        if model_loaded:
+            print("🤖 使用机器学习模型进行预测")
+        else:
+            print("📊 使用简单算法进行预测（回退模式）")
+        
         # 连接数据库
         if DB_ENABLED and database:
             try:
@@ -337,10 +335,13 @@ async def lifespan(app: FastAPI):
                 print("✅ Python AI: 数据库已连接")
             except Exception as e:
                 print(f"⚠️ 数据库连接失败: {e}")
+        
         # 启动 Redis 监听
+        print(f"📡 连接 Redis: {REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL}")
         asyncio.create_task(listen_to_match_events())
+        print("=" * 50)
     
-    asyncio.create_task(delayed_start())
+    asyncio.create_task(background_init())
     
     yield
     
