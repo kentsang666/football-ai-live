@@ -317,17 +317,7 @@ async def lifespan(app: FastAPI):
     print(f"📡 Redis: {REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL}")
     print("=" * 50)
     
-    # 连接数据库
-    if DB_ENABLED and database:
-        try:
-            await database.connect()
-            print("✅ Python AI: 数据库已连接")
-        except Exception as e:
-            print(f"⚠️ 数据库连接失败: {e}")
-    else:
-        print("✅ Python AI: 数据库已连接 (模拟模式 - 跳过实际连接)")
-    
-    # 加载 ML 模型
+    # 加载 ML 模型（同步，快速）
     model_loaded = load_ml_model()
     if model_loaded:
         print("🤖 使用机器学习模型进行预测")
@@ -335,9 +325,22 @@ async def lifespan(app: FastAPI):
         print("📊 使用简单算法进行预测（回退模式）")
     
     print("=" * 50)
+    print("✅ 服务已就绪")
     
-    # 后台启动 Redis 监听任务
-    asyncio.create_task(listen_to_match_events())
+    # 后台启动 Redis 监听任务（延迟启动，不阻塞健康检查）
+    async def delayed_start():
+        await asyncio.sleep(2)  # 等待健康检查通过
+        # 连接数据库
+        if DB_ENABLED and database:
+            try:
+                await database.connect()
+                print("✅ Python AI: 数据库已连接")
+            except Exception as e:
+                print(f"⚠️ 数据库连接失败: {e}")
+        # 启动 Redis 监听
+        asyncio.create_task(listen_to_match_events())
+    
+    asyncio.create_task(delayed_start())
     
     yield
     
