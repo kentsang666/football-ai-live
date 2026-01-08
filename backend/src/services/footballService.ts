@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { createClient, RedisClientType } from 'redis';
+// Redis 类型在运行时动态处理
 import { Server } from 'socket.io';
 
 // ===========================================
@@ -64,7 +64,7 @@ interface APIFootballResponse {
 
 export class FootballService {
     private apiClient: AxiosInstance;
-    private redisPub: RedisClientType;
+    private redisPub: any; // 使用 any 避免类型兼容问题
     private io: Server;
     private pollInterval: number;
     private isPolling: boolean = false;
@@ -76,7 +76,7 @@ export class FootballService {
     constructor(
         apiKey: string,
         apiUrl: string,
-        redisPub: RedisClientType,
+        redisPub: any,
         io: Server,
         pollInterval: number = 15
     ) {
@@ -323,7 +323,7 @@ export class FootballService {
 // ===========================================
 
 export function createFootballService(
-    redisPub: RedisClientType,
+    redisPub: any, // 使用 any 避免类型兼容问题
     io: Server
 ): FootballService {
     const apiKey = process.env.API_FOOTBALL_KEY || '';
