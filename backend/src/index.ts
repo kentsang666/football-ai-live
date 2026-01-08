@@ -17,6 +17,9 @@ const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // Redis URL：从环境变量读取
 const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || 'redis://localhost:6379';
+console.log('🔧 Environment check:');
+console.log('  - REDIS_URL:', process.env.REDIS_URL ? 'SET' : 'NOT SET');
+console.log('  - Using Redis URL:', REDIS_URL.replace(/\/\/.*@/, '//***@'));
 
 // 数据模式
 const DATA_MODE = process.env.DATA_MODE || 'mock';
