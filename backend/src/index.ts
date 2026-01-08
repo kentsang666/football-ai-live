@@ -89,16 +89,24 @@ const io = new Server(httpServer, {
 });
 
 // Redis 客户端配置
-const redisConfig = {
-    url: REDIS_URL,
-    socket: {
-        // 云端 Redis 可能需要 TLS
-        ...(REDIS_URL.startsWith('rediss://') ? { tls: true, rejectUnauthorized: false } : {})
+const getRedisConfig = () => {
+    const config: { url: string; socket?: { tls: boolean; rejectUnauthorized: boolean } } = {
+        url: REDIS_URL
+    };
+    
+    // 云端 Redis 可能需要 TLS (rediss:// 协议)
+    if (REDIS_URL.startsWith('rediss://')) {
+        config.socket = {
+            tls: true,
+            rejectUnauthorized: false
+        };
     }
+    
+    return config;
 };
 
-const redisPub = createClient(redisConfig);
-const redisSub = createClient(redisConfig);
+const redisPub = createClient(getRedisConfig());
+const redisSub = createClient(getRedisConfig());
 
 // Redis 错误处理
 redisPub.on('error', (err) => console.error('Redis Pub Error:', err));
