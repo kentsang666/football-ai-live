@@ -5,7 +5,26 @@ import { MatchCard } from './MatchCard';
 import { matchStore } from '../store/matchStore';
 import type { MatchState, MatchEvent, PredictionData } from '../store/matchStore';
 
-const SOCKET_URL = 'http://localhost:4000';
+// ===========================================
+// 云端部署配置 - 运行时环境检测
+// ===========================================
+// 通过 window.location.hostname 判断是否为生产环境
+// 生产环境使用 Railway 后端，开发环境使用本地后端
+const getSocketUrl = () => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isProduction = hostname !== 'localhost' && hostname !== '127.0.0.1';
+    console.log('🔧 Hostname:', hostname);
+    console.log('🔧 Is Production:', isProduction);
+    return isProduction 
+      ? 'https://football-ai-live-production.up.railway.app'
+      : 'http://localhost:4000';
+  }
+  return 'http://localhost:4000';
+};
+
+const SOCKET_URL = getSocketUrl();
+console.log('🔧 WebSocket URL:', SOCKET_URL);
 
 export function LiveMatchDashboard() {
   const [, setSocket] = useState<Socket | null>(null);

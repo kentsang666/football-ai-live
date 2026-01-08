@@ -7,29 +7,23 @@ import type { MatchState, MatchEvent, PredictionData } from '../store/matchStore
 export type { MatchState, MatchEvent, PredictionData };
 
 // ===========================================
-// 云端部署配置
+// 云端部署配置 - 硬编码生产环境 URL
 // ===========================================
-// 从环境变量读取后端 URL，支持 Vercel 部署
-// 生产环境使用 Railway 部署的后端，开发环境使用本地服务器
-const getSocketUrl = () => {
-  // 优先使用环境变量
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-  // 生产环境默认使用 Railway 后端
-  if (import.meta.env.PROD) {
-    return 'https://football-ai-live-production.up.railway.app';
-  }
-  // 开发环境使用本地服务器
-  return 'http://localhost:4000';
-};
+// 由于 Vite 环境变量配置问题，直接硬编码 URL
+// 生产环境检测：window.location.hostname 不是 localhost
+const isProduction = typeof window !== 'undefined' && 
+  window.location.hostname !== 'localhost' && 
+  window.location.hostname !== '127.0.0.1';
 
-const SOCKET_URL = getSocketUrl();
+// 生产环境使用 Railway 后端，开发环境使用本地后端
+const SOCKET_URL = isProduction 
+  ? 'https://football-ai-live-production.up.railway.app'
+  : 'http://localhost:4000';
 
-// 调试信息（生产环境也输出，方便排查问题）
+// 调试信息
+console.log('🔧 Is Production:', isProduction);
+console.log('🔧 Hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
 console.log('🔧 WebSocket URL:', SOCKET_URL);
-console.log('🔧 Environment:', import.meta.env.MODE);
-console.log('🔧 VITE_API_URL:', import.meta.env.VITE_API_URL || 'not set');
 
 interface UseLiveMatchReturn {
   matches: MatchState[];
@@ -71,11 +65,8 @@ export function useLiveMatch(): UseLiveMatchReturn {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
-      // 云端部署可能需要更长的超时
-      ...(import.meta.env.PROD ? {
-        path: '/socket.io',
-        forceNew: true,
-      } : {})
+      path: '/socket.io',
+      forceNew: true,
     });
 
     newSocket.on('connect', () => {
