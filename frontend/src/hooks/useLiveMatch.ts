@@ -10,12 +10,26 @@ export type { MatchState, MatchEvent, PredictionData };
 // 云端部署配置
 // ===========================================
 // 从环境变量读取后端 URL，支持 Vercel 部署
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// 生产环境使用 Railway 部署的后端，开发环境使用本地服务器
+const getSocketUrl = () => {
+  // 优先使用环境变量
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // 生产环境默认使用 Railway 后端
+  if (import.meta.env.PROD) {
+    return 'https://football-ai-live-production.up.railway.app';
+  }
+  // 开发环境使用本地服务器
+  return 'http://localhost:4000';
+};
 
-// 调试信息
-if (import.meta.env.DEV) {
-  console.log('🔧 WebSocket URL:', SOCKET_URL);
-}
+const SOCKET_URL = getSocketUrl();
+
+// 调试信息（生产环境也输出，方便排查问题）
+console.log('🔧 WebSocket URL:', SOCKET_URL);
+console.log('🔧 Environment:', import.meta.env.MODE);
+console.log('🔧 VITE_API_URL:', import.meta.env.VITE_API_URL || 'not set');
 
 interface UseLiveMatchReturn {
   matches: MatchState[];
@@ -35,6 +49,7 @@ export function useLiveMatch(): UseLiveMatchReturn {
   // 获取初始比赛列表
   const fetchInitialMatches = useCallback(async () => {
     try {
+      console.log('📡 Fetching matches from:', `${SOCKET_URL}/api/matches/live`);
       const response = await fetch(`${SOCKET_URL}/api/matches/live`);
       const data = await response.json();
       console.log('📋 获取比赛列表:', data);
@@ -48,6 +63,7 @@ export function useLiveMatch(): UseLiveMatchReturn {
 
   // 初始化 WebSocket 连接
   useEffect(() => {
+    console.log('🔌 Connecting to WebSocket:', SOCKET_URL);
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
