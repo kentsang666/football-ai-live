@@ -7,6 +7,8 @@ import 'dotenv/config';
 
 // 导入真实数据服务
 import { createFootballService, FootballService } from './services/footballService';
+// 导入预测服务
+import { predictionService, MatchData, Prediction } from './services/predictionService';
 
 // ===========================================
 // 云端部署配置
@@ -116,6 +118,9 @@ redisSub.on('error', (err) => console.error('Redis Sub Error:', err));
 // 真实数据服务实例
 let footballService: FootballService | null = null;
 
+// 预测缓存
+const predictionCache: Map<string, Prediction> = new Map();
+
 // --- 模拟比赛状态 (仅在 mock 模式下使用) ---
 let matchState = {
     match_id: "test-match-001",
@@ -137,11 +142,11 @@ async function startServer() {
         console.log("✅ Node.js: 已连接到 Redis");
         console.log(`   Redis URL: ${REDIS_URL.replace(/\/\/.*@/, '//***@')}`); // 隐藏密码
 
-        // 2. 监听 Python 发回来的预测结果
+        // 2. 监听 Python 发回来的预测结果（如果有外部预测服务）
         await redisSub.subscribe('predictions', (message) => {
             try {
                 const data = JSON.parse(message);
-                console.log(`🤖 [AI Prediction Recv] Home Win: ${(data.probabilities.home * 100).toFixed(1)}%`);
+                console.log(`🤖 [External AI Prediction] Home Win: ${(data.probabilities.home * 100).toFixed(1)}%`);
                 io.emit('prediction_update', data);
             } catch (e) {
                 console.error('Failed to parse prediction:', e);
@@ -152,6 +157,7 @@ async function startServer() {
         httpServer.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Backend running on http://0.0.0.0:${PORT}`);
             console.log(`📡 数据模式: ${DATA_MODE.toUpperCase()}`);
+            console.log(`🤖 AI 预测服务: SmartPredict-v${predictionService.getVersion()}`);
             console.log(`🌐 CORS 允许来源: ${FRONTEND_URL}`);
             console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
             
@@ -177,9 +183,47 @@ function startLiveDataService() {
     footballService = createFootballService(redisPub as any, io);
     footballService.startPolling();
     
+    // 定期更新预测
+    setInterval(() => {
+        updateAllPredictions();
+    }, 30000); // 每30秒更新一次预测
+    
     setInterval(() => {
         footballService?.cleanupFinishedMatches();
     }, 3600000);
+}
+
+// ===========================================
+// 更新所有比赛的预测
+// ===========================================
+function updateAllPredictions() {
+    if (!footballService) return;
+    
+    const matches = footballService.getLiveMatches();
+    if (matches.length === 0) return;
+    
+    console.log(`\n🤖 [AI] 更新 ${matches.length} 场比赛的预测...`);
+    
+    matches.forEach((match: any) => {
+        const matchData: MatchData = {
+            match_id: match.match_id,
+            home_team: match.home_team,
+            away_team: match.away_team,
+            home_score: match.home_score,
+            away_score: match.away_score,
+            minute: match.minute,
+            status: match.status,
+            league: match.league
+        };
+        
+        const prediction = predictionService.calculatePrediction(matchData);
+        predictionCache.set(match.match_id, prediction);
+        
+        // 广播预测更新
+        io.emit('prediction_update', prediction);
+    });
+    
+    console.log(`✅ [AI] 预测更新完成`);
 }
 
 // ===========================================
@@ -208,6 +252,18 @@ function startMatchSimulation() {
             eventType = 'shot_on_target';
         }
         
+        // 计算预测
+        const matchData: MatchData = {
+            match_id: matchState.match_id,
+            home_team: 'Man City',
+            away_team: 'Arsenal',
+            home_score: matchState.home_score,
+            away_score: matchState.away_score,
+            minute: matchState.minute
+        };
+        const prediction = predictionService.calculatePrediction(matchData);
+        predictionCache.set(matchState.match_id, prediction);
+        
         if (eventType) {
             const eventPayload = {
                 match_id: matchState.match_id,
@@ -221,8 +277,10 @@ function startMatchSimulation() {
             };
             
             io.emit('score_update', eventPayload);
+            io.emit('prediction_update', prediction);
             await redisPub.publish('match_events', JSON.stringify(eventPayload));
-            console.log(`📤 [Event Sent] Type: ${eventType} -> Sent to AI`);
+            console.log(`📤 [Event Sent] Type: ${eventType}`);
+            console.log(`🤖 [AI Prediction] Home: ${(prediction.probabilities.home * 100).toFixed(1)}% | Draw: ${(prediction.probabilities.draw * 100).toFixed(1)}% | Away: ${(prediction.probabilities.away * 100).toFixed(1)}%`);
         }
     }, 2000);
 }
@@ -233,11 +291,50 @@ function startMatchSimulation() {
 
 app.get('/api/matches/live', (req, res) => {
     if (DATA_MODE === 'live' && footballService) {
+        const matches = footballService.getLiveMatches();
+        
+        // 为每场比赛添加预测
+        const matchesWithPredictions = matches.map((match: any) => {
+            let prediction = predictionCache.get(match.match_id);
+            
+            // 如果没有缓存的预测，实时计算
+            if (!prediction) {
+                const matchData: MatchData = {
+                    match_id: match.match_id,
+                    home_team: match.home_team,
+                    away_team: match.away_team,
+                    home_score: match.home_score,
+                    away_score: match.away_score,
+                    minute: match.minute
+                };
+                prediction = predictionService.calculatePrediction(matchData);
+                predictionCache.set(match.match_id, prediction);
+            }
+            
+            return {
+                ...match,
+                prediction: prediction.probabilities,
+                prediction_confidence: prediction.confidence,
+                prediction_algorithm: prediction.algorithm
+            };
+        });
+        
         res.json({
             mode: 'live',
-            matches: footballService.getLiveMatches()
+            matches: matchesWithPredictions
         });
     } else {
+        // 模拟模式
+        const matchData: MatchData = {
+            match_id: matchState.match_id,
+            home_team: 'Man City',
+            away_team: 'Arsenal',
+            home_score: matchState.home_score,
+            away_score: matchState.away_score,
+            minute: matchState.minute
+        };
+        const prediction = predictionService.calculatePrediction(matchData);
+        
         res.json({
             mode: 'mock',
             matches: [{
@@ -249,10 +346,68 @@ app.get('/api/matches/live', (req, res) => {
                 minute: matchState.minute,
                 status: matchState.is_live ? 'live' : 'finished',
                 league: 'England - Premier League',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                prediction: prediction.probabilities,
+                prediction_confidence: prediction.confidence,
+                prediction_algorithm: prediction.algorithm
             }]
         });
     }
+});
+
+// 获取单场比赛的预测
+app.get('/api/predictions/:matchId', (req, res) => {
+    const { matchId } = req.params;
+    
+    let prediction = predictionCache.get(matchId);
+    
+    if (!prediction) {
+        // 尝试从当前比赛数据计算
+        if (DATA_MODE === 'live' && footballService) {
+            const matches = footballService.getLiveMatches();
+            const match = matches.find((m: any) => m.match_id === matchId);
+            if (match) {
+                const matchData: MatchData = {
+                    match_id: match.match_id,
+                    home_team: match.home_team,
+                    away_team: match.away_team,
+                    home_score: match.home_score,
+                    away_score: match.away_score,
+                    minute: match.minute
+                };
+                prediction = predictionService.calculatePrediction(matchData);
+                predictionCache.set(matchId, prediction);
+            }
+        } else if (matchId === matchState.match_id) {
+            const matchData: MatchData = {
+                match_id: matchState.match_id,
+                home_team: 'Man City',
+                away_team: 'Arsenal',
+                home_score: matchState.home_score,
+                away_score: matchState.away_score,
+                minute: matchState.minute
+            };
+            prediction = predictionService.calculatePrediction(matchData);
+        }
+    }
+    
+    if (prediction) {
+        res.json(prediction);
+    } else {
+        res.status(404).json({ error: 'Match not found' });
+    }
+});
+
+// 批量获取预测
+app.post('/api/predictions/batch', (req, res) => {
+    const { matches } = req.body;
+    
+    if (!Array.isArray(matches)) {
+        return res.status(400).json({ error: 'matches must be an array' });
+    }
+    
+    const predictions = predictionService.calculatePredictions(matches);
+    res.json({ predictions });
 });
 
 app.get('/health', (req, res) => {
@@ -261,7 +416,8 @@ app.get('/health', (req, res) => {
         mode: DATA_MODE,
         uptime: process.uptime(),
         environment: process.env.NODE_ENV || 'development',
-        redis: redisPub.isReady ? 'connected' : 'disconnected'
+        redis: redisPub.isReady ? 'connected' : 'disconnected',
+        prediction_service: `SmartPredict-v${predictionService.getVersion()}`
     });
 });
 
@@ -271,9 +427,12 @@ app.get('/', (req, res) => {
         service: 'Football Prediction Backend',
         version: '2.0.0',
         status: 'running',
+        prediction_engine: `SmartPredict-v${predictionService.getVersion()}`,
         endpoints: {
             health: '/health',
             liveMatches: '/api/matches/live',
+            prediction: '/api/predictions/:matchId',
+            batchPrediction: 'POST /api/predictions/batch',
             websocket: 'ws://[host]/socket.io'
         }
     });
