@@ -1,0 +1,99 @@
+# ===========================================
+# Football Prediction System - Git Ignore
+# ===========================================
+
+# ----- 环境变量 -----
+.env
+.env.local
+.env.*.local
+*.env
+
+# ----- Node.js -----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+ENV/
+
+# ----- IDE -----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----- 构建产物 -----
+frontend/dist/
+frontend/build/
+backend/dist/
+*.log
+
+# ----- Docker -----
+# 注意：不忽略 docker-compose.yml，它是部署配置的一部分
+# docker-compose.override.yml 用于本地覆盖配置
+docker-compose.override.yml
+
+# ----- 数据库 -----
+*.sqlite
+*.db
+postgres-data/
+redis-data/
+
+# ----- 测试 -----
+coverage/
+.nyc_output/
+.pytest_cache/
+htmlcov/
+
+# ----- 临时文件 -----
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ===========================================
+# 重要：以下文件需要提交到 Git
+# ===========================================
+
+# ✅ 保留 ML 模型文件（约 3MB，可以直接提交）
+# 如果模型文件超过 100MB，建议使用 Git LFS
+# !prediction-service/ml/model_v1.pkl
+
+# ✅ 保留训练数据生成脚本
+# !prediction-service/ml/generate_dummy_data.py
+# !prediction-service/ml/train_model.py
+
+# ✅ 保留 Docker 配置
+# !docker-compose.yml
+# !*/Dockerfile
+
+# ✅ 保留环境变量示例
+# !.env.example
+# !*/.env.example

@@ -1,0 +1,587 @@
+openapi: 3.1.0
+info:
+  title: Football Prediction System API
+  description: |
+    实时足球比分预测系统 API 规范。
+    
+    本文件是 TypeScript 和 Python 跨语言协作的**唯一真理来源 (Single Source of Truth)**。
+    所有核心数据结构（Match, Prediction, MatchEvent 等）的定义以此为准。
+    
+    - **Node.js/TypeScript**: 可使用 `openapi-typescript` 生成类型定义
+    - **Python/FastAPI**: 可使用 `datamodel-code-generator` 生成 Pydantic 模型
+  version: 1.0.0
+  contact:
+    name: Development Team
+
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Node.js API Gateway (Development)
+  - url: http://localhost:8000/api/v1
+    description: Python Prediction Service (Development)
+
+tags:
+  - name: Matches
+    description: 比赛相关接口
+  - name: Predictions
+    description: 预测相关接口
+  - name: Health
+    description: 健康检查接口
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: 健康检查
+      operationId: healthCheck
+      responses:
+        '200':
+          description: 服务正常运行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /matches:
+    get:
+      tags:
+        - Matches
+      summary: 获取比赛列表
+      operationId: getMatches
+      parameters:
+        - name: status
+          in: query
+          description: 比赛状态筛选
+          schema:
+            $ref: '#/components/schemas/MatchStatus'
+        - name: league_id
+          in: query
+          description: 联赛 ID 筛选
+          schema:
+            type: string
+        - name: date
+          in: query
+          description: 比赛日期 (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: 返回数量限制
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          description: 分页偏移量
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: 成功返回比赛列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchListResponse'
+
+  /matches/{match_id}:
+    get:
+      tags:
+        - Matches
+      summary: 获取单场比赛详情
+      operationId: getMatchById
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          description: 比赛唯一标识符
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功返回比赛详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchDetail'
+        '404':
+          description: 比赛不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /predictions/{match_id}:
+    get:
+      tags:
+        - Predictions
+      summary: 获取指定比赛的预测结果
+      operationId: getPredictionByMatchId
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          description: 比赛唯一标识符
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功返回预测结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prediction'
+        '404':
+          description: 预测不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Predictions
+      summary: 请求生成新的预测
+      operationId: requestPrediction
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          description: 比赛唯一标识符
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功生成预测
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prediction'
+        '400':
+          description: 请求无效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    # ==================== 核心数据模型 ====================
+    
+    Match:
+      type: object
+      description: 比赛基础信息
+      required:
+        - id
+        - home_team
+        - away_team
+        - league_id
+        - status
+        - scheduled_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 比赛唯一标识符
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        home_team:
+          $ref: '#/components/schemas/Team'
+        away_team:
+          $ref: '#/components/schemas/Team'
+        league_id:
+          type: string
+          description: 联赛标识符
+          example: "premier-league"
+        league_name:
+          type: string
+          description: 联赛名称
+          example: "英格兰超级联赛"
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+        scheduled_at:
+          type: string
+          format: date-time
+          description: 比赛预定开始时间 (ISO 8601)
+          example: "2026-01-15T20:00:00Z"
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 比赛实际开始时间
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 比赛结束时间
+        created_at:
+          type: string
+          format: date-time
+          description: 记录创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 记录更新时间
+
+    MatchDetail:
+      allOf:
+        - $ref: '#/components/schemas/Match'
+        - type: object
+          properties:
+            score:
+              $ref: '#/components/schemas/Score'
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/MatchEvent'
+            latest_prediction:
+              $ref: '#/components/schemas/Prediction'
+
+    Team:
+      type: object
+      description: 球队信息
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: 球队唯一标识符
+          example: "manchester-united"
+        name:
+          type: string
+          description: 球队名称
+          example: "曼联"
+        short_name:
+          type: string
+          description: 球队简称
+          example: "曼联"
+        logo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: 球队徽标 URL
+
+    Score:
+      type: object
+      description: 比分信息
+      required:
+        - home
+        - away
+      properties:
+        home:
+          type: integer
+          minimum: 0
+          description: 主队得分
+          example: 2
+        away:
+          type: integer
+          minimum: 0
+          description: 客队得分
+          example: 1
+        half_time:
+          type: object
+          nullable: true
+          properties:
+            home:
+              type: integer
+              minimum: 0
+            away:
+              type: integer
+              minimum: 0
+
+    MatchEvent:
+      type: object
+      description: 比赛事件（进球、红牌、换人等）
+      required:
+        - id
+        - match_id
+        - type
+        - minute
+        - occurred_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 事件唯一标识符
+        match_id:
+          type: string
+          format: uuid
+          description: 关联的比赛 ID
+        type:
+          $ref: '#/components/schemas/EventType'
+        minute:
+          type: integer
+          minimum: 0
+          maximum: 120
+          description: 事件发生的比赛分钟数
+          example: 45
+        extra_minute:
+          type: integer
+          nullable: true
+          description: 补时分钟数
+          example: 2
+        team_id:
+          type: string
+          nullable: true
+          description: 相关球队 ID
+        player_name:
+          type: string
+          nullable: true
+          description: 相关球员姓名
+          example: "哈兰德"
+        detail:
+          type: string
+          nullable: true
+          description: 事件详情描述
+        occurred_at:
+          type: string
+          format: date-time
+          description: 事件发生的实际时间
+
+    Prediction:
+      type: object
+      description: 比赛预测结果
+      required:
+        - id
+        - match_id
+        - home_win_prob
+        - draw_prob
+        - away_win_prob
+        - model_version
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 预测记录唯一标识符
+        match_id:
+          type: string
+          format: uuid
+          description: 关联的比赛 ID
+        home_win_prob:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 主队获胜概率 (0-1)
+          example: 0.45
+        draw_prob:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 平局概率 (0-1)
+          example: 0.28
+        away_win_prob:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 客队获胜概率 (0-1)
+          example: 0.27
+        over_2_5_prob:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: 大于2.5球概率
+          example: 0.62
+        btts_prob:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: 双方都进球概率 (Both Teams To Score)
+          example: 0.55
+        predicted_score:
+          $ref: '#/components/schemas/Score'
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 预测置信度
+          example: 0.78
+        model_version:
+          type: string
+          description: 使用的模型版本
+          example: "v1.2.3"
+        features_snapshot:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: 预测时使用的特征快照 (用于可解释性)
+        created_at:
+          type: string
+          format: date-time
+          description: 预测生成时间
+
+    # ==================== 枚举类型 ====================
+    
+    MatchStatus:
+      type: string
+      description: 比赛状态
+      enum:
+        - scheduled    # 已安排
+        - live         # 进行中
+        - half_time    # 中场休息
+        - finished     # 已结束
+        - postponed    # 延期
+        - cancelled    # 取消
+
+    EventType:
+      type: string
+      description: 比赛事件类型
+      enum:
+        - goal              # 进球
+        - own_goal          # 乌龙球
+        - penalty_goal      # 点球进球
+        - penalty_missed    # 点球未进
+        - yellow_card       # 黄牌
+        - red_card          # 红牌
+        - second_yellow     # 两黄变红
+        - substitution      # 换人
+        - var_decision      # VAR判罚
+        - injury            # 受伤
+        - kick_off          # 开球
+        - half_time         # 中场
+        - full_time         # 终场
+
+    # ==================== WebSocket 消息类型 ====================
+    
+    WebSocketMessage:
+      type: object
+      description: WebSocket 消息通用格式
+      required:
+        - type
+        - payload
+        - timestamp
+      properties:
+        type:
+          $ref: '#/components/schemas/WebSocketMessageType'
+        payload:
+          oneOf:
+            - $ref: '#/components/schemas/ScoreUpdatePayload'
+            - $ref: '#/components/schemas/PredictionUpdatePayload'
+            - $ref: '#/components/schemas/MatchEventPayload'
+        timestamp:
+          type: string
+          format: date-time
+          description: 消息时间戳
+
+    WebSocketMessageType:
+      type: string
+      description: WebSocket 消息类型
+      enum:
+        - score_update       # 比分更新（零延迟）
+        - prediction_update  # 预测更新（异步）
+        - match_event        # 比赛事件
+        - match_status       # 比赛状态变更
+
+    ScoreUpdatePayload:
+      type: object
+      description: 比分更新消息载荷
+      required:
+        - match_id
+        - score
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        score:
+          $ref: '#/components/schemas/Score'
+        event:
+          $ref: '#/components/schemas/MatchEvent'
+
+    PredictionUpdatePayload:
+      type: object
+      description: 预测更新消息载荷
+      required:
+        - match_id
+        - prediction
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        prediction:
+          $ref: '#/components/schemas/Prediction'
+
+    MatchEventPayload:
+      type: object
+      description: 比赛事件消息载荷
+      required:
+        - match_id
+        - event
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        event:
+          $ref: '#/components/schemas/MatchEvent'
+
+    # ==================== 响应模型 ====================
+    
+    MatchListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 总记录数
+        limit:
+          type: integer
+          description: 每页数量
+        offset:
+          type: integer
+          description: 当前偏移量
+        has_more:
+          type: boolean
+          description: 是否有更多数据
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: 错误代码
+          example: "NOT_FOUND"
+        message:
+          type: string
+          description: 错误描述
+          example: "Match not found"
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: 额外错误详情

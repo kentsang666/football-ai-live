@@ -1,0 +1,216 @@
+# ============================================================
+# Football Prediction System - Docker Compose Configuration
+# ============================================================
+# 使用方法:
+#   开发环境: docker-compose up -d
+#   查看日志: docker-compose logs -f [service_name]
+#   停止服务: docker-compose down
+#   重建服务: docker-compose up -d --build
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ============================================================
+  # 前端服务 (React + Vite)
+  # ============================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: football-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:4000/api/v1
+      - VITE_WS_URL=ws://localhost:4000
+    depends_on:
+      - backend
+    networks:
+      - football-network
+    # 开发模式下挂载源码实现热重载
+    volumes:
+      - ./frontend/src:/app/src:ro
+    restart: unless-stopped
+
+  # ============================================================
+  # 后端服务 (Node.js + Express + Socket.IO)
+  # ============================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: football-backend
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      # 数据库连接
+      - DATABASE_URL=postgresql://football_user:football_pass@postgres:5432/football_db
+      # Redis 连接
+      - REDIS_URL=redis://redis:6379
+      # 预测服务地址
+      - PREDICTION_SERVICE_URL=http://prediction-service:8000
+      # JWT 密钥 (生产环境请使用强密钥)
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      # 外部数据 API (示例)
+      - FOOTBALL_DATA_API_KEY=${FOOTBALL_DATA_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - football-network
+    volumes:
+      - ./backend/src:/app/src:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
+  # 预测服务 (Python + FastAPI)
+  # ============================================================
+  prediction-service:
+    build:
+      context: ./prediction-service
+      dockerfile: Dockerfile
+    container_name: football-prediction
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      # 数据库连接
+      - DATABASE_URL=postgresql://football_user:football_pass@postgres:5432/football_db
+      # Redis 连接
+      - REDIS_URL=redis://redis:6379
+      # Redis Pub/Sub 频道
+      - REDIS_CHANNEL_MATCH_EVENTS=match_events
+      - REDIS_CHANNEL_PREDICTIONS=predictions
+      # 模型配置
+      - MODEL_VERSION=v1.0.0
+      - MODEL_PATH=/app/ml/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - football-network
+    volumes:
+      - ./prediction-service/app:/app/app:ro
+      - ./prediction-service/ml/models:/app/ml/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
+  # PostgreSQL 数据库
+  # ============================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: football-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=football_user
+      - POSTGRES_PASSWORD=football_pass
+      - POSTGRES_DB=football_db
+    volumes:
+      # 数据持久化
+      - postgres_data:/var/lib/postgresql/data
+      # 初始化脚本
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - football-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U football_user -d football_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================================
+  # Redis (缓存 + Pub/Sub)
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: football-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - football-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ============================================================
+  # Redis Commander (可选 - Redis 可视化管理工具)
+  # ============================================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: football-redis-commander
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - football-network
+    profiles:
+      - tools  # 仅在 docker-compose --profile tools up 时启动
+    restart: unless-stopped
+
+  # ============================================================
+  # Adminer (可选 - 数据库可视化管理工具)
+  # ============================================================
+  adminer:
+    image: adminer:latest
+    container_name: football-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    depends_on:
+      - postgres
+    networks:
+      - football-network
+    profiles:
+      - tools  # 仅在 docker-compose --profile tools up 时启动
+    restart: unless-stopped
+
+# ============================================================
+# 网络配置
+# ============================================================
+networks:
+  football-network:
+    driver: bridge
+    name: football-prediction-network
+
+# ============================================================
+# 数据卷配置
+# ============================================================
+volumes:
+  postgres_data:
+    name: football-postgres-data
+  redis_data:
+    name: football-redis-data
