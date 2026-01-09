@@ -300,10 +300,17 @@ export function GoalBettingTips({
   
   // 筛选显示的大小球盘口（根据当前进球数）
   const relevantLines = tips.overUnder.filter(ou => {
-    // 赛前显示 2.5 为主
+    // 🟢 过滤掉已经确定的盘口（当前进球数 > 盘口线）
+    if (currentGoals >= ou.line) return false;
+    
+    // 🟢 过滤掉概率过于极端的盘口（>95% 或 <5%）
+    if (ou.overProb > 0.95 || ou.underProb > 0.95) return false;
+    
+    // 赛前显示 1.5, 2.5, 3.5
     if (isPreMatch) return ou.line === 2.5 || ou.line === 1.5 || ou.line === 3.5;
-    // 滚球中显示当前进球数附近的盘口
-    return ou.line >= currentGoals && ou.line <= currentGoals + 3;
+    
+    // 滚球中显示当前进球数附近的盘口（但必须大于当前进球数）
+    return ou.line > currentGoals && ou.line <= currentGoals + 3;
   }).slice(0, 3);
 
   return (
