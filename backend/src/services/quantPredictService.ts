@@ -556,7 +556,244 @@ export class AsianHandicapPricer {
 }
 
 // =============================================================================
-// 4. 交易信号生成器 (Trading Signal Generator)
+// 4. 大小球预测器 (Over/Under Predictor)
+// =============================================================================
+
+export interface GoalPrediction {
+  line: number;           // 盘口线 (0.5, 1.5, 2.5, 3.5, 4.5)
+  overProb: number;       // 大于该线的概率
+  underProb: number;      // 小于该线的概率
+  overOdds: number;       // 大球赔率
+  underOdds: number;      // 小球赔率
+  recommendation: 'OVER' | 'UNDER' | 'NEUTRAL';  // 推荐
+  confidence: number;     // 置信度
+}
+
+export interface NextGoalPrediction {
+  homeProb: number;       // 主队进下一球概率
+  awayProb: number;       // 客队进下一球概率
+  noGoalProb: number;     // 不再进球概率
+  recommendation: 'HOME' | 'AWAY' | 'NO_GOAL' | 'NEUTRAL';
+  confidence: number;
+  expectedMinutes: number; // 预计下一球时间（分钟）
+}
+
+export interface GoalBettingTips {
+  overUnder: GoalPrediction[];     // 大小球预测
+  nextGoal: NextGoalPrediction;    // 下一球预测
+  totalExpectedGoals: number;      // 预期总进球数
+  remainingExpectedGoals: number;  // 剩余时间预期进球
+  highConfidenceTip: {
+    type: 'OVER' | 'UNDER' | 'NEXT_GOAL_HOME' | 'NEXT_GOAL_AWAY' | 'NONE';
+    line?: number;
+    probability: number;
+    confidence: number;
+    description: string;
+  } | null;
+}
+
+export class GoalPredictor {
+  private liveProbability: LiveProbability;
+  private maxGoals: number;
+
+  constructor(maxGoals = 10) {
+    this.liveProbability = new LiveProbability();
+    this.maxGoals = maxGoals;
+  }
+
+  /**
+   * 计算大小球概率
+   */
+  calculateOverUnder(stats: MatchStats, line: number): GoalPrediction {
+    const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
+    const probMatrix = this.liveProbability.calculateScoreProbabilities(homeLambda, awayLambda);
+    
+    let overProb = 0;
+    let underProb = 0;
+    
+    // 计算剩余进球数的概率
+    for (let addHome = 0; addHome <= this.maxGoals; addHome++) {
+      for (let addAway = 0; addAway <= this.maxGoals; addAway++) {
+        const totalGoals = stats.homeScore + stats.awayScore + addHome + addAway;
+        const prob = probMatrix[addHome]![addAway] || 0;
+        
+        if (totalGoals > line) {
+          overProb += prob;
+        } else if (totalGoals < line) {
+          underProb += prob;
+        }
+        // 刚好等于 line 的情况不计入（走盘）
+      }
+    }
+    
+    // 归一化
+    const total = overProb + underProb;
+    if (total > 0) {
+      overProb /= total;
+      underProb /= total;
+    }
+    
+    // 计算赔率
+    const overOdds = overProb > 0 ? Math.min(MAX_ODDS, Math.max(MIN_ODDS, 1 / overProb)) : MAX_ODDS;
+    const underOdds = underProb > 0 ? Math.min(MAX_ODDS, Math.max(MIN_ODDS, 1 / underProb)) : MAX_ODDS;
+    
+    // 确定推荐
+    let recommendation: 'OVER' | 'UNDER' | 'NEUTRAL' = 'NEUTRAL';
+    const probDiff = Math.abs(overProb - underProb);
+    if (probDiff > 0.15) {
+      recommendation = overProb > underProb ? 'OVER' : 'UNDER';
+    }
+    
+    // 计算置信度
+    const confidence = 0.5 + probDiff * 0.5;
+    
+    return {
+      line,
+      overProb: Math.round(overProb * 10000) / 10000,
+      underProb: Math.round(underProb * 10000) / 10000,
+      overOdds: Math.round(overOdds * 100) / 100,
+      underOdds: Math.round(underOdds * 100) / 100,
+      recommendation,
+      confidence: Math.round(confidence * 1000) / 1000,
+    };
+  }
+
+  /**
+   * 计算下一球预测
+   */
+  calculateNextGoal(stats: MatchStats): NextGoalPrediction {
+    const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
+    const remainingMinutes = Math.max(0, 90 - stats.minute);
+    
+    // 计算剩余时间内的进球概率
+    const timeRatio = remainingMinutes / 90;
+    const adjustedHomeLambda = homeLambda * timeRatio;
+    const adjustedAwayLambda = awayLambda * timeRatio;
+    
+    // 使用泊松分布计算下一球概率
+    // P(主队进下一球) = P(主队至少进1球) * P(主队先进球|都进球)
+    const homeAtLeastOne = 1 - poissonPMF(0, adjustedHomeLambda);
+    const awayAtLeastOne = 1 - poissonPMF(0, adjustedAwayLambda);
+    const noGoal = poissonPMF(0, adjustedHomeLambda) * poissonPMF(0, adjustedAwayLambda);
+    
+    // 简化计算：根据 lambda 比例分配
+    const totalLambda = adjustedHomeLambda + adjustedAwayLambda;
+    let homeProb = 0;
+    let awayProb = 0;
+    
+    if (totalLambda > 0) {
+      const goalProb = 1 - noGoal;
+      homeProb = goalProb * (adjustedHomeLambda / totalLambda);
+      awayProb = goalProb * (adjustedAwayLambda / totalLambda);
+    }
+    
+    // 归一化
+    const total = homeProb + awayProb + noGoal;
+    homeProb /= total;
+    awayProb /= total;
+    const noGoalProb = noGoal / total;
+    
+    // 确定推荐
+    let recommendation: 'HOME' | 'AWAY' | 'NO_GOAL' | 'NEUTRAL' = 'NEUTRAL';
+    const maxProb = Math.max(homeProb, awayProb, noGoalProb);
+    if (maxProb > 0.45) {
+      if (homeProb === maxProb) recommendation = 'HOME';
+      else if (awayProb === maxProb) recommendation = 'AWAY';
+      else recommendation = 'NO_GOAL';
+    }
+    
+    // 预计下一球时间
+    const expectedMinutes = totalLambda > 0 
+      ? Math.round(stats.minute + remainingMinutes / (totalLambda * 2))
+      : 90;
+    
+    return {
+      homeProb: Math.round(homeProb * 10000) / 10000,
+      awayProb: Math.round(awayProb * 10000) / 10000,
+      noGoalProb: Math.round(noGoalProb * 10000) / 10000,
+      recommendation,
+      confidence: Math.round(maxProb * 1000) / 1000,
+      expectedMinutes: Math.min(90, expectedMinutes),
+    };
+  }
+
+  /**
+   * 生成完整的进球投注建议
+   */
+  generateGoalBettingTips(stats: MatchStats): GoalBettingTips {
+    const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
+    
+    // 计算各个大小球盘口
+    const lines = [0.5, 1.5, 2.5, 3.5, 4.5];
+    const overUnder = lines.map(line => this.calculateOverUnder(stats, line));
+    
+    // 计算下一球预测
+    const nextGoal = this.calculateNextGoal(stats);
+    
+    // 计算预期进球
+    const totalExpectedGoals = homeLambda + awayLambda + stats.homeScore + stats.awayScore;
+    const remainingExpectedGoals = homeLambda + awayLambda;
+    
+    // 找出高置信度推荐
+    let highConfidenceTip: GoalBettingTips['highConfidenceTip'] = null;
+    
+    // 检查大小球推荐
+    for (const ou of overUnder) {
+      if (ou.confidence >= 0.7 && ou.recommendation !== 'NEUTRAL') {
+        const prob = ou.recommendation === 'OVER' ? ou.overProb : ou.underProb;
+        if (!highConfidenceTip || prob > highConfidenceTip.probability) {
+          highConfidenceTip = {
+            type: ou.recommendation,
+            line: ou.line,
+            probability: prob,
+            confidence: ou.confidence,
+            description: ou.recommendation === 'OVER' 
+              ? `大${ou.line}球 (概率 ${(prob * 100).toFixed(1)}%)`
+              : `小${ou.line}球 (概率 ${(prob * 100).toFixed(1)}%)`,
+          };
+        }
+      }
+    }
+    
+    // 检查下一球推荐
+    if (nextGoal.confidence >= 0.7 && nextGoal.recommendation !== 'NEUTRAL') {
+      const prob = nextGoal.recommendation === 'HOME' ? nextGoal.homeProb 
+        : nextGoal.recommendation === 'AWAY' ? nextGoal.awayProb 
+        : nextGoal.noGoalProb;
+      
+      if (!highConfidenceTip || prob > highConfidenceTip.probability) {
+        const typeMap = {
+          'HOME': 'NEXT_GOAL_HOME' as const,
+          'AWAY': 'NEXT_GOAL_AWAY' as const,
+          'NO_GOAL': 'NONE' as const,
+          'NEUTRAL': 'NONE' as const,
+        };
+        
+        highConfidenceTip = {
+          type: typeMap[nextGoal.recommendation],
+          probability: prob,
+          confidence: nextGoal.confidence,
+          description: nextGoal.recommendation === 'HOME' 
+            ? `主队进下一球 (概率 ${(prob * 100).toFixed(1)}%)`
+            : nextGoal.recommendation === 'AWAY'
+            ? `客队进下一球 (概率 ${(prob * 100).toFixed(1)}%)`
+            : `不再进球 (概率 ${(prob * 100).toFixed(1)}%)`,
+        };
+      }
+    }
+    
+    return {
+      overUnder,
+      nextGoal,
+      totalExpectedGoals: Math.round(totalExpectedGoals * 100) / 100,
+      remainingExpectedGoals: Math.round(remainingExpectedGoals * 100) / 100,
+      highConfidenceTip,
+    };
+  }
+}
+
+// =============================================================================
+// 5. 交易信号生成器 (Trading Signal Generator)
 // =============================================================================
 
 export class TradingSignalGenerator {
@@ -724,5 +961,6 @@ export default {
   LiveProbability,
   AsianHandicapPricer,
   TradingSignalGenerator,
+  GoalPredictor,
   predictMatch,
 };

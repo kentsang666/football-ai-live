@@ -15,9 +15,13 @@ import {
   LiveProbability,
   AsianHandicapPricer,
   TradingSignalGenerator,
+  GoalPredictor,
   MatchStats,
   AsianHandicapOdds,
   PredictionResult,
+  GoalBettingTips,
+  GoalPrediction,
+  NextGoalPrediction,
 } from './quantPredictService';
 
 export interface MatchData {
@@ -70,6 +74,7 @@ export interface Prediction {
     dominantTeam: string;
   };
   asianHandicap?: AsianHandicapOdds[];
+  goalBettingTips?: GoalBettingTips;  // 🟢 新增：进球投注建议
 }
 
 /**
@@ -191,6 +196,10 @@ export class PredictionService {
     // 获取亚洲盘口数据
     const asianHandicap = this.handicapPricer.getAllHandicapLines(stats);
 
+    // 🟢 新增：获取进球投注建议
+    const goalPredictor = new GoalPredictor();
+    const goalBettingTips = goalPredictor.generateGoalBettingTips(stats);
+
     return {
       match_id: match.match_id,
       home_team: match.home_team,
@@ -214,6 +223,7 @@ export class PredictionService {
       },
       pressureAnalysis: prediction.pressureAnalysis,
       asianHandicap,
+      goalBettingTips,  // 🟢 新增：进球投注建议
     };
   }
 
