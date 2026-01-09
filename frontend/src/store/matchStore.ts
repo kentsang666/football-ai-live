@@ -35,6 +35,9 @@ export interface MatchData {
   status: 'live' | 'halftime' | 'finished' | 'not_started';
   league: string;
   timestamp: string;
+  // 🟢 新增：红牌数据
+  home_red_cards?: number;
+  away_red_cards?: number;
 }
 
 // AI 预测数据类型 (v2.1 更新)

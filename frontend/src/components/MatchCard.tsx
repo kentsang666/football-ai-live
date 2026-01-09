@@ -60,8 +60,16 @@ export function MatchCard({ match }: MatchCardProps) {
       <div className="flex items-center justify-between mb-3">
         {/* 主队 */}
         <div className="flex-1 text-center">
-          <div className={`text-sm font-medium truncate ${homeLeading ? 'text-white' : 'text-slate-300'}`}>
-            {match.home_team}
+          <div className="flex items-center justify-center gap-1">
+            <span className={`text-sm font-medium truncate ${homeLeading ? 'text-white' : 'text-slate-300'}`}>
+              {match.home_team}
+            </span>
+            {/* 🟢 主队红牌显示 */}
+            {(match.home_red_cards ?? 0) > 0 && (
+              <span className="inline-flex items-center justify-center w-4 h-5 bg-red-600 text-white text-[10px] font-bold rounded-sm">
+                {match.home_red_cards}
+              </span>
+            )}
           </div>
           <div className="text-xs text-slate-500 mt-0.5">主场</div>
         </div>
@@ -79,8 +87,16 @@ export function MatchCard({ match }: MatchCardProps) {
 
         {/* 客队 */}
         <div className="flex-1 text-center">
-          <div className={`text-sm font-medium truncate ${awayLeading ? 'text-white' : 'text-slate-300'}`}>
-            {match.away_team}
+          <div className="flex items-center justify-center gap-1">
+            {/* 🟢 客队红牌显示 */}
+            {(match.away_red_cards ?? 0) > 0 && (
+              <span className="inline-flex items-center justify-center w-4 h-5 bg-red-600 text-white text-[10px] font-bold rounded-sm">
+                {match.away_red_cards}
+              </span>
+            )}
+            <span className={`text-sm font-medium truncate ${awayLeading ? 'text-white' : 'text-slate-300'}`}>
+              {match.away_team}
+            </span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">客场</div>
         </div>
