@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Activity, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { MatchCard } from './MatchCard';
 import { AlertToast } from './AlertToast';
@@ -169,6 +170,15 @@ export function LiveMatchDashboard() {
                 <span>{unreadCount} 新推荐</span>
               </div>
             )}
+
+            {/* 历史记录链接 */}
+            <Link 
+              to="/history"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 transition-colors text-sm text-slate-300 hover:text-white"
+            >
+              <span>📜</span>
+              <span>历史记录</span>
+            </Link>
 
             {/* 刷新按钮 */}
             <button 

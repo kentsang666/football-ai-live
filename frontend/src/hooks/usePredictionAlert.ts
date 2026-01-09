@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { MatchState } from '../store/matchStore';
+import { historyLogService } from '../services/historyLogService';
 
 // ===========================================
 // 类型定义
@@ -402,6 +403,21 @@ export function usePredictionAlert(
 
             triggerAlert(alert);
             notifiedSet.current.add(key);
+
+            // 保存到历史记录
+            historyLogService.addEntry({
+              timestamp: Date.now(),
+              matchId: match.match_id,
+              matchName: `${match.home_team} vs ${match.away_team}`,
+              league: match.league || '',
+              scoreWhenTip: `${match.home_score}-${match.away_score}`,
+              minuteWhenTip: match.minute || 0,
+              type: 'HANDICAP',
+              selection: `${teamName} ${handicapRec.recommendedLine}`,
+              odds: handicapRec.marketOdds || 1.90,
+              confidence: handicapRec.confidence,
+              valueEdge: handicapRec.valueEdge || 0,
+            });
           }
         }
       }
@@ -429,6 +445,21 @@ export function usePredictionAlert(
 
             triggerAlert(alert);
             notifiedSet.current.add(key);
+
+            // 保存到历史记录
+            historyLogService.addEntry({
+              timestamp: Date.now(),
+              matchId: match.match_id,
+              matchName: `${match.home_team} vs ${match.away_team}`,
+              league: match.league || '',
+              scoreWhenTip: `${match.home_score}-${match.away_score}`,
+              minuteWhenTip: match.minute || 0,
+              type: 'OVER_UNDER',
+              selection: highTip.description || `${highTip.type} ${highTip.line}`,
+              odds: 1.90,  // HighConfidenceTip 没有 odds 字段
+              confidence: highTip.confidence,
+              valueEdge: 0,  // HighConfidenceTip 没有 valueEdge 字段
+            });
           }
         }
       }
