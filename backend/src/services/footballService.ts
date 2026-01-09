@@ -64,22 +64,41 @@ interface APIFootballResponse {
 // 联赛名称映射表（用于日志显示）
 // ===========================================
 const LEAGUE_NAMES: Record<number, string> = {
+    // 五大联赛
     39: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英超 (Premier League)',
     140: '🇪🇸 西甲 (La Liga)',
     135: '🇮🇹 意甲 (Serie A)',
     78: '🇩🇪 德甲 (Bundesliga)',
     61: '🇫🇷 法甲 (Ligue 1)',
-    2: '🏆 欧冠 (Champions League)',
-    3: '🏆 欧联 (Europa League)',
+    
+    // 欧洲赛事
+    2: '🏆 欧冠 (UEFA Champions League)',
+    3: '🏆 欧联杯 (UEFA Europa League)',
+    5: '🏆 欧洲国联 (UEFA Nations League)',
+    4: '🏆 欧洲杯 (Euro Championship)',
     848: '🏆 欧会杯 (Conference League)',
-    94: '🇵🇹 葡超 (Primeira Liga)',
+    
+    // 其他欧洲联赛
     88: '🇳🇱 荷甲 (Eredivisie)',
-    144: '🇧🇪 比甲 (Pro League)',
+    94: '🇵🇹 葡超 (Primeira Liga)',
     203: '🇹🇷 土超 (Süper Lig)',
+    144: '🇧🇪 比甲 (Pro League)',
     179: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 苏超 (Scottish Premiership)',
-    253: '🇺🇸 MLS (Major League Soccer)',
-    71: '🇧🇷 巴甲 (Brasileirão)',
+    
+    // 美洲联赛
+    71: '🇧🇷 巴甲 (Brasileirão Serie A)',
+    253: '🇺🇸 美职联 (MLS)',
     128: '🇦🇷 阿甲 (Liga Profesional)',
+    
+    // 亚洲联赛
+    169: '🇨🇳 中超 (Chinese Super League)',
+    98: '🇯🇵 日职联 (J1 League)',
+    292: '🇰🇷 K联赛1 (K League 1)',
+    307: '🇸🇦 沙特超 (Saudi Pro League)',
+    
+    // 国际赛事
+    1: '🌍 世界杯 (FIFA World Cup)',
+    7: '🌏 亚洲杯 (AFC Asian Cup)',
 };
 
 // ===========================================
