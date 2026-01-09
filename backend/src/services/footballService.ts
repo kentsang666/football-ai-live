@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 // Redis 类型在运行时动态处理
 import { Server } from 'socket.io';
+import { getTeamChineseName } from '../data/teamNames';
 
 // ===========================================
 // 类型定义
@@ -444,10 +445,14 @@ export class FootballService {
         const chineseLeagueName = getLeagueChineseName(leagueId, fixture.league.name);
         const chineseCountry = getCountryChineseName(leagueId, fixture.league.country);
         
+        // 获取中文球队名称
+        const homeTeamChinese = getTeamChineseName(fixture.teams.home.name);
+        const awayTeamChinese = getTeamChineseName(fixture.teams.away.name);
+        
         return {
             match_id: `api-${fixture.fixture.id}`,
-            home_team: fixture.teams.home.name,
-            away_team: fixture.teams.away.name,
+            home_team: homeTeamChinese,  // 使用中文球队名
+            away_team: awayTeamChinese,  // 使用中文球队名
             home_score: fixture.goals.home ?? 0,
             away_score: fixture.goals.away ?? 0,
             minute: fixture.fixture.status.elapsed ?? 0,
