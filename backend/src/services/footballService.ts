@@ -201,9 +201,16 @@ const LEAGUE_INFO: Record<number, LeagueInfo> = {
     305: { name: '卡塔尔联赛', fullName: '🇶🇦 卡塔尔联赛 (Stars League)', country: '卡塔尔' },
     233: { name: '埃及超', fullName: '🇪🇬 埃及超 (Premier League)', country: '埃及' },
     
+    // 其他联赛
+    318: { name: '塞浦甲', fullName: '🇨🇾 塞浦甲 (Cyprus 1st Division)', country: '塞浦路斯' },
+    186: { name: '阿尔甲', fullName: '🇩🇿 阿尔甲 (Ligue 1)', country: '阿尔及利亚' },
+    204: { name: '土甲', fullName: '🇹🇷 土甲 (TFF 1. Lig)', country: '土耳其' },
+    180: { name: '苏冠', fullName: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 苏冠 (Championship)', country: '苏格兰' },
+    
     // 国际赛事
     1: { name: '世界杯', fullName: '🌍 世界杯 (FIFA World Cup)', country: '国际' },
     7: { name: '亚洲杯', fullName: '🌏 亚洲杯 (AFC Asian Cup)', country: '亚洲' },
+    6: { name: '非洲杯', fullName: '🌍 非洲杯 (Africa Cup of Nations)', country: '非洲' },
     // 667: { name: '球会友谊', fullName: '⚽ 球会友谊 (Club Friendlies)', country: '国际' }, // 已移除，不监听友谊赛
 };
 
