@@ -67,6 +67,9 @@ export interface MatchData {
     league_id: number;  // 新增：联赛ID用于过滤
     timestamp: string;
     liveOdds?: LiveOdds;  // 🟢 新增：实时赔率数据
+    // 🟢 新增：红牌数据
+    home_red_cards?: number;
+    away_red_cards?: number;
 }
 
 // 比赛事件（用于发送给 AI 和前端）
@@ -103,6 +106,22 @@ interface APIFootballFixture {
         home: number | null;
         away: number | null;
     };
+    // 🟢 新增：红牌数据
+    statistics?: Array<{
+        team: { id: number; name: string; };
+        statistics: Array<{
+            type: string;
+            value: number | string | null;
+        }>;
+    }>;
+    // 🟢 新增：比赛事件（包含红牌）
+    events?: Array<{
+        time: { elapsed: number; extra: number | null };
+        team: { id: number; name: string; };
+        player: { id: number; name: string; };
+        type: string;  // 'Card', 'Goal', 'subst', etc.
+        detail: string;  // 'Red Card', 'Yellow Card', 'Normal Goal', etc.
+    }>;
 }
 
 interface APIFootballResponse {
@@ -408,6 +427,24 @@ export class FootballService {
 
             const fixtures = response.data.response;
             const totalCount = fixtures.length;
+            
+            // 🟢 调试：查看第一场比赛的原始数据结构
+            if (fixtures.length > 0) {
+                const firstFixture = fixtures[0] as any;
+                if (firstFixture) {
+                    console.log(`[调试] 第一场比赛数据结构: ${Object.keys(firstFixture).join(', ')}`);
+                    if (firstFixture.events) {
+                        console.log(`[调试] events 字段存在，包含 ${firstFixture.events.length} 个事件`);
+                    } else {
+                        console.log(`[调试] events 字段不存在`);
+                    }
+                    if (firstFixture.statistics) {
+                        console.log(`[调试] statistics 字段存在`);
+                    } else {
+                        console.log(`[调试] statistics 字段不存在`);
+                    }
+                }
+            }
             
             // 统计过滤结果
             let processedCount = 0;
@@ -902,6 +939,22 @@ export class FootballService {
         const homeTeamChinese = getTeamChineseName(fixture.teams.home.name);
         const awayTeamChinese = getTeamChineseName(fixture.teams.away.name);
         
+        // 🟢 新增：从比赛事件中统计红牌数
+        let homeRedCards = 0;
+        let awayRedCards = 0;
+        
+        if (fixture.events && fixture.events.length > 0) {
+            for (const event of fixture.events) {
+                if (event.type === 'Card' && event.detail === 'Red Card') {
+                    if (event.team.id === fixture.teams.home.id) {
+                        homeRedCards++;
+                    } else if (event.team.id === fixture.teams.away.id) {
+                        awayRedCards++;
+                    }
+                }
+            }
+        }
+        
         return {
             match_id: `api-${fixture.fixture.id}`,
             home_team: homeTeamChinese,  // 使用中文球队名
@@ -912,7 +965,10 @@ export class FootballService {
             status: statusMap[fixture.fixture.status.short] || 'live',
             league: `${chineseCountry} - ${chineseLeagueName}`,  // 使用中文名称
             league_id: fixture.league.id,  // 保存联赛ID
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            // 🟢 新增：红牌数据
+            home_red_cards: homeRedCards,
+            away_red_cards: awayRedCards
         };
     }
 
