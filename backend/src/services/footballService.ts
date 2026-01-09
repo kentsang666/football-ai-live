@@ -16,6 +16,7 @@ export interface MatchData {
     minute: number;
     status: 'live' | 'halftime' | 'finished' | 'not_started';
     league: string;
+    league_id: number;  // 新增：联赛ID用于过滤
     timestamp: string;
 }
 
@@ -41,6 +42,7 @@ interface APIFootballFixture {
         };
     };
     league: {
+        id: number;     // 联赛ID
         name: string;
         country: string;
     };
@@ -59,6 +61,28 @@ interface APIFootballResponse {
 }
 
 // ===========================================
+// 联赛名称映射表（用于日志显示）
+// ===========================================
+const LEAGUE_NAMES: Record<number, string> = {
+    39: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英超 (Premier League)',
+    140: '🇪🇸 西甲 (La Liga)',
+    135: '🇮🇹 意甲 (Serie A)',
+    78: '🇩🇪 德甲 (Bundesliga)',
+    61: '🇫🇷 法甲 (Ligue 1)',
+    2: '🏆 欧冠 (Champions League)',
+    3: '🏆 欧联 (Europa League)',
+    848: '🏆 欧会杯 (Conference League)',
+    94: '🇵🇹 葡超 (Primeira Liga)',
+    88: '🇳🇱 荷甲 (Eredivisie)',
+    144: '🇧🇪 比甲 (Pro League)',
+    203: '🇹🇷 土超 (Süper Lig)',
+    179: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 苏超 (Scottish Premiership)',
+    253: '🇺🇸 MLS (Major League Soccer)',
+    71: '🇧🇷 巴甲 (Brasileirão)',
+    128: '🇦🇷 阿甲 (Liga Profesional)',
+};
+
+// ===========================================
 // FootballService 类
 // ===========================================
 
@@ -72,13 +96,17 @@ export class FootballService {
     
     // 缓存上一次的比赛状态，用于差异检测
     private matchCache: Map<string, MatchData> = new Map();
+    
+    // 联赛白名单
+    private allowedLeagues: number[] = [];
 
     constructor(
         apiKey: string,
         apiUrl: string,
         redisPub: any,
         io: Server,
-        pollInterval: number = 15
+        pollInterval: number = 15,
+        allowedLeagues: number[] = []
     ) {
         // 初始化 API 客户端
         this.apiClient = axios.create({
@@ -93,6 +121,45 @@ export class FootballService {
         this.redisPub = redisPub;
         this.io = io;
         this.pollInterval = pollInterval * 1000; // 转换为毫秒
+        this.allowedLeagues = allowedLeagues;
+        
+        // 启动时打印联赛白名单配置
+        this.logLeagueFilterConfig();
+    }
+
+    // ===========================================
+    // 打印联赛白名单配置
+    // ===========================================
+    
+    private logLeagueFilterConfig(): void {
+        console.log('\n' + '='.repeat(60));
+        console.log('⚽ 联赛白名单过滤配置');
+        console.log('='.repeat(60));
+        
+        if (this.allowedLeagues.length === 0) {
+            console.log('📋 模式: 不过滤 (监听所有联赛)');
+        } else {
+            console.log(`📋 模式: 白名单过滤 (仅监听 ${this.allowedLeagues.length} 个联赛)`);
+            console.log('📋 监听的联赛列表:');
+            this.allowedLeagues.forEach(leagueId => {
+                const leagueName = LEAGUE_NAMES[leagueId] || `未知联赛 (ID: ${leagueId})`;
+                console.log(`   ✅ ${leagueId}: ${leagueName}`);
+            });
+        }
+        
+        console.log('='.repeat(60) + '\n');
+    }
+
+    // ===========================================
+    // 检查联赛是否在白名单中
+    // ===========================================
+    
+    private isLeagueAllowed(leagueId: number): boolean {
+        // 如果白名单为空，允许所有联赛
+        if (this.allowedLeagues.length === 0) {
+            return true;
+        }
+        return this.allowedLeagues.includes(leagueId);
     }
 
     // ===========================================
@@ -139,11 +206,35 @@ export class FootballService {
             });
 
             const fixtures = response.data.response;
-            console.log(`📊 获取到 ${fixtures.length} 场正在进行的比赛`);
+            const totalCount = fixtures.length;
+            
+            // 统计过滤结果
+            let processedCount = 0;
+            let skippedCount = 0;
+            const skippedLeagues = new Set<string>();
 
             // 处理每场比赛
             for (const fixture of fixtures) {
+                // 联赛白名单过滤
+                if (!this.isLeagueAllowed(fixture.league.id)) {
+                    skippedCount++;
+                    skippedLeagues.add(`${fixture.league.country} - ${fixture.league.name}`);
+                    continue; // 跳过不在白名单中的联赛
+                }
+                
                 await this.processFixture(fixture);
+                processedCount++;
+            }
+
+            // 打印过滤统计
+            if (this.allowedLeagues.length > 0) {
+                console.log(`📊 获取到 ${totalCount} 场比赛 | ✅ 处理: ${processedCount} | ⏭️ 跳过: ${skippedCount}`);
+                if (skippedLeagues.size > 0 && skippedLeagues.size <= 5) {
+                    // 只在跳过的联赛较少时显示详情
+                    console.log(`   跳过的联赛: ${Array.from(skippedLeagues).join(', ')}`);
+                }
+            } else {
+                console.log(`📊 获取到 ${totalCount} 场正在进行的比赛`);
             }
 
         } catch (error) {
@@ -223,6 +314,7 @@ export class FootballService {
             minute: fixture.fixture.status.elapsed ?? 0,
             status: statusMap[fixture.fixture.status.short] || 'live',
             league: `${fixture.league.country} - ${fixture.league.name}`,
+            league_id: fixture.league.id,  // 保存联赛ID
             timestamp: new Date().toISOString()
         };
     }
@@ -316,6 +408,14 @@ export class FootballService {
             }
         }
     }
+    
+    // ===========================================
+    // 获取当前联赛白名单配置
+    // ===========================================
+    
+    public getAllowedLeagues(): number[] {
+        return [...this.allowedLeagues];
+    }
 }
 
 // ===========================================
@@ -329,10 +429,15 @@ export function createFootballService(
     const apiKey = process.env.API_FOOTBALL_KEY || '';
     const apiUrl = process.env.API_FOOTBALL_URL || 'https://v3.football.api-sports.io';
     const pollInterval = parseInt(process.env.POLL_INTERVAL || '15', 10);
+    
+    // 解析联赛白名单
+    const allowedLeagues = process.env.ALLOWED_LEAGUE_IDS 
+        ? process.env.ALLOWED_LEAGUE_IDS.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+        : [];
 
     if (!apiKey || apiKey === 'your_api_key_here') {
         console.warn('⚠️ API_FOOTBALL_KEY 未配置，请在 .env 文件中设置');
     }
 
-    return new FootballService(apiKey, apiUrl, redisPub, io, pollInterval);
+    return new FootballService(apiKey, apiUrl, redisPub, io, pollInterval, allowedLeagues);
 }
