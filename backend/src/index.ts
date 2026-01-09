@@ -483,7 +483,20 @@ function startMatchSimulation() {
 
 app.get('/api/matches/live', (req, res) => {
     if (DATA_MODE === 'live' && footballService) {
-        const matches = footballService.getLiveMatches();
+        const allMatches = footballService.getLiveMatches();
+        
+        // 🟢 过滤：只返回有滚球赔率数据的比赛
+        const matches = allMatches.filter((match: any) => {
+            // 必须有 liveOdds 且至少有亚盘或大小球数据
+            const hasOdds = match.liveOdds && 
+                (match.liveOdds.asianHandicap?.length > 0 || match.liveOdds.overUnder?.length > 0);
+            if (!hasOdds) {
+                console.log(`⚠️ [过滤] ${match.home_team} vs ${match.away_team} - 无滚球赔率数据`);
+            }
+            return hasOdds;
+        });
+        
+        console.log(`📊 [比赛过滤] 总数: ${allMatches.length}, 有赔率: ${matches.length}, 过滤: ${allMatches.length - matches.length}`);
         
         // 为每场比赛添加预测
         const matchesWithPredictions = matches.map((match: any) => {

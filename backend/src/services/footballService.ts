@@ -484,7 +484,7 @@ export class FootballService {
 
     // 缓存滚球赔率数据，避免重复请求
     private liveOddsCache: Map<number, { data: LiveOdds; timestamp: number }> = new Map();
-    private readonly LIVE_ODDS_CACHE_TTL = 10000; // 10秒缓存
+    private readonly LIVE_ODDS_CACHE_TTL = 5000; // 5秒缓存
 
     private async fetchLiveOdds(fixtureId: number): Promise<LiveOdds | null> {
         try {
