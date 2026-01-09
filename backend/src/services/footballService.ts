@@ -520,6 +520,26 @@ export class FootballService {
             console.warn(`⚠️ 获取赔率失败 [${matchData.match_id}]:`, error);
         }
         
+        // 🟢 2.5. 获取比赛统计数据
+        try {
+            const stats = await this.fetchMatchStatistics(fixture.fixture.id);
+            if (stats) {
+                matchData.home_shots_on_target = stats.homeShotsOnTarget;
+                matchData.away_shots_on_target = stats.awayShotsOnTarget;
+                matchData.home_shots_off_target = stats.homeShotsOffTarget;
+                matchData.away_shots_off_target = stats.awayShotsOffTarget;
+                matchData.home_corners = stats.homeCorners;
+                matchData.away_corners = stats.awayCorners;
+                matchData.home_possession = stats.homePossession;
+                matchData.away_possession = stats.awayPossession;
+                matchData.home_dangerous_attacks = stats.homeDangerousAttacks;
+                matchData.away_dangerous_attacks = stats.awayDangerousAttacks;
+            }
+        } catch (error) {
+            // 统计数据获取失败不影响主流程
+            console.warn(`⚠️ 获取统计数据失败 [${matchData.match_id}]:`, error);
+        }
+        
         // 3. 差异检测：检查是否有变化
         const cachedMatch = this.matchCache.get(matchData.match_id);
         const hasChanged = this.detectChanges(cachedMatch, matchData);
@@ -911,6 +931,85 @@ export class FootballService {
 
         console.log(`[赛前盘口] 解析失败: fixture=${fixtureId}, 未找到亚盘或大小球数据`);
         return null;
+    }
+
+    // ===========================================
+    // 🟢 获取比赛统计数据 (Match Statistics)
+    // ===========================================
+
+    // 缓存统计数据，避免重复请求
+    private statsCache: Map<number, { data: any; timestamp: number }> = new Map();
+    private readonly STATS_CACHE_TTL = 30000; // 30秒缓存
+
+    private async fetchMatchStatistics(fixtureId: number): Promise<{
+        homeShotsOnTarget?: number | undefined;
+        awayShotsOnTarget?: number | undefined;
+        homeShotsOffTarget?: number | undefined;
+        awayShotsOffTarget?: number | undefined;
+        homeCorners?: number | undefined;
+        awayCorners?: number | undefined;
+        homePossession?: number | undefined;
+        awayPossession?: number | undefined;
+        homeDangerousAttacks?: number | undefined;
+        awayDangerousAttacks?: number | undefined;
+    } | null> {
+        try {
+            // 检查缓存
+            const cached = this.statsCache.get(fixtureId);
+            if (cached && Date.now() - cached.timestamp < this.STATS_CACHE_TTL) {
+                return cached.data;
+            }
+
+            // 调用 API-Football 的 /fixtures/statistics 接口
+            const response = await this.apiClient.get('/fixtures/statistics', {
+                params: { fixture: fixtureId }
+            });
+
+            const statsData = response.data.response;
+            if (!statsData || statsData.length < 2) {
+                console.log(`[统计数据] 无数据: fixture=${fixtureId}`);
+                return null;
+            }
+
+            // API 返回两个元素：[0] = 主队, [1] = 客队
+            const homeStats = statsData[0]?.statistics || [];
+            const awayStats = statsData[1]?.statistics || [];
+
+            // 辅助函数：从统计数组中提取指定类型的值
+            const getStat = (stats: any[], type: string): number | undefined => {
+                const stat = stats.find((s: any) => s.type === type);
+                if (stat && stat.value !== null) {
+                    // 处理百分比字符串 (e.g., "55%")
+                    if (typeof stat.value === 'string' && stat.value.includes('%')) {
+                        return parseFloat(stat.value.replace('%', ''));
+                    }
+                    return typeof stat.value === 'number' ? stat.value : parseInt(stat.value, 10);
+                }
+                return undefined;
+            };
+
+            const result = {
+                homeShotsOnTarget: getStat(homeStats, 'Shots on Goal'),
+                awayShotsOnTarget: getStat(awayStats, 'Shots on Goal'),
+                homeShotsOffTarget: getStat(homeStats, 'Shots off Goal'),
+                awayShotsOffTarget: getStat(awayStats, 'Shots off Goal'),
+                homeCorners: getStat(homeStats, 'Corner Kicks'),
+                awayCorners: getStat(awayStats, 'Corner Kicks'),
+                homePossession: getStat(homeStats, 'Ball Possession'),
+                awayPossession: getStat(awayStats, 'Ball Possession'),
+                homeDangerousAttacks: getStat(homeStats, 'Dangerous Attacks'),
+                awayDangerousAttacks: getStat(awayStats, 'Dangerous Attacks'),
+            };
+
+            console.log(`[统计数据] 获取成功: fixture=${fixtureId}, 射正=${result.homeShotsOnTarget}-${result.awayShotsOnTarget}, 角球=${result.homeCorners}-${result.awayCorners}, 控球=${result.homePossession}%-${result.awayPossession}%`);
+
+            // 缓存结果
+            this.statsCache.set(fixtureId, { data: result, timestamp: Date.now() });
+            return result;
+        } catch (error: any) {
+            console.warn(`[统计数据] 获取失败: fixture=${fixtureId}, ${error.message}`);
+            return null;
+        }
     }
 
     // ===========================================
