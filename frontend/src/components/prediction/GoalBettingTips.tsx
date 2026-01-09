@@ -195,14 +195,87 @@ export function GoalBettingTips({
             </div>
           )}
 
+          {/* 🟢 AI 让球盘推荐区域 */}
+          {tips.handicapRecommendation && (
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border-2 border-amber-500/50 relative overflow-hidden">
+              {/* AI 推荐标签 */}
+              <div className="absolute top-0 right-0 bg-amber-500 text-black text-xs font-bold px-3 py-1 rounded-bl-lg">
+                🤖 AI 推荐
+              </div>
+              
+              <div className="flex items-center gap-3 mb-3">
+                <div className="text-lg font-bold text-amber-400">
+                  🎯 让球盘推荐
+                </div>
+                <div className="text-xs text-slate-400">
+                  置信度: {(tips.handicapRecommendation.confidence * 100).toFixed(0)}%
+                </div>
+              </div>
+              
+              {/* 推荐内容 */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-4">
+                  {/* 推荐方向 */}
+                  <div className={`px-4 py-2 rounded-lg font-bold text-lg ${
+                    tips.handicapRecommendation.recommendedSide === 'HOME'
+                      ? 'bg-blue-500/30 text-blue-300 ring-2 ring-blue-500'
+                      : 'bg-red-500/30 text-red-300 ring-2 ring-red-500'
+                  }`}>
+                    {tips.handicapRecommendation.recommendedSide === 'HOME' ? homeTeam : awayTeam}
+                  </div>
+                  
+                  {/* 盘口 */}
+                  <div className="text-center">
+                    <div className="text-xs text-slate-400">盘口</div>
+                    <div className="text-xl font-bold text-white">
+                      {tips.handicapRecommendation.recommendedLine}
+                    </div>
+                  </div>
+                  
+                  {/* 赢盘率 */}
+                  <div className="text-center">
+                    <div className="text-xs text-slate-400">赢盘率</div>
+                    <div className="text-xl font-bold text-green-400">
+                      {(tips.handicapRecommendation.winProbability * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 优势值 */}
+                <div className="text-right">
+                  <div className="text-xs text-slate-400">AI 预测分差</div>
+                  <div className={`text-lg font-bold ${
+                    tips.handicapRecommendation.predictedMargin > 0 ? 'text-blue-400' : 
+                    tips.handicapRecommendation.predictedMargin < 0 ? 'text-red-400' : 'text-slate-400'
+                  }`}>
+                    {tips.handicapRecommendation.predictedMargin > 0 ? '+' : ''}
+                    {tips.handicapRecommendation.predictedMargin.toFixed(1)}
+                  </div>
+                </div>
+              </div>
+              
+              {/* 推荐理由 */}
+              <div className="text-sm text-slate-300 bg-slate-800/50 rounded-lg p-3">
+                💡 {tips.handicapRecommendation.reason}
+              </div>
+            </div>
+          )}
+
           {/* 主盘口卡片 - 亚洲盘和大小球并排显示 */}
           <div className="grid grid-cols-2 gap-3">
             {/* 亚洲盘口主盘 */}
             {mainAsianHandicap && (
-              <div className={`p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 ${mainAsianHandicap.suspended ? 'opacity-50' : ''}`}>
+              <div className={`p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border ${
+                tips.handicapRecommendation 
+                  ? 'border-amber-500/50 ring-2 ring-amber-500/30' 
+                  : 'border-purple-500/20'
+              } ${mainAsianHandicap.suspended ? 'opacity-50' : ''}`}>
                 <div className="text-xs text-purple-400 mb-2 font-medium flex items-center gap-1">
                   🎯 亚洲盘口
                   <span className="text-amber-400">★ 主盘</span>
+                  {tips.handicapRecommendation && (
+                    <span className="text-amber-400 text-[10px] bg-amber-500/20 px-1 rounded">← AI 推荐</span>
+                  )}
                 </div>
                 <div className="text-center mb-3">
                   <span className="text-2xl font-bold text-white">
@@ -211,27 +284,41 @@ export function GoalBettingTips({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center">
                   <div className={`rounded-lg p-2 transition-all duration-300 ${
-                    oddsChange?.asianHandicap?.home !== 'same' 
-                      ? getOddsChangeStyle(oddsChange?.asianHandicap?.home).bgColor 
-                      : 'bg-blue-500/10'
+                    tips.handicapRecommendation?.recommendedSide === 'HOME'
+                      ? 'bg-amber-500/30 ring-2 ring-amber-500'
+                      : oddsChange?.asianHandicap?.home !== 'same' 
+                        ? getOddsChangeStyle(oddsChange?.asianHandicap?.home).bgColor 
+                        : 'bg-blue-500/10'
                   }`}>
-                    <div className="text-[10px] text-blue-400 truncate">{homeTeam}</div>
+                    <div className="text-[10px] text-blue-400 truncate">
+                      {homeTeam}
+                      {tips.handicapRecommendation?.recommendedSide === 'HOME' && (
+                        <span className="text-amber-400 ml-1">★</span>
+                      )}
+                    </div>
                     <OddsValue 
                       value={mainAsianHandicap.home} 
                       direction={oddsChange?.asianHandicap?.home}
-                      baseColor="text-blue-400"
+                      baseColor={tips.handicapRecommendation?.recommendedSide === 'HOME' ? 'text-amber-400' : 'text-blue-400'}
                     />
                   </div>
                   <div className={`rounded-lg p-2 transition-all duration-300 ${
-                    oddsChange?.asianHandicap?.away !== 'same' 
-                      ? getOddsChangeStyle(oddsChange?.asianHandicap?.away).bgColor 
-                      : 'bg-red-500/10'
+                    tips.handicapRecommendation?.recommendedSide === 'AWAY'
+                      ? 'bg-amber-500/30 ring-2 ring-amber-500'
+                      : oddsChange?.asianHandicap?.away !== 'same' 
+                        ? getOddsChangeStyle(oddsChange?.asianHandicap?.away).bgColor 
+                        : 'bg-red-500/10'
                   }`}>
-                    <div className="text-[10px] text-red-400 truncate">{awayTeam}</div>
+                    <div className="text-[10px] text-red-400 truncate">
+                      {awayTeam}
+                      {tips.handicapRecommendation?.recommendedSide === 'AWAY' && (
+                        <span className="text-amber-400 ml-1">★</span>
+                      )}
+                    </div>
                     <OddsValue 
                       value={mainAsianHandicap.away} 
                       direction={oddsChange?.asianHandicap?.away}
-                      baseColor="text-red-400"
+                      baseColor={tips.handicapRecommendation?.recommendedSide === 'AWAY' ? 'text-amber-400' : 'text-red-400'}
                     />
                   </div>
                 </div>
