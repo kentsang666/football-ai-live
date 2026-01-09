@@ -206,6 +206,9 @@ export class MatchStore {
         existing.status = match.status;
         existing.league = match.league;
         existing.timestamp = match.timestamp;
+        // 🟢 新增：更新红牌数据
+        existing.home_red_cards = match.home_red_cards;
+        existing.away_red_cards = match.away_red_cards;
         // 🟢 更新实时赔率数据，并追踪变动
         if (match.liveOdds) {
           // 保存上一次赔率
@@ -243,6 +246,9 @@ export class MatchStore {
           events: [],
           // 🟢 保存实时赔率数据
           liveOdds: match.liveOdds,
+          // 🟢 新增：保存红牌数据
+          home_red_cards: match.home_red_cards,
+          away_red_cards: match.away_red_cards,
         };
         // 保存预测数据
         if (match.prediction) {
