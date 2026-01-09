@@ -166,17 +166,64 @@ export class MatchStore {
   }
 
   // 批量更新比赛列表（来自 API 初始加载）
-  setMatches(matches: MatchData[]): void {
+  setMatches(matches: (MatchData & { liveOdds?: LiveOdds; prediction?: any })[]): void {
     matches.forEach(match => {
       const existing = this.matches.get(match.match_id);
       if (existing) {
-        // 保留现有的预测和事件历史
-        Object.assign(existing, match);
+        // 保留现有的事件历史，更新其他数据
+        existing.home_team = match.home_team;
+        existing.away_team = match.away_team;
+        existing.home_score = match.home_score;
+        existing.away_score = match.away_score;
+        existing.minute = match.minute;
+        existing.status = match.status;
+        existing.league = match.league;
+        existing.timestamp = match.timestamp;
+        // 🟢 更新实时赔率数据
+        if (match.liveOdds) {
+          existing.liveOdds = match.liveOdds;
+        }
+        // 更新预测数据
+        if (match.prediction) {
+          existing.prediction = {
+            home: match.prediction.probabilities?.home ?? existing.prediction?.home ?? 0.33,
+            draw: match.prediction.probabilities?.draw ?? existing.prediction?.draw ?? 0.34,
+            away: match.prediction.probabilities?.away ?? existing.prediction?.away ?? 0.33,
+            momentum: match.prediction.momentum ?? existing.prediction?.momentum,
+            pressureAnalysis: match.prediction.pressureAnalysis ?? existing.prediction?.pressureAnalysis,
+            confidence: match.prediction.confidence ?? existing.prediction?.confidence,
+            goalBettingTips: match.prediction.goalBettingTips ?? existing.prediction?.goalBettingTips,
+          };
+        }
       } else {
-        this.matches.set(match.match_id, {
-          ...match,
-          events: []
-        });
+        // 新比赛
+        const newMatch: MatchState = {
+          match_id: match.match_id,
+          home_team: match.home_team,
+          away_team: match.away_team,
+          home_score: match.home_score,
+          away_score: match.away_score,
+          minute: match.minute,
+          status: match.status,
+          league: match.league,
+          timestamp: match.timestamp,
+          events: [],
+          // 🟢 保存实时赔率数据
+          liveOdds: match.liveOdds,
+        };
+        // 保存预测数据
+        if (match.prediction) {
+          newMatch.prediction = {
+            home: match.prediction.probabilities?.home ?? 0.33,
+            draw: match.prediction.probabilities?.draw ?? 0.34,
+            away: match.prediction.probabilities?.away ?? 0.33,
+            momentum: match.prediction.momentum,
+            pressureAnalysis: match.prediction.pressureAnalysis,
+            confidence: match.prediction.confidence,
+            goalBettingTips: match.prediction.goalBettingTips,
+          };
+        }
+        this.matches.set(match.match_id, newMatch);
       }
     });
     this.notify();
