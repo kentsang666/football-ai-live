@@ -11,7 +11,6 @@
  */
 
 import {
-  predictMatch,
   LiveProbability,
   AsianHandicapPricer,
   TradingSignalGenerator,
@@ -100,8 +99,35 @@ function convertToMatchStats(match: MatchData): MatchStats {
   if (match.away_possession !== undefined) stats.awayPossession = match.away_possession;
   if (match.home_red_cards !== undefined) stats.homeRedCards = match.home_red_cards;
   if (match.away_red_cards !== undefined) stats.awayRedCards = match.away_red_cards;
-  if (match.home_dangerous_attacks !== undefined) stats.homeDangerousAttacks = match.home_dangerous_attacks;
-  if (match.away_dangerous_attacks !== undefined) stats.awayDangerousAttacks = match.away_dangerous_attacks;
+  // 🟢 危险进攻代理指标逻辑
+  // API-Football 并非所有比赛都提供 Dangerous Attacks 数据
+  // 如果拿不到危险进攻数据，用射门和角球反推一个估算值
+  // 经验公式：1次射正 ≈ 3次危险进攻，1个角球 ≈ 2次危险进攻，1次射偏 ≈ 1次危险进攻
+  if (match.home_dangerous_attacks !== undefined) {
+    stats.homeDangerousAttacks = match.home_dangerous_attacks;
+  } else {
+    // 使用代理指标估算危险进攻
+    const estimatedHomeDangerousAttacks = 
+      (match.home_shots_on_target || 0) * 3 + 
+      (match.home_corners || 0) * 2 + 
+      (match.home_shots_off_target || 0) * 1;
+    stats.homeDangerousAttacks = estimatedHomeDangerousAttacks;
+    // 标记为估算值（可选，用于调试）
+    // console.log(`[估算] ${match.home_team} 危险进攻: ${estimatedHomeDangerousAttacks}`);
+  }
+  
+  if (match.away_dangerous_attacks !== undefined) {
+    stats.awayDangerousAttacks = match.away_dangerous_attacks;
+  } else {
+    // 使用代理指标估算危险进攻
+    const estimatedAwayDangerousAttacks = 
+      (match.away_shots_on_target || 0) * 3 + 
+      (match.away_corners || 0) * 2 + 
+      (match.away_shots_off_target || 0) * 1;
+    stats.awayDangerousAttacks = estimatedAwayDangerousAttacks;
+    // 标记为估算值（可选，用于调试）
+    // console.log(`[估算] ${match.away_team} 危险进攻: ${estimatedAwayDangerousAttacks}`);
+  }
 
   // 🟢 注意：最近5分钟的统计增量由 calculateRecentStats() 方法通过时间滑窗算法计算
   // 这里只初始化为 0，实际值会在 calculatePrediction() 中被覆盖
@@ -221,11 +247,25 @@ export class PredictionService {
   } {
     const now = Date.now();
     
+    // 🟢 计算危险进攻（如果 API 没有提供，使用代理指标估算）
+    // 经验公式：1次射正 ≈ 3次危险进攻，1个角球 ≈ 2次危险进攻，1次射偏 ≈ 1次危险进攻
+    const homeDangerousAttacks = currentMatch.home_dangerous_attacks !== undefined 
+      ? currentMatch.home_dangerous_attacks 
+      : (currentMatch.home_shots_on_target || 0) * 3 + 
+        (currentMatch.home_corners || 0) * 2 + 
+        (currentMatch.home_shots_off_target || 0) * 1;
+    
+    const awayDangerousAttacks = currentMatch.away_dangerous_attacks !== undefined 
+      ? currentMatch.away_dangerous_attacks 
+      : (currentMatch.away_shots_on_target || 0) * 3 + 
+        (currentMatch.away_corners || 0) * 2 + 
+        (currentMatch.away_shots_off_target || 0) * 1;
+    
     // 创建当前时刻的快照
     const currentSnapshot: StatsSnapshot = {
       timestamp: now,
-      homeDangerousAttacks: currentMatch.home_dangerous_attacks || 0,
-      awayDangerousAttacks: currentMatch.away_dangerous_attacks || 0,
+      homeDangerousAttacks,
+      awayDangerousAttacks,
       homeShotsOnTarget: currentMatch.home_shots_on_target || 0,
       awayShotsOnTarget: currentMatch.away_shots_on_target || 0,
       homeCorners: currentMatch.home_corners || 0,
