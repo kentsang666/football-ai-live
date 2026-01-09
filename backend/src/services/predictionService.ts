@@ -133,8 +133,8 @@ interface MatchState {
  * - 自动清理结束比赛的内存
  */
 export class PredictionService {
-  private readonly VERSION = '2.1.0';
-  private readonly ALGORITHM = 'QuantPredict-v2.1';
+  private readonly VERSION = '2.1.1';
+  private readonly ALGORITHM = 'QuantPredict-v2.1.1';
   
   // 🟢 新增：用来"记住"每场比赛状态的 Map
   private matchStates: Map<string, MatchState> = new Map();
@@ -198,8 +198,9 @@ export class PredictionService {
     // 获取亚洲盘口数据
     const asianHandicap = this.handicapPricer.getAllHandicapLines(stats);
 
-    // 🟢 新增：获取进球投注建议，传入实时亚洲盘口数据
-    const goalPredictor = new GoalPredictor();
+    // 🟢 [v2.1.1] 修复：注入同一个 LiveProbability 实例到 GoalPredictor
+    // 这样可以共享动量历史状态，避免重复创建
+    const goalPredictor = new GoalPredictor(liveProbEngine);
     const goalBettingTips = goalPredictor.generateGoalBettingTips(stats, match.liveAsianHandicap);
 
     return {

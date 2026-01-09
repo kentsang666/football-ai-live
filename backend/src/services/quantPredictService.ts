@@ -1,7 +1,12 @@
 /**
- * QuantPredict v2.1 - 增强版足球滚球预测引擎
+ * QuantPredict v2.1.1 - 增强版足球滚球预测引擎
  * 
- * 核心逻辑：寻找“市场赔率”与“模型真实概率”之间的偏差
+ * 核心逻辑：寻找"市场赔率"与"模型真实概率"之间的偏差
+ * 
+ * v2.1.1 修改日志：
+ * 1. [CRITICAL] 引入 PredictorManager，修复状态丢失问题，确保动量历史生效
+ * 2. [LOGIC] 修复让球盘计算逻辑，自动处理"当前比分"与"剩余盘口"的转换
+ * 3. [ARCH] 让 GoalPredictor 共享同一个 LiveProbability 实例，不再重复创建
  * 
  * v2.1 修改日志：
  * 1. 修复 PressureIndex 的状态污染问题（增加分钟级防抖）
@@ -286,7 +291,7 @@ export class LiveProbability {
   private initialHomeXG: number;
   private initialAwayXG: number;
   private maxGoals: number;
-  private pressureIndex: PressureIndex;
+  public pressureIndex: PressureIndex;  // [v2.1.1] 改为 public，供外部读取状态
 
   constructor(
     homeXG = CONFIG.DEFAULT_HOME_XG, 
@@ -451,7 +456,7 @@ export class LiveProbability {
       homeMomentum: parseFloat(homeMomentum.toFixed(2)),
       awayMomentum: parseFloat(awayMomentum.toFixed(2)),
       confidence: parseFloat(confidence.toFixed(2)),
-      algorithm: 'QuantPredict-v2.1',
+      algorithm: 'QuantPredict-v2.1.1',
       pressureAnalysis: {
         homeNormalized: pressureSummary.homeNormalized,
         awayNormalized: pressureSummary.awayNormalized,
@@ -652,8 +657,12 @@ export class GoalPredictor {
   private liveProbability: LiveProbability;
   private maxGoals: number;
 
-  constructor(maxGoals = 8) {  // [v2.1] 与 LiveProbability 保持一致
-    this.liveProbability = new LiveProbability();
+  /**
+   * [v2.1.1] 修改构造函数，接收注入的 LiveProbability 实例
+   * 这样可以共享动量历史状态，避免重复创建
+   */
+  constructor(liveProbabilityInstance: LiveProbability, maxGoals = 8) {
+    this.liveProbability = liveProbabilityInstance;  // 使用注入的实例
     this.maxGoals = maxGoals;
   }
 
@@ -911,20 +920,27 @@ export class GoalPredictor {
     // 注意：这是剩余时间的预测，不是从 0-0 开始
     const expectedRemainingMargin = homeLambda - awayLambda;
     
+    // 🟢 [v2.1.1 CRITICAL FIX] 将"全场盘口"转换为"剩余时间盘口"
+    // API 返回的盘口是基于 0-0 开球的全场盘口（含当前比分）
+    // AI 预测的是剩余时间的进球，所以需要转换
+    // 剩余时间有效盘口 = 原始盘口 + 当前比分差
+    // 例如：比分 1-0，盘口 -1.5 表示主队需要再赢 1.5 球
+    //       effectiveLine = -1.5 + (1-0) = -0.5，即剩余时间主队需要净胜 0.5 球
+    const currentScoreDiff = stats.homeScore - stats.awayScore;
+    const effectiveLine = handicapLine + currentScoreDiff;
+    
     // 计算主队和客队的赢盘概率
-    // 盘口解读：
-    // - 盘口 -0.5 表示主队让 0.5 球，主队需要剩余时间净胜 > 0.5 球
-    // - 盘口 +0.5 表示主队受让 0.5 球，主队剩余时间净胜 > -0.5 球（即不输 1 球即可）
+    // 使用转换后的 effectiveLine 而不是原始 handicapLine
     const homeWinProb = this.calculateRemainingHandicapWinProb(
       homeLambda, 
       awayLambda, 
-      handicapLine, 
+      effectiveLine,  // 🟢 使用转换后的盘口
       true
     );
     const awayWinProb = this.calculateRemainingHandicapWinProb(
       homeLambda, 
       awayLambda, 
-      handicapLine, 
+      effectiveLine,  // 🟢 使用转换后的盘口
       false
     );
     
@@ -1354,16 +1370,104 @@ export class TradingSignalGenerator {
 }
 
 // =============================================================================
+// 4. [新增] 预测器管理器 (Predictor Manager) - 单例模式
+// =============================================================================
+
+/**
+ * [v2.1.1] PredictorManager - 管理每场比赛的 LiveProbability 实例
+ * 
+ * 问题：之前每次调用都创建新的 LiveProbability 实例，
+ *        导致动量历史 (momentumHistory) 丢失，防抖机制失效。
+ * 
+ * 修复：使用 Map<matchId, LiveProbability> 缓存实例，
+ *       同一场比赛复用同一个实例，保持状态。
+ */
+class PredictorManager {
+  private static instances = new Map<string, LiveProbability>();
+  private static cleanupInterval: NodeJS.Timeout | null = null;
+  
+  /**
+   * 获取或创建比赛的预测器实例
+   */
+  static get(
+    matchId: string, 
+    initialHomeXG = CONFIG.DEFAULT_HOME_XG, 
+    initialAwayXG = CONFIG.DEFAULT_AWAY_XG
+  ): LiveProbability {
+    if (!this.instances.has(matchId)) {
+      // 只有第一次创建时使用传入的 XG
+      this.instances.set(matchId, new LiveProbability(initialHomeXG, initialAwayXG));
+      console.log(`[QuantPredict] 创建新的比赛引擎: ${matchId}`);
+    }
+    return this.instances.get(matchId)!;
+  }
+  
+  /**
+   * 清除比赛的预测器实例
+   */
+  static clear(matchId: string): void {
+    if (this.instances.has(matchId)) {
+      this.instances.delete(matchId);
+      console.log(`[QuantPredict] 清除比赛引擎: ${matchId}`);
+    }
+  }
+  
+  /**
+   * 清除所有预测器实例
+   */
+  static clearAll(): void {
+    const count = this.instances.size;
+    this.instances.clear();
+    console.log(`[QuantPredict] 清除所有比赛引擎: ${count} 个`);
+  }
+  
+  /**
+   * 获取当前缓存的比赛数量
+   */
+  static getCount(): number {
+    return this.instances.size;
+  }
+  
+  /**
+   * 启动定期清理任务（清理长时间未更新的实例）
+   */
+  static startCleanupTask(intervalMs = 30 * 60 * 1000): void {
+    if (this.cleanupInterval) return;
+    
+    this.cleanupInterval = setInterval(() => {
+      // 简单策略：如果缓存超过 100 场比赛，清除一半
+      if (this.instances.size > 100) {
+        const keysToDelete = Array.from(this.instances.keys()).slice(0, 50);
+        keysToDelete.forEach(key => this.instances.delete(key));
+        console.log(`[QuantPredict] 定期清理: 清除 ${keysToDelete.length} 个旧实例`);
+      }
+    }, intervalMs);
+    
+    console.log(`[QuantPredict] 启动定期清理任务，间隔: ${intervalMs / 1000}秒`);
+  }
+}
+
+// 启动清理任务
+PredictorManager.startCleanupTask();
+
+// =============================================================================
 // 导出主预测函数
 // =============================================================================
 
 /**
  * 主预测函数 - 用于替换 SmartPredict-v1
+ * 
+ * [v2.1.1] 重要修改：
+ * - 必须传入 matchId 以保持状态
+ * - 使用 PredictorManager 缓存实例
  */
 export function predictMatch(match: {
+  id?: string;  // [v2.1.1] 新增: 比赛 ID，用于保持状态
   minute: number;
   homeScore: number;
   awayScore: number;
+  homeTeamXG?: number;  // [v2.1.1] 新增: 赛前 XG
+  awayTeamXG?: number;  // [v2.1.1] 新增: 赛前 XG
   stats?: Partial<MatchStats>;
 }): {
   home: number;
@@ -1374,6 +1478,7 @@ export function predictMatch(match: {
   momentum: { home: number; away: number };
   expectedGoals: { home: number; away: number };
   pressureAnalysis: { homeNormalized: number; awayNormalized: number; dominantTeam: string };
+  momentumHistoryLength?: number;  // [v2.1.1] 新增: 调试信息
 } {
   const stats: MatchStats = {
     minute: match.minute,
@@ -1382,7 +1487,14 @@ export function predictMatch(match: {
     ...match.stats,
   };
 
-  const liveProbability = new LiveProbability();
+  // [v2.1.1] 修复: 从管理器获取实例（保持状态）
+  const matchId = match.id || `temp-${Date.now()}`;
+  const liveProbability = PredictorManager.get(
+    matchId,
+    match.homeTeamXG || CONFIG.DEFAULT_HOME_XG,
+    match.awayTeamXG || CONFIG.DEFAULT_AWAY_XG
+  );
+  
   const prediction = liveProbability.predict(stats);
 
   return {
@@ -1400,6 +1512,8 @@ export function predictMatch(match: {
       away: prediction.awayExpectedGoals,
     },
     pressureAnalysis: prediction.pressureAnalysis,
+    // [v2.1.1] 调试信息: 动量历史长度
+    momentumHistoryLength: (liveProbability.pressureIndex as any).momentumHistory?.home?.length || 0,
   };
 }
 
