@@ -109,7 +109,7 @@ export function LiveMatchDashboard() {
             <Activity className="w-8 h-8 text-green-400" />
             <div>
               <h1 className="text-xl font-bold text-white">实时足球比分</h1>
-              <p className="text-xs text-slate-400">Football Prediction System v2.0</p>
+              <p className="text-xs text-slate-400">Football Prediction System v2.1</p>
             </div>
           </div>
 
@@ -179,7 +179,7 @@ export function LiveMatchDashboard() {
             <span>🤖 AI 实时预测</span>
             <span>💾 数据持久化</span>
           </div>
-          <div className="mt-2">Football Prediction System v2.0 - 多场比赛实时监控</div>
+          <div className="mt-2">Football Prediction System v2.1 - 多场比赛实时监控</div>
         </footer>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Trophy } from 'lucide-react';
 import type { MatchState } from '../store/matchStore';
+import { MomentumGauge } from './prediction/MomentumGauge';
 
 interface MatchCardProps {
   match: MatchState;
@@ -40,7 +41,7 @@ export function MatchCard({ match }: MatchCardProps) {
       </div>
 
       {/* 比分区域 */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         {/* 主队 */}
         <div className="flex-1 text-center">
           <div className={`text-sm font-medium truncate ${homeLeading ? 'text-white' : 'text-slate-300'}`}>
@@ -69,10 +70,28 @@ export function MatchCard({ match }: MatchCardProps) {
         </div>
       </div>
 
+      {/* 🟢 势能对比组件 - 只有当 pressureAnalysis 存在时才渲染 */}
+      {prediction.pressureAnalysis && (
+        <div className="mb-3 border-t border-b border-slate-700/30 py-2">
+          <MomentumGauge 
+            pressure={prediction.pressureAnalysis} 
+            showLabel={true}
+            compact={false}
+          />
+        </div>
+      )}
+
       {/* AI 预测条 */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs text-slate-400">
-          <span>AI 预测</span>
+          <span className="flex items-center gap-1">
+            AI 预测
+            {prediction.confidence !== undefined && (
+              <span className="text-[10px] text-slate-500">
+                ({(prediction.confidence * 100).toFixed(0)}% 置信度)
+              </span>
+            )}
+          </span>
           <div className="flex gap-3">
             <span className="text-blue-400">{(prediction.home * 100).toFixed(0)}%</span>
             <span className="text-slate-400">{(prediction.draw * 100).toFixed(0)}%</span>
@@ -96,6 +115,14 @@ export function MatchCard({ match }: MatchCardProps) {
           />
         </div>
       </div>
+
+      {/* 动量信息（如果有） */}
+      {prediction.momentum && (
+        <div className="mt-2 flex justify-between text-[10px] text-slate-500">
+          <span>动量: {prediction.momentum.home.toFixed(2)}</span>
+          <span>动量: {prediction.momentum.away.toFixed(2)}</span>
+        </div>
+      )}
 
       {/* 最近事件（如果有进球） */}
       {match.events.length > 0 && match.events[0].type === 'goal' && (

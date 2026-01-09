@@ -2,6 +2,8 @@
 // 多场比赛状态管理
 // ===========================================
 
+import type { PressureAnalysis, Momentum } from '../types/prediction';
+
 // 比赛数据类型
 export interface MatchData {
   match_id: string;
@@ -15,7 +17,7 @@ export interface MatchData {
   timestamp: string;
 }
 
-// AI 预测数据类型
+// AI 预测数据类型 (v2.1 更新)
 export interface PredictionData {
   match_id: string;
   probabilities: {
@@ -24,6 +26,10 @@ export interface PredictionData {
     away: number;
   };
   timestamp: string;
+  // v2.1 新增字段
+  momentum?: Momentum;
+  pressureAnalysis?: PressureAnalysis;
+  confidence?: number;
 }
 
 // 比赛事件类型
@@ -40,7 +46,15 @@ export interface MatchEvent {
 
 // 完整的比赛状态（包含预测和事件历史）
 export interface MatchState extends MatchData {
-  prediction?: PredictionData['probabilities'];
+  prediction?: {
+    home: number;
+    draw: number;
+    away: number;
+    // v2.1 新增字段
+    momentum?: Momentum;
+    pressureAnalysis?: PressureAnalysis;
+    confidence?: number;
+  };
   events: MatchEvent[];
 }
 
@@ -128,11 +142,17 @@ export class MatchStore {
     this.notify();
   }
 
-  // 更新预测数据（来自 prediction_update 事件）
+  // 更新预测数据（来自 prediction_update 事件）- v2.1 更新
   updatePrediction(prediction: PredictionData): void {
     const match = this.matches.get(prediction.match_id);
     if (match) {
-      match.prediction = prediction.probabilities;
+      match.prediction = {
+        ...prediction.probabilities,
+        // v2.1 新增字段
+        momentum: prediction.momentum,
+        pressureAnalysis: prediction.pressureAnalysis,
+        confidence: prediction.confidence,
+      };
       this.notify();
     }
   }
