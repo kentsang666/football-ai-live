@@ -94,6 +94,71 @@ export interface Prediction {
 }
 
 /**
+ * 大小球预测
+ */
+export interface GoalPrediction {
+  /** 盘口线 (0.5, 1.5, 2.5, 3.5, 4.5) */
+  line: number;
+  /** 大于该线的概率 */
+  overProb: number;
+  /** 小于该线的概率 */
+  underProb: number;
+  /** 大球赔率 */
+  overOdds: number;
+  /** 小球赔率 */
+  underOdds: number;
+  /** 推荐 */
+  recommendation: 'OVER' | 'UNDER' | 'NEUTRAL';
+  /** 置信度 */
+  confidence: number;
+}
+
+/**
+ * 下一球预测
+ */
+export interface NextGoalPrediction {
+  /** 主队进下一球概率 */
+  homeProb: number;
+  /** 客队进下一球概率 */
+  awayProb: number;
+  /** 不再进球概率 */
+  noGoalProb: number;
+  /** 推荐 */
+  recommendation: 'HOME' | 'AWAY' | 'NO_GOAL' | 'NEUTRAL';
+  /** 置信度 */
+  confidence: number;
+  /** 预计下一球时间（分钟） */
+  expectedMinutes: number;
+}
+
+/**
+ * 高置信度推荐
+ */
+export interface HighConfidenceTip {
+  type: 'OVER' | 'UNDER' | 'NEXT_GOAL_HOME' | 'NEXT_GOAL_AWAY' | 'NONE';
+  line?: number;
+  probability: number;
+  confidence: number;
+  description: string;
+}
+
+/**
+ * 进球投注建议
+ */
+export interface GoalBettingTips {
+  /** 大小球预测 */
+  overUnder: GoalPrediction[];
+  /** 下一球预测 */
+  nextGoal: NextGoalPrediction;
+  /** 预期总进球数 */
+  totalExpectedGoals: number;
+  /** 剩余时间预期进球 */
+  remainingExpectedGoals: number;
+  /** 高置信度推荐 */
+  highConfidenceTip: HighConfidenceTip | null;
+}
+
+/**
  * 简化的预测概率（用于 MatchState）
  */
 export interface SimplePrediction extends Probabilities {
@@ -103,4 +168,6 @@ export interface SimplePrediction extends Probabilities {
   pressureAnalysis?: PressureAnalysis;
   /** 预测置信度 */
   confidence?: number;
+  /** 进球投注建议 */
+  goalBettingTips?: GoalBettingTips;
 }

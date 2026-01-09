@@ -2,7 +2,7 @@
 // 多场比赛状态管理
 // ===========================================
 
-import type { PressureAnalysis, Momentum } from '../types/prediction';
+import type { PressureAnalysis, Momentum, GoalBettingTips } from '../types/prediction';
 
 // 比赛数据类型
 export interface MatchData {
@@ -30,6 +30,8 @@ export interface PredictionData {
   momentum?: Momentum;
   pressureAnalysis?: PressureAnalysis;
   confidence?: number;
+  // v2.2 新增：进球投注建议
+  goalBettingTips?: GoalBettingTips;
 }
 
 // 比赛事件类型
@@ -54,6 +56,8 @@ export interface MatchState extends MatchData {
     momentum?: Momentum;
     pressureAnalysis?: PressureAnalysis;
     confidence?: number;
+    // v2.2 新增：进球投注建议
+    goalBettingTips?: GoalBettingTips;
   };
   events: MatchEvent[];
 }
@@ -152,6 +156,8 @@ export class MatchStore {
         momentum: prediction.momentum,
         pressureAnalysis: prediction.pressureAnalysis,
         confidence: prediction.confidence,
+        // v2.2 新增：进球投注建议
+        goalBettingTips: prediction.goalBettingTips,
       };
       this.notify();
     }
