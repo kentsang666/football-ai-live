@@ -9,6 +9,8 @@ import 'dotenv/config';
 import { createFootballService, FootballService } from './services/footballService';
 // 导入预测服务
 import { predictionService, MatchData, Prediction } from './services/predictionService';
+// 导入数据库服务
+import { databaseService, PredictionSnapshot } from './services/databaseService';
 
 // ===========================================
 // 云端部署配置
@@ -21,6 +23,7 @@ const PORT = parseInt(process.env.PORT || '4000', 10);
 const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_PRIVATE_URL || 'redis://localhost:6379';
 console.log('🔧 Environment check:');
 console.log('  - REDIS_URL:', process.env.REDIS_URL ? 'SET' : 'NOT SET');
+console.log('  - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 console.log('  - Using Redis URL:', REDIS_URL.replace(/\/\/.*@/, '//***@'));
 
 // 数据模式
@@ -121,6 +124,129 @@ let footballService: FootballService | null = null;
 // 预测缓存
 const predictionCache: Map<string, Prediction> = new Map();
 
+// ===========================================
+// 🟢 节流写入机制 - 防止数据库爆炸
+// ===========================================
+
+interface MatchSaveState {
+    lastSaveTime: Date;
+    lastScore: string;  // "home-away" 格式
+    lastStatus: string;
+    savedCount: number;
+}
+
+// 记录每场比赛的保存状态
+const matchSaveStates: Map<string, MatchSaveState> = new Map();
+
+// 节流配置
+const SAVE_INTERVAL_MS = 5 * 60 * 1000; // 5分钟
+const MIN_SAVE_INTERVAL_MS = 30 * 1000;  // 最小间隔30秒（用于重要事件）
+
+/**
+ * 检查是否应该保存预测快照
+ * 
+ * 规则：
+ * A. 如果距离上次保存超过5分钟，则保存
+ * B. 如果发生了进球或红牌（比分变化），立即保存
+ * C. 如果比赛状态变为 FINISHED，执行最后一次保存
+ */
+function shouldSavePrediction(
+    matchId: string,
+    currentScore: string,
+    currentStatus: string
+): { shouldSave: boolean; reason: string } {
+    const now = new Date();
+    const state = matchSaveStates.get(matchId);
+    
+    // 新比赛，第一次保存
+    if (!state) {
+        return { shouldSave: true, reason: 'first_save' };
+    }
+    
+    // 规则 C：比赛结束，最后一次保存
+    if (currentStatus === 'finished' && state.lastStatus !== 'finished') {
+        return { shouldSave: true, reason: 'match_finished' };
+    }
+    
+    // 规则 B：比分变化（进球）
+    if (currentScore !== state.lastScore) {
+        const timeSinceLastSave = now.getTime() - state.lastSaveTime.getTime();
+        // 确保至少间隔30秒，避免短时间内多次保存
+        if (timeSinceLastSave >= MIN_SAVE_INTERVAL_MS) {
+            return { shouldSave: true, reason: 'score_changed' };
+        }
+    }
+    
+    // 规则 A：超过5分钟
+    const timeSinceLastSave = now.getTime() - state.lastSaveTime.getTime();
+    if (timeSinceLastSave >= SAVE_INTERVAL_MS) {
+        return { shouldSave: true, reason: 'interval_save' };
+    }
+    
+    return { shouldSave: false, reason: 'throttled' };
+}
+
+/**
+ * 保存预测快照到数据库
+ */
+async function savePredictionToDatabase(
+    match: any,
+    prediction: Prediction,
+    reason: string
+): Promise<void> {
+    if (!databaseService.isAvailable()) {
+        return;
+    }
+    
+    const snapshot: PredictionSnapshot = {
+        match_id: match.match_id,
+        home_team: match.home_team,
+        away_team: match.away_team,
+        home_score: match.home_score,
+        away_score: match.away_score,
+        minute: match.minute,
+        match_status: match.status || 'live',
+        home_win_prob: prediction.probabilities.home,
+        draw_prob: prediction.probabilities.draw,
+        away_win_prob: prediction.probabilities.away,
+        confidence: prediction.confidence,
+        algorithm: prediction.algorithm,
+        features_snapshot: {
+            momentum: prediction.momentum || { home: 0, away: 0 },
+            pressureAnalysis: prediction.pressureAnalysis || { homeNormalized: 50, awayNormalized: 50, dominantTeam: 'BALANCED' },
+            expectedGoals: prediction.expectedGoals || { home: 0, away: 0 },
+            asianHandicap: prediction.asianHandicap || [],
+        },
+    };
+    
+    const savedId = await databaseService.savePredictionSnapshot(snapshot);
+    
+    if (savedId !== null) {
+        // 更新保存状态
+        const currentScore = `${match.home_score}-${match.away_score}`;
+        matchSaveStates.set(match.match_id, {
+            lastSaveTime: new Date(),
+            lastScore: currentScore,
+            lastStatus: match.status || 'live',
+            savedCount: (matchSaveStates.get(match.match_id)?.savedCount || 0) + 1,
+        });
+        
+        console.log(`💾 [DB] 保存预测快照: ${match.home_team} vs ${match.away_team} (${reason})`);
+        
+        // 如果比赛结束，保存最终结果
+        if (match.status === 'finished') {
+            await databaseService.saveMatchResult(
+                match.match_id,
+                match.home_team,
+                match.away_team,
+                match.home_score,
+                match.away_score,
+                match.league
+            );
+        }
+    }
+}
+
 // --- 模拟比赛状态 (仅在 mock 模式下使用) ---
 let matchState = {
     match_id: "test-match-001",
@@ -157,7 +283,8 @@ async function startServer() {
         httpServer.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Backend running on http://0.0.0.0:${PORT}`);
             console.log(`📡 数据模式: ${DATA_MODE.toUpperCase()}`);
-            console.log(`🤖 AI 预测服务: SmartPredict-v${predictionService.getVersion()}`);
+            console.log(`🤖 AI 预测服务: QuantPredict-v${predictionService.getVersion()}`);
+            console.log(`💾 数据库服务: ${databaseService.isAvailable() ? '已连接' : '未连接'}`);
             console.log(`🌐 CORS 允许来源: ${FRONTEND_URL}`);
             console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
             
@@ -183,20 +310,43 @@ function startLiveDataService() {
     footballService = createFootballService(redisPub as any, io);
     footballService.startPolling();
     
-    // 定期更新预测
+    // 定期更新预测（每30秒）
     setInterval(() => {
         updateAllPredictions();
-    }, 30000); // 每30秒更新一次预测
+    }, 30000);
     
+    // 定期清理已结束的比赛（每小时）
     setInterval(() => {
         footballService?.cleanupFinishedMatches();
+        cleanupFinishedMatchStates();
     }, 3600000);
+    
+    // 定期清理旧数据库记录（每天）
+    setInterval(() => {
+        databaseService.cleanupOldData(30); // 保留30天
+    }, 24 * 3600000);
+}
+
+/**
+ * 清理已结束比赛的保存状态
+ */
+function cleanupFinishedMatchStates() {
+    const now = new Date();
+    const maxAge = 4 * 3600000; // 4小时
+    
+    for (const [matchId, state] of matchSaveStates.entries()) {
+        const age = now.getTime() - state.lastSaveTime.getTime();
+        if (age > maxAge || state.lastStatus === 'finished') {
+            matchSaveStates.delete(matchId);
+            console.log(`🧹 清理比赛保存状态: ${matchId}`);
+        }
+    }
 }
 
 // ===========================================
-// 更新所有比赛的预测
+// 🟢 更新所有比赛的预测（带节流写入）
 // ===========================================
-function updateAllPredictions() {
+async function updateAllPredictions() {
     if (!footballService) return;
     
     const matches = footballService.getLiveMatches();
@@ -204,7 +354,7 @@ function updateAllPredictions() {
     
     console.log(`\n🤖 [AI] 更新 ${matches.length} 场比赛的预测...`);
     
-    matches.forEach((match: any) => {
+    for (const match of matches) {
         const matchData: MatchData = {
             match_id: match.match_id,
             home_team: match.home_team,
@@ -213,15 +363,29 @@ function updateAllPredictions() {
             away_score: match.away_score,
             minute: match.minute,
             status: match.status,
-            league: match.league
+            league: match.league,
+            // 统计数据通过 match 对象传递（如果有）
+            stats: (match as any).stats,
         };
         
         const prediction = predictionService.calculatePrediction(matchData);
         predictionCache.set(match.match_id, prediction);
         
+        // 🟢 节流写入数据库
+        const currentScore = `${match.home_score}-${match.away_score}`;
+        const { shouldSave, reason } = shouldSavePrediction(
+            match.match_id,
+            currentScore,
+            match.status || 'live'
+        );
+        
+        if (shouldSave) {
+            await savePredictionToDatabase(match, prediction, reason);
+        }
+        
         // 广播预测更新
         io.emit('prediction_update', prediction);
-    });
+    }
     
     console.log(`✅ [AI] 预测更新完成`);
 }
@@ -263,6 +427,32 @@ function startMatchSimulation() {
         };
         const prediction = predictionService.calculatePrediction(matchData);
         predictionCache.set(matchState.match_id, prediction);
+        
+        // 🟢 节流写入数据库（模拟模式）
+        const currentScore = `${matchState.home_score}-${matchState.away_score}`;
+        const status = matchState.minute >= 90 ? 'finished' : 'live';
+        const { shouldSave, reason } = shouldSavePrediction(
+            matchState.match_id,
+            currentScore,
+            status
+        );
+        
+        if (shouldSave) {
+            await savePredictionToDatabase(
+                {
+                    match_id: matchState.match_id,
+                    home_team: 'Man City',
+                    away_team: 'Arsenal',
+                    home_score: matchState.home_score,
+                    away_score: matchState.away_score,
+                    minute: matchState.minute,
+                    status,
+                    league: 'England - Premier League',
+                },
+                prediction,
+                reason
+            );
+        }
         
         if (eventType) {
             const eventPayload = {
@@ -408,6 +598,116 @@ app.get('/api/predictions/:matchId', (req, res) => {
     }
 });
 
+// 🟢 获取比赛历史预测记录（用于画趋势图）
+app.get('/api/predictions/:matchId/history', async (req, res) => {
+    const { matchId } = req.params;
+    
+    if (!databaseService.isAvailable()) {
+        return res.status(503).json({ 
+            error: 'Database service unavailable',
+            message: '数据库服务未连接，无法获取历史记录'
+        });
+    }
+    
+    try {
+        const history = await databaseService.getMatchHistory(matchId);
+        
+        if (history.length === 0) {
+            return res.status(404).json({ 
+                error: 'No history found',
+                message: `未找到比赛 ${matchId} 的历史记录`
+            });
+        }
+        
+        // 格式化为前端友好的格式
+        const formattedHistory = history.map(record => ({
+            minute: record.minute,
+            score: {
+                home: record.home_score,
+                away: record.away_score,
+            },
+            probabilities: {
+                home: record.home_win_prob,
+                draw: record.draw_prob,
+                away: record.away_win_prob,
+            },
+            momentum: {
+                home: record.momentum_home,
+                away: record.momentum_away,
+            },
+            pressure: {
+                home: record.pressure_home,
+                away: record.pressure_away,
+            },
+            confidence: record.confidence,
+            timestamp: record.created_at,
+        }));
+        
+        res.json({
+            match_id: matchId,
+            total_records: history.length,
+            history: formattedHistory,
+        });
+    } catch (error: any) {
+        console.error('[API] 获取比赛历史失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 🟢 获取预测性能统计
+app.get('/api/stats/performance', async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 100;
+    
+    if (!databaseService.isAvailable()) {
+        return res.status(503).json({ 
+            error: 'Database service unavailable',
+            message: '数据库服务未连接'
+        });
+    }
+    
+    try {
+        const stats = await databaseService.getPerformanceStats(limit);
+        res.json(stats);
+    } catch (error: any) {
+        console.error('[API] 获取性能统计失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 🟢 获取最近的预测记录（调试用）
+app.get('/api/predictions/recent', async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    
+    if (!databaseService.isAvailable()) {
+        return res.status(503).json({ 
+            error: 'Database service unavailable',
+            message: '数据库服务未连接'
+        });
+    }
+    
+    try {
+        const predictions = await databaseService.getRecentPredictions(limit);
+        res.json({
+            total: predictions.length,
+            predictions,
+        });
+    } catch (error: any) {
+        console.error('[API] 获取最近预测失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 🟢 获取数据库统计信息
+app.get('/api/stats/database', async (req, res) => {
+    try {
+        const stats = await databaseService.getDatabaseStats();
+        res.json(stats);
+    } catch (error: any) {
+        console.error('[API] 获取数据库统计失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // 批量获取预测
 app.post('/api/predictions/batch', (req, res) => {
     const { matches } = req.body;
@@ -420,13 +720,17 @@ app.post('/api/predictions/batch', (req, res) => {
     res.json({ predictions });
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    const dbStats = await databaseService.getDatabaseStats();
+    
     res.json({
         status: 'ok',
         mode: DATA_MODE,
         uptime: process.uptime(),
         environment: process.env.NODE_ENV || 'development',
         redis: redisPub.isReady ? 'connected' : 'disconnected',
+        database: databaseService.isAvailable() ? 'connected' : 'disconnected',
+        database_stats: dbStats,
         prediction_service: `QuantPredict-v${predictionService.getVersion()}`
     });
 });
@@ -435,13 +739,18 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         service: 'Football Prediction Backend',
-        version: '2.0.0',
+        version: '2.2.0',
         status: 'running',
         prediction_engine: `QuantPredict-v${predictionService.getVersion()}`,
+        database: databaseService.isAvailable() ? 'connected' : 'disconnected',
         endpoints: {
             health: '/health',
             liveMatches: '/api/matches/live',
             prediction: '/api/predictions/:matchId',
+            predictionHistory: '/api/predictions/:matchId/history',
+            recentPredictions: '/api/predictions/recent',
+            performanceStats: '/api/stats/performance',
+            databaseStats: '/api/stats/database',
             batchPrediction: 'POST /api/predictions/batch',
             websocket: 'ws://[host]/socket.io'
         }
@@ -459,6 +768,7 @@ process.on('SIGTERM', async () => {
     
     await redisPub.quit();
     await redisSub.quit();
+    await databaseService.close();
     
     httpServer.close(() => {
         console.log('👋 服务已关闭');

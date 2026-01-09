@@ -41,6 +41,7 @@ export interface MatchData {
   away_red_cards?: number;
   home_dangerous_attacks?: number;
   away_dangerous_attacks?: number;
+  stats?: any; // 原始统计数据对象
 }
 
 export interface Prediction {
