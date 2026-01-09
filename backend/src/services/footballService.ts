@@ -61,64 +61,160 @@ interface APIFootballResponse {
 }
 
 // ===========================================
-// 联赛名称映射表（用于日志显示）
+// 联赛名称映射表（用于日志和前端显示）
 // ===========================================
-const LEAGUE_NAMES: Record<number, string> = {
+
+// 联赛信息接口
+interface LeagueInfo {
+    name: string;      // 中文名称（用于前端显示）
+    fullName: string;  // 完整名称（带emoji，用于日志）
+    country: string;   // 国家/地区中文名
+}
+
+const LEAGUE_INFO: Record<number, LeagueInfo> = {
     // 五大联赛
-    39: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英超 (Premier League)',
-    140: '🇪🇸 西甲 (La Liga)',
-    135: '🇮🇹 意甲 (Serie A)',
-    78: '🇩🇪 德甲 (Bundesliga)',
-    61: '🇫🇷 法甲 (Ligue 1)',
+    39: { name: '英超', fullName: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英超 (Premier League)', country: '英格兰' },
+    140: { name: '西甲', fullName: '🇪🇸 西甲 (La Liga)', country: '西班牙' },
+    135: { name: '意甲', fullName: '🇮🇹 意甲 (Serie A)', country: '意大利' },
+    78: { name: '德甲', fullName: '🇩🇪 德甲 (Bundesliga)', country: '德国' },
+    61: { name: '法甲', fullName: '🇫🇷 法甲 (Ligue 1)', country: '法国' },
     
     // 欧洲赛事
-    2: '🏆 欧冠 (UEFA Champions League)',
-    3: '🏆 欧联杯 (UEFA Europa League)',
-    5: '🏆 欧洲国联 (UEFA Nations League)',
-    4: '🏆 欧洲杯 (Euro Championship)',
-    848: '🏆 欧会杯 (Conference League)',
-    45: '🏆 英足总杯 (FA Cup)',
+    2: { name: '欧冠', fullName: '🏆 欧冠 (UEFA Champions League)', country: '欧洲' },
+    3: { name: '欧联杯', fullName: '🏆 欧联杯 (UEFA Europa League)', country: '欧洲' },
+    5: { name: '欧洲国联', fullName: '🏆 欧洲国联 (UEFA Nations League)', country: '欧洲' },
+    4: { name: '欧洲杯', fullName: '🏆 欧洲杯 (Euro Championship)', country: '欧洲' },
+    848: { name: '欧会杯', fullName: '🏆 欧会杯 (Conference League)', country: '欧洲' },
+    45: { name: '英足总杯', fullName: '🏆 英足总杯 (FA Cup)', country: '英格兰' },
     
     // 其他欧洲联赛
-    88: '🇳🇱 荷甲 (Eredivisie)',
-    94: '🇵🇹 葡超 (Primeira Liga)',
-    203: '🇹🇷 土超 (Süper Lig)',
-    144: '🇧🇪 比甲 (Pro League)',
-    179: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 苏超 (Premiership)',
-    235: '🇷🇺 俄超 (Premier League)',
-    197: '🇬🇷 希腔超 (Super League 1)',
-    207: '🇨🇭 瑞士超 (Super League)',
-    218: '🇦🇹 奥甲 (Bundesliga)',
-    383: '🇮🇱 以超 (Ligat Ha\'al)',
+    88: { name: '荷甲', fullName: '🇳🇱 荷甲 (Eredivisie)', country: '荷兰' },
+    94: { name: '葡超', fullName: '🇵🇹 葡超 (Primeira Liga)', country: '葡萄牙' },
+    203: { name: '土超', fullName: '🇹🇷 土超 (Süper Lig)', country: '土耳其' },
+    144: { name: '比甲', fullName: '🇧🇪 比甲 (Pro League)', country: '比利时' },
+    179: { name: '苏超', fullName: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 苏超 (Premiership)', country: '苏格兰' },
+    235: { name: '俄超', fullName: '🇷🇺 俄超 (Premier League)', country: '俄罗斯' },
+    197: { name: '希腔超', fullName: '🇬🇷 希腔超 (Super League 1)', country: '希腊' },
+    207: { name: '瑞士超', fullName: '🇨🇭 瑞士超 (Super League)', country: '瑞士' },
+    218: { name: '奥甲', fullName: '🇦🇹 奥甲 (Bundesliga)', country: '奥地利' },
+    383: { name: '以超', fullName: '🇮🇱 以超 (Ligat Ha\'al)', country: '以色列' },
     
     // 欧洲乙级联赛
-    40: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英冠 (Championship)',
-    79: '🇩🇪 德乙 (2. Bundesliga)',
-    141: '🇪🇸 西乙 (Segunda División)',
-    136: '🇮🇹 意乙 (Serie B)',
-    62: '🇫🇷 法乙 (Ligue 2)',
+    40: { name: '英冠', fullName: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英冠 (Championship)', country: '英格兰' },
+    79: { name: '德乙', fullName: '🇩🇪 德乙 (2. Bundesliga)', country: '德国' },
+    141: { name: '西乙', fullName: '🇪🇸 西乙 (Segunda División)', country: '西班牙' },
+    136: { name: '意乙', fullName: '🇮🇹 意乙 (Serie B)', country: '意大利' },
+    62: { name: '法乙', fullName: '🇫🇷 法乙 (Ligue 2)', country: '法国' },
     
     // 美洲联赛
-    71: '🇧🇷 巴甲 (Brasileirão Serie A)',
-    253: '🇺🇸 美职联 (MLS)',
-    128: '🇦🇷 阿甲 (Liga Profesional)',
-    239: '🇨🇴 哥伦比亚甲 (Primera A)',
-    265: '🇨🇱 智利甲 (Primera División)',
+    71: { name: '巴甲', fullName: '🇧🇷 巴甲 (Brasileirão Serie A)', country: '巴西' },
+    253: { name: '美职联', fullName: '🇺🇸 美职联 (MLS)', country: '美国' },
+    128: { name: '阿甲', fullName: '🇦🇷 阿甲 (Liga Profesional)', country: '阿根廷' },
+    239: { name: '哥伦比亚甲', fullName: '🇨🇴 哥伦比亚甲 (Primera A)', country: '哥伦比亚' },
+    265: { name: '智利甲', fullName: '🇨🇱 智利甲 (Primera División)', country: '智利' },
     
     // 亚洲/中东/大洋洲联赛
-    169: '🇨🇳 中超 (Chinese Super League)',
-    98: '🇯🇵 日职联 (J1 League)',
-    292: '🇰🇷 K联赛1 (K League 1)',
-    307: '🇸🇦 沙特超 (Saudi Pro League)',
-    188: '🇦🇺 澳超 (A-League)',
-    305: '🇶🇦 卡塔尔 (Stars League)',
-    233: '🇪🇬 埃及超 (Premier League)',
+    169: { name: '中超', fullName: '🇨🇳 中超 (Chinese Super League)', country: '中国' },
+    98: { name: '日职联', fullName: '🇯🇵 日职联 (J1 League)', country: '日本' },
+    292: { name: 'K联赛1', fullName: '🇰🇷 K联赛1 (K League 1)', country: '韩国' },
+    307: { name: '沙特超', fullName: '🇸🇦 沙特超 (Saudi Pro League)', country: '沙特阿拉伯' },
+    188: { name: '澳超', fullName: '🇦🇺 澳超 (A-League)', country: '澳大利亚' },
+    305: { name: '卡塔尔联赛', fullName: '🇶🇦 卡塔尔联赛 (Stars League)', country: '卡塔尔' },
+    233: { name: '埃及超', fullName: '🇪🇬 埃及超 (Premier League)', country: '埃及' },
     
     // 国际赛事
-    1: '🌍 世界杯 (FIFA World Cup)',
-    7: '🌏 亚洲杯 (AFC Asian Cup)',
-    667: '⚽ 球会友谊 (Club Friendlies)',
+    1: { name: '世界杯', fullName: '🌍 世界杯 (FIFA World Cup)', country: '国际' },
+    7: { name: '亚洲杯', fullName: '🌏 亚洲杯 (AFC Asian Cup)', country: '亚洲' },
+    667: { name: '球会友谊', fullName: '⚽ 球会友谊 (Club Friendlies)', country: '国际' },
 };
+
+// 兼容旧的 LEAGUE_NAMES 格式（用于日志显示）
+const LEAGUE_NAMES: Record<number, string> = Object.fromEntries(
+    Object.entries(LEAGUE_INFO).map(([id, info]) => [Number(id), info.fullName])
+);
+
+/**
+ * 获取联赛中文名称（用于前端显示）
+ * @param leagueId 联赛 ID
+ * @param fallbackName 备用名称（英文）
+ * @returns 中文联赛名称
+ */
+function getLeagueChineseName(leagueId: number, fallbackName?: string): string {
+    const info = LEAGUE_INFO[leagueId];
+    if (info) {
+        return info.name;
+    }
+    // 如果没有映射，返回原始名称
+    return fallbackName || `联赛${leagueId}`;
+}
+
+/**
+ * 获取国家/地区中文名称
+ * @param leagueId 联赛 ID
+ * @param fallbackCountry 备用国家名（英文）
+ * @returns 中文国家名
+ */
+function getCountryChineseName(leagueId: number, fallbackCountry?: string): string {
+    const info = LEAGUE_INFO[leagueId];
+    if (info) {
+        return info.country;
+    }
+    // 常见国家名称映射
+    const countryMap: Record<string, string> = {
+        'England': '英格兰',
+        'Spain': '西班牙',
+        'Italy': '意大利',
+        'Germany': '德国',
+        'France': '法国',
+        'Netherlands': '荷兰',
+        'Portugal': '葡萄牙',
+        'Turkey': '土耳其',
+        'Belgium': '比利时',
+        'Scotland': '苏格兰',
+        'Russia': '俄罗斯',
+        'Greece': '希腊',
+        'Switzerland': '瑞士',
+        'Austria': '奥地利',
+        'Israel': '以色列',
+        'Brazil': '巴西',
+        'USA': '美国',
+        'Argentina': '阿根廷',
+        'Colombia': '哥伦比亚',
+        'Chile': '智利',
+        'China': '中国',
+        'Japan': '日本',
+        'South-Korea': '韩国',
+        'Korea': '韩国',
+        'Saudi-Arabia': '沙特阿拉伯',
+        'Australia': '澳大利亚',
+        'Qatar': '卡塔尔',
+        'Egypt': '埃及',
+        'World': '国际',
+        'Europe': '欧洲',
+        'Asia': '亚洲',
+        'Africa': '非洲',
+        'South-America': '南美洲',
+        'North-America': '北美洲',
+        'Mexico': '墨西哥',
+        'Indonesia': '印度尼西亚',
+        'Thailand': '泰国',
+        'Vietnam': '越南',
+        'Malaysia': '马来西亚',
+        'India': '印度',
+        'UAE': '阿联酋',
+        'Iran': '伊朗',
+        'Poland': '波兰',
+        'Ukraine': '乌克兰',
+        'Czech-Republic': '捷克',
+        'Croatia': '克罗地亚',
+        'Serbia': '塞尔维亚',
+        'Denmark': '丹麦',
+        'Sweden': '瑞典',
+        'Norway': '挪威',
+        'Finland': '芬兰',
+    };
+    return countryMap[fallbackCountry || ''] || fallbackCountry || '未知';
+}
 
 // ===========================================
 // FootballService 类
@@ -343,6 +439,11 @@ export class FootballService {
             'INT': 'halftime',    // 中断
         };
 
+        // 获取中文联赛名称和国家名
+        const leagueId = fixture.league.id;
+        const chineseLeagueName = getLeagueChineseName(leagueId, fixture.league.name);
+        const chineseCountry = getCountryChineseName(leagueId, fixture.league.country);
+        
         return {
             match_id: `api-${fixture.fixture.id}`,
             home_team: fixture.teams.home.name,
@@ -351,7 +452,7 @@ export class FootballService {
             away_score: fixture.goals.away ?? 0,
             minute: fixture.fixture.status.elapsed ?? 0,
             status: statusMap[fixture.fixture.status.short] || 'live',
-            league: `${fixture.league.country} - ${fixture.league.name}`,
+            league: `${chineseCountry} - ${chineseLeagueName}`,  // 使用中文名称
             league_id: fixture.league.id,  // 保存联赛ID
             timestamp: new Date().toISOString()
         };
