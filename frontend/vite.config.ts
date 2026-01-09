@@ -6,7 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   server: {
-    allowedHosts: ['5173-i8tko8mwvfqk17gl8iqmr-718071c2.sg1.manus.computer'],
+    allowedHosts: true,
+  },
+  preview: {
+    allowedHosts: true,
   },
   define: {
     // 生产环境使用 Railway 后端 URL

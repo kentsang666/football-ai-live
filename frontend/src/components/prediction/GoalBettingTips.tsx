@@ -297,7 +297,6 @@ export function GoalBettingTips({
   const currentGoals = currentScore.home + currentScore.away;
   const isLive = matchStatus === 'live' || matchStatus === 'halftime';
   const isPreMatch = matchStatus === 'not_started';
-  const hasLiveOdds = liveOdds?.overUnder && liveOdds.overUnder.length > 0;
   
   // 筛选显示的大小球盘口（根据当前进球数）
   const relevantLines = tips.overUnder.filter(ou => {
