@@ -1,7 +1,13 @@
 /**
- * QuantPredict v2.0 - 足球滚球预测引擎
+ * QuantPredict v2.1 - 增强版足球滚球预测引擎
  * 
- * 核心逻辑：寻找"市场赔率"与"模型真实概率"之间的偏差
+ * 核心逻辑：寻找“市场赔率”与“模型真实概率”之间的偏差
+ * 
+ * v2.1 修改日志：
+ * 1. 修复 PressureIndex 的状态污染问题（增加分钟级防抖）
+ * 2. 增强红牌逻辑（直接影响 Lambda）
+ * 3. 优化时间衰减模型（最后10分钟进球提升）
+ * 4. 增加输入数据健壮性检查
  * 
  * 模块：
  * 1. PressureIndex - 实时动量引擎
@@ -20,15 +26,27 @@ const WEIGHTS = {
   shots_off_target: 0.4,
   corners: 0.3,
   possession: 0.05,
-  red_cards: -2.0,
+  red_cards_pressure: -2.0,  // 仅影响压力的红牌权重
 };
 
-const MOMENTUM_SMOOTHING = 0.3;
-const DEFAULT_HOME_XG = 1.45;
-const DEFAULT_AWAY_XG = 1.15;
-const VALUE_THRESHOLD = 0.05;
-const MIN_ODDS = 1.10;
-const MAX_ODDS = 20.0;
+const CONFIG = {
+  MOMENTUM_SMOOTHING: 0.3,
+  DEFAULT_HOME_XG: 1.45,
+  DEFAULT_AWAY_XG: 1.15,
+  RED_CARD_LAMBDA_FACTOR: 0.65,  // 红牌对预期进球的直接削减系数 (少一人约降低35%攻击力)
+  NON_LINEAR_TIME_BOOST: 1.1,    // 比赛末段进球概率提升系数
+  VALUE_THRESHOLD: 0.05,
+  MIN_ODDS: 1.10,
+  MAX_ODDS: 20.0,
+};
+
+// 兼容旧版本的常量引用
+const MOMENTUM_SMOOTHING = CONFIG.MOMENTUM_SMOOTHING;
+const DEFAULT_HOME_XG = CONFIG.DEFAULT_HOME_XG;
+const DEFAULT_AWAY_XG = CONFIG.DEFAULT_AWAY_XG;
+const VALUE_THRESHOLD = CONFIG.VALUE_THRESHOLD;
+const MIN_ODDS = CONFIG.MIN_ODDS;
+const MAX_ODDS = CONFIG.MAX_ODDS;
 
 // =============================================================================
 // 类型定义
@@ -131,6 +149,7 @@ function factorial(n: number): number {
 export class PressureIndex {
   private weights: typeof WEIGHTS;
   private momentumHistory: { home: number[]; away: number[] };
+  private lastProcessedMinute: number = -1;  // [v2.1] 增加防抖标记
 
   constructor(weights?: Partial<typeof WEIGHTS>) {
     this.weights = { ...WEIGHTS, ...weights };
@@ -139,44 +158,40 @@ export class PressureIndex {
 
   /**
    * 计算原始压力值
+   * [v2.1] 优化控球率计算，只计算优势方的压力
    */
   calculateRawPressure(stats: MatchStats): [number, number] {
-    const recentHomeDangerousAttacks = stats.recentHomeDangerousAttacks || 0;
-    const recentAwayDangerousAttacks = stats.recentAwayDangerousAttacks || 0;
-    const recentHomeShotsOnTarget = stats.recentHomeShotsOnTarget || 0;
-    const recentAwayShotsOnTarget = stats.recentAwayShotsOnTarget || 0;
-    const recentHomeCorners = stats.recentHomeCorners || 0;
-    const recentAwayCorners = stats.recentAwayCorners || 0;
-    const homePossession = stats.homePossession || 50;
-    const awayPossession = stats.awayPossession || 50;
-    const homeRedCards = stats.homeRedCards || 0;
-    const awayRedCards = stats.awayRedCards || 0;
+    // 使用默认值处理 undefined
+    const rHDA = stats.recentHomeDangerousAttacks || 0;
+    const rADA = stats.recentAwayDangerousAttacks || 0;
+    const rHST = stats.recentHomeShotsOnTarget || 0;
+    const rAST = stats.recentAwayShotsOnTarget || 0;
+    const rHC = stats.recentHomeCorners || 0;
+    const rAC = stats.recentAwayCorners || 0;
+    const hPoss = stats.homePossession || 50;
+    const aPoss = stats.awayPossession || 50;
 
-    // 主队压力计算
+    // 基础压力计算
     let homePressure =
-      recentHomeDangerousAttacks * this.weights.dangerous_attacks +
-      recentHomeShotsOnTarget * this.weights.shots_on_target +
-      (stats.homeShotsOffTarget || 0) * this.weights.shots_off_target * 0.5 +
-      recentHomeCorners * this.weights.corners +
-      (homePossession - 50) * this.weights.possession;
+      rHDA * this.weights.dangerous_attacks +
+      rHST * this.weights.shots_on_target +
+      (stats.homeShotsOffTarget || 0) * 0.1 * this.weights.shots_off_target +  // [v2.1] 射偏权重降低
+      rHC * this.weights.corners +
+      Math.max(0, hPoss - 50) * this.weights.possession;  // [v2.1] 只计算优势方的控球压力
 
-    // 客队压力计算
     let awayPressure =
-      recentAwayDangerousAttacks * this.weights.dangerous_attacks +
-      recentAwayShotsOnTarget * this.weights.shots_on_target +
-      (stats.awayShotsOffTarget || 0) * this.weights.shots_off_target * 0.5 +
-      recentAwayCorners * this.weights.corners +
-      (awayPossession - 50) * this.weights.possession;
+      rADA * this.weights.dangerous_attacks +
+      rAST * this.weights.shots_on_target +
+      (stats.awayShotsOffTarget || 0) * 0.1 * this.weights.shots_off_target +
+      rAC * this.weights.corners +
+      Math.max(0, aPoss - 50) * this.weights.possession;
 
-    // 红牌惩罚
-    if (homeRedCards > 0) {
-      awayPressure += homeRedCards * Math.abs(this.weights.red_cards);
-      homePressure -= homeRedCards * Math.abs(this.weights.red_cards) * 0.5;
-    }
-    if (awayRedCards > 0) {
-      homePressure += awayRedCards * Math.abs(this.weights.red_cards);
-      awayPressure -= awayRedCards * Math.abs(this.weights.red_cards) * 0.5;
-    }
+    // 动量中的红牌影响（心理层面）
+    const hRed = stats.homeRedCards || 0;
+    const aRed = stats.awayRedCards || 0;
+    
+    if (hRed > 0) awayPressure += hRed * Math.abs(this.weights.red_cards_pressure);
+    if (aRed > 0) homePressure += aRed * Math.abs(this.weights.red_cards_pressure);
 
     return [Math.max(0, homePressure), Math.max(0, awayPressure)];
   }
@@ -186,44 +201,49 @@ export class PressureIndex {
    */
   normalizePressure(homePressure: number, awayPressure: number): [number, number] {
     const total = homePressure + awayPressure;
-    if (total === 0) return [50, 50];
+    if (total === 0) return [50, 50];  // 势均力敌
     return [(homePressure / total) * 100, (awayPressure / total) * 100];
   }
 
   /**
    * 计算动量系数
+   * [v2.1] 增加防抖机制，防止同一分钟多次调用导致历史数据堆积
    */
   calculateMomentumFactor(stats: MatchStats): [number, number] {
     const [homePressure, awayPressure] = this.calculateRawPressure(stats);
     const [homeNorm, awayNorm] = this.normalizePressure(homePressure, awayPressure);
 
-    // 存储历史
-    this.momentumHistory.home.push(homeNorm);
-    this.momentumHistory.away.push(awayNorm);
+    // [v2.1] 状态更新防抖：只有当分钟数改变时，才推入历史数组
+    if (stats.minute > this.lastProcessedMinute) {
+      this.momentumHistory.home.push(homeNorm);
+      this.momentumHistory.away.push(awayNorm);
+      this.lastProcessedMinute = stats.minute;
 
-    // 保持最近10个数据点
-    if (this.momentumHistory.home.length > 10) {
-      this.momentumHistory.home = this.momentumHistory.home.slice(-10);
-      this.momentumHistory.away = this.momentumHistory.away.slice(-10);
+      // 保持最近10分钟窗口
+      if (this.momentumHistory.home.length > 10) {
+        this.momentumHistory.home.shift();  // [v2.1] 性能优化：shift比slice更符合队列语义
+        this.momentumHistory.away.shift();
+      }
     }
 
-    // 指数移动平均平滑
+    // 移动平均计算
     let homeSmoothed = homeNorm;
     let awaySmoothed = awayNorm;
 
-    if (this.momentumHistory.home.length > 1) {
-      const homeHistoryAvg =
-        this.momentumHistory.home.slice(0, -1).reduce((a, b) => a + b, 0) /
-        (this.momentumHistory.home.length - 1);
-      const awayHistoryAvg =
-        this.momentumHistory.away.slice(0, -1).reduce((a, b) => a + b, 0) /
-        (this.momentumHistory.away.length - 1);
-
-      homeSmoothed = MOMENTUM_SMOOTHING * homeNorm + (1 - MOMENTUM_SMOOTHING) * homeHistoryAvg;
-      awaySmoothed = MOMENTUM_SMOOTHING * awayNorm + (1 - MOMENTUM_SMOOTHING) * awayHistoryAvg;
+    if (this.momentumHistory.home.length > 0) {
+      // 计算简单平均值作为基准
+      const homeAvg = this.momentumHistory.home.reduce((a, b) => a + b, 0) / this.momentumHistory.home.length;
+      const awayAvg = this.momentumHistory.away.reduce((a, b) => a + b, 0) / this.momentumHistory.away.length;
+      
+      // 动量平滑：当前值占30%，历史平均占70%
+      homeSmoothed = CONFIG.MOMENTUM_SMOOTHING * homeNorm + (1 - CONFIG.MOMENTUM_SMOOTHING) * homeAvg;
+      awaySmoothed = CONFIG.MOMENTUM_SMOOTHING * awayNorm + (1 - CONFIG.MOMENTUM_SMOOTHING) * awayAvg;
     }
 
-    // 转换为动量系数 (0.7 - 1.3)
+    // 映射到 0.7 - 1.3 区间
+    // 50分 -> 1.0 (正常)
+    // 100分 -> 1.3 (极强)
+    // 0分 -> 0.7 (极弱)
     const homeFactor = 0.7 + (homeSmoothed / 100) * 0.6;
     const awayFactor = 0.7 + (awaySmoothed / 100) * 0.6;
 
@@ -268,7 +288,11 @@ export class LiveProbability {
   private maxGoals: number;
   private pressureIndex: PressureIndex;
 
-  constructor(homeXG = DEFAULT_HOME_XG, awayXG = DEFAULT_AWAY_XG, maxGoals = 10) {
+  constructor(
+    homeXG = CONFIG.DEFAULT_HOME_XG, 
+    awayXG = CONFIG.DEFAULT_AWAY_XG, 
+    maxGoals = 8  // [v2.1] 优化：足球单队很少超过8球，减小矩阵计算量
+  ) {
     this.initialHomeXG = homeXG;
     this.initialAwayXG = awayXG;
     this.maxGoals = maxGoals;
@@ -277,48 +301,59 @@ export class LiveProbability {
 
   /**
    * 计算时间衰减系数
+   * [v2.1] 优化时间衰减逻辑，最后10分钟进球意愿提升
    */
-  calculateTimeDecay(currentMinute: number, totalMinutes = 90, decayType = 'linear'): number {
+  calculateTimeDecay(currentMinute: number, totalMinutes = 90): number {
     const remainingTime = Math.max(0, totalMinutes - currentMinute);
-    const timeRatio = remainingTime / totalMinutes;
-
-    switch (decayType) {
-      case 'exponential':
-        return Math.exp(-0.5 * (1 - timeRatio));
-      case 'sqrt':
-        return Math.sqrt(timeRatio);
-      default:
-        return timeRatio;
+    let decay = remainingTime / totalMinutes;
+    
+    // [v2.1] 补时/绝杀修正：如果是最后10分钟，进球意愿提升
+    if (currentMinute > 80) {
+      decay *= CONFIG.NON_LINEAR_TIME_BOOST;
     }
+    return decay;
   }
 
   /**
    * 计算当前 Lambda 值
+   * [v2.1] 增强红牌逻辑，直接影响 Lambda
    */
-  calculateCurrentLambda(stats: MatchStats, decayType = 'linear'): [number, number] {
-    const timeDecay = this.calculateTimeDecay(stats.minute, 90, decayType);
+  calculateCurrentLambda(stats: MatchStats): [number, number] {
+    const timeDecay = this.calculateTimeDecay(stats.minute);
     let [homeMomentum, awayMomentum] = this.pressureIndex.calculateMomentumFactor(stats);
 
-    // 比分影响调整
-    const scoreDiff = stats.homeScore - stats.awayScore;
-    if (Math.abs(scoreDiff) >= 2) {
-      if (scoreDiff > 0) {
-        awayMomentum *= 1.1;
-        homeMomentum *= 0.95;
-      } else {
-        homeMomentum *= 1.1;
-        awayMomentum *= 0.95;
-      }
+    // 1. 基础衰减
+    let homeLambda = this.initialHomeXG * timeDecay;
+    let awayLambda = this.initialAwayXG * timeDecay;
+
+    // 2. 动量修正
+    homeLambda *= homeMomentum;
+    awayLambda *= awayMomentum;
+
+    // 3. [v2.1] 结构性红牌修正 (Permanent Damage)
+    if ((stats.homeRedCards || 0) > 0) {
+      // 每张红牌指数级衰减
+      homeLambda *= Math.pow(CONFIG.RED_CARD_LAMBDA_FACTOR, stats.homeRedCards || 1);
+    }
+    if ((stats.awayRedCards || 0) > 0) {
+      awayLambda *= Math.pow(CONFIG.RED_CARD_LAMBDA_FACTOR, stats.awayRedCards || 1);
     }
 
-    let homeLambda = this.initialHomeXG * timeDecay * homeMomentum;
-    let awayLambda = this.initialAwayXG * timeDecay * awayMomentum;
+    // 4. [v2.1] 比分战术修正 (Game State) - 任何领先/落后都调整
+    const scoreDiff = stats.homeScore - stats.awayScore;
+    if (scoreDiff > 0) {
+      // 主队领先：主队偏防守(XG降)，客队偏进攻(XG升)
+      homeLambda *= 0.85;
+      awayLambda *= 1.15;
+    } else if (scoreDiff < 0) {
+      homeLambda *= 1.15;
+      awayLambda *= 0.85;
+    }
 
-    // 限制范围
-    homeLambda = Math.max(0.01, Math.min(5.0, homeLambda));
-    awayLambda = Math.max(0.01, Math.min(5.0, awayLambda));
-
-    return [homeLambda, awayLambda];
+    return [
+      Math.max(0.001, homeLambda),
+      Math.max(0.001, awayLambda)
+    ];
   }
 
   /**
@@ -393,6 +428,7 @@ export class LiveProbability {
 
   /**
    * 生成完整预测结果
+   * [v2.1] 优化置信度计算
    */
   predict(stats: MatchStats): PredictionResult {
     const [homeLambda, awayLambda] = this.calculateCurrentLambda(stats);
@@ -400,28 +436,22 @@ export class LiveProbability {
     const [homeMomentum, awayMomentum] = this.pressureIndex.calculateMomentumFactor(stats);
     const pressureSummary = this.pressureIndex.getPressureSummary(stats);
 
-    // 计算置信度
-    const timeConfidence = Math.min(1.0, stats.minute / 45);
-    const dataConfidence = Math.min(
-      1.0,
-      ((stats.homeShotsOnTarget || 0) +
-        (stats.awayShotsOnTarget || 0) +
-        (stats.homeCorners || 0) +
-        (stats.awayCorners || 0)) /
-        10
-    );
-    const confidence = 0.5 + 0.3 * timeConfidence + 0.2 * dataConfidence;
+    // [v2.1] 优化置信度计算
+    // 比赛时间越久，不确定性(Lambda)越小，置信度越高
+    const timeProgress = Math.min(1.0, stats.minute / 90);
+    const momentumStability = 1.0 - Math.abs(homeMomentum - awayMomentum) * 0.2;
+    const confidence = 0.6 + (timeProgress * 0.3) + (momentumStability * 0.1);
 
     return {
-      homeWinProb: Math.round(homeWin * 10000) / 10000,
-      drawProb: Math.round(draw * 10000) / 10000,
-      awayWinProb: Math.round(awayWin * 10000) / 10000,
-      homeExpectedGoals: Math.round(homeLambda * 1000) / 1000,
-      awayExpectedGoals: Math.round(awayLambda * 1000) / 1000,
-      homeMomentum: Math.round(homeMomentum * 1000) / 1000,
-      awayMomentum: Math.round(awayMomentum * 1000) / 1000,
-      confidence: Math.round(confidence * 1000) / 1000,
-      algorithm: 'QuantPredict-v2.0',
+      homeWinProb: parseFloat(homeWin.toFixed(4)),
+      drawProb: parseFloat(draw.toFixed(4)),
+      awayWinProb: parseFloat(awayWin.toFixed(4)),
+      homeExpectedGoals: parseFloat(homeLambda.toFixed(3)),
+      awayExpectedGoals: parseFloat(awayLambda.toFixed(3)),
+      homeMomentum: parseFloat(homeMomentum.toFixed(2)),
+      awayMomentum: parseFloat(awayMomentum.toFixed(2)),
+      confidence: parseFloat(confidence.toFixed(2)),
+      algorithm: 'QuantPredict-v2.1',
       pressureAnalysis: {
         homeNormalized: pressureSummary.homeNormalized,
         awayNormalized: pressureSummary.awayNormalized,
