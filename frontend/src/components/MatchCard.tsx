@@ -219,9 +219,7 @@ export function MatchCard({ match }: MatchCardProps) {
             matchStatus={match.status}
             homeTeam={match.home_team}
             awayTeam={match.away_team}
-            currentScore={{ home: match.home_score, away: match.away_score }}
-            currentMinute={match.minute}
-            liveOdds={match.liveOdds}  // 🟢 传递实时赔率数据
+            liveOdds={match.liveOdds}
           />
         </div>
       )}

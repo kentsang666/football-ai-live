@@ -1,39 +1,17 @@
 /**
  * GoalBettingTips - 进球投注建议组件
  * 
- * 显示大小球预测和下一球预测
- * 高置信度推荐会以红色/高亮标签标注
+ * 优化版：更清晰的布局，突出实时赔率
  */
 
-import type { GoalBettingTips as GoalBettingTipsType, GoalPrediction, NextGoalPrediction, LiveOdds } from '../../types/prediction';
+import type { GoalBettingTips as GoalBettingTipsType, LiveOdds } from '../../types/prediction';
 
 interface GoalBettingTipsProps {
-  /** 进球投注建议数据 */
   tips: GoalBettingTipsType;
-  /** 比赛状态 */
   matchStatus: 'live' | 'halftime' | 'finished' | 'not_started';
-  /** 主队名称 */
   homeTeam: string;
-  /** 客队名称 */
   awayTeam: string;
-  /** 当前比分 */
-  currentScore: { home: number; away: number };
-  /** 当前分钟 */
-  currentMinute: number;
-  /** 🟢 实时赔率数据 */
   liveOdds?: LiveOdds;
-}
-
-/**
- * 高置信度阈值
- */
-const HIGH_CONFIDENCE_THRESHOLD = 0.7;
-
-/**
- * 格式化概率为百分比
- */
-function formatPercent(prob: number): string {
-  return `${(prob * 100).toFixed(1)}%`;
 }
 
 /**
@@ -44,245 +22,6 @@ function formatOdds(odds: number): string {
 }
 
 /**
- * 大小球预测卡片
- */
-function OverUnderCard({ prediction, currentGoals }: { prediction: GoalPrediction; currentGoals: number }) {
-  const isHighConfidence = prediction.confidence >= HIGH_CONFIDENCE_THRESHOLD && prediction.recommendation !== 'NEUTRAL';
-  const isOver = prediction.recommendation === 'OVER';
-  const isUnder = prediction.recommendation === 'UNDER';
-  
-  // 判断当前是否已经超过该线
-  const alreadyOver = currentGoals > prediction.line;
-  
-  return (
-    <div className={`
-      relative p-3 rounded-lg border transition-all duration-300
-      ${isHighConfidence 
-        ? 'border-amber-500/50 bg-amber-500/10' 
-        : 'border-slate-600/30 bg-slate-800/30'
-      }
-    `}>
-      {/* 高置信度标签 */}
-      {isHighConfidence && (
-        <div className="absolute -top-2 -right-2">
-          <span className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
-            🔥 高信心
-          </span>
-        </div>
-      )}
-      
-      {/* 盘口线 */}
-      <div className="text-center mb-2">
-        <span className="text-lg font-bold text-white">
-          {prediction.line} 球
-        </span>
-        {alreadyOver && (
-          <span className="ml-2 text-xs text-green-400">✓ 已大</span>
-        )}
-      </div>
-      
-      {/* 大小球概率对比 */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        {/* 大球 */}
-        <div className={`
-          flex-1 text-center p-2 rounded-lg transition-all
-          ${isOver ? 'bg-green-500/20 ring-1 ring-green-500/50' : 'bg-slate-700/30'}
-        `}>
-          <div className="text-xs text-slate-400 mb-1">大 {prediction.line}</div>
-          <div className={`text-lg font-bold ${isOver ? 'text-green-400' : 'text-slate-300'}`}>
-            {formatPercent(prediction.overProb)}
-          </div>
-          <div className="text-xs text-slate-500">
-            @ {formatOdds(prediction.overOdds)}
-          </div>
-        </div>
-        
-        {/* VS */}
-        <div className="text-slate-500 text-xs">VS</div>
-        
-        {/* 小球 */}
-        <div className={`
-          flex-1 text-center p-2 rounded-lg transition-all
-          ${isUnder ? 'bg-blue-500/20 ring-1 ring-blue-500/50' : 'bg-slate-700/30'}
-        `}>
-          <div className="text-xs text-slate-400 mb-1">小 {prediction.line}</div>
-          <div className={`text-lg font-bold ${isUnder ? 'text-blue-400' : 'text-slate-300'}`}>
-            {formatPercent(prediction.underProb)}
-          </div>
-          <div className="text-xs text-slate-500">
-            @ {formatOdds(prediction.underOdds)}
-          </div>
-        </div>
-      </div>
-      
-      {/* 推荐指示 */}
-      {prediction.recommendation !== 'NEUTRAL' && (
-        <div className={`
-          text-center text-xs font-medium py-1 rounded
-          ${isOver ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}
-        `}>
-          推荐: {isOver ? `大 ${prediction.line}` : `小 ${prediction.line}`}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * 下一球预测卡片
- */
-function NextGoalCard({ 
-  prediction, 
-  homeTeam, 
-  awayTeam,
-  currentMinute 
-}: { 
-  prediction: NextGoalPrediction;
-  homeTeam: string;
-  awayTeam: string;
-  currentMinute: number;
-}) {
-  const isHighConfidence = prediction.confidence >= HIGH_CONFIDENCE_THRESHOLD && prediction.recommendation !== 'NEUTRAL';
-  
-  const getRecommendationText = () => {
-    switch (prediction.recommendation) {
-      case 'HOME': return `${homeTeam} 进下一球`;
-      case 'AWAY': return `${awayTeam} 进下一球`;
-      case 'NO_GOAL': return '不再进球';
-      default: return '无明确推荐';
-    }
-  };
-  
-  const getRecommendationColor = () => {
-    switch (prediction.recommendation) {
-      case 'HOME': return 'text-blue-400';
-      case 'AWAY': return 'text-red-400';
-      case 'NO_GOAL': return 'text-slate-400';
-      default: return 'text-slate-500';
-    }
-  };
-
-  return (
-    <div className={`
-      relative p-4 rounded-lg border transition-all duration-300
-      ${isHighConfidence 
-        ? 'border-amber-500/50 bg-amber-500/10' 
-        : 'border-slate-600/30 bg-slate-800/30'
-      }
-    `}>
-      {/* 高置信度标签 */}
-      {isHighConfidence && (
-        <div className="absolute -top-2 -right-2">
-          <span className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
-            🔥 高信心
-          </span>
-        </div>
-      )}
-      
-      <div className="text-center mb-3">
-        <span className="text-sm font-medium text-slate-300">下一球预测</span>
-      </div>
-      
-      {/* 三方概率 */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        {/* 主队 */}
-        <div className={`
-          text-center p-2 rounded-lg
-          ${prediction.recommendation === 'HOME' ? 'bg-blue-500/20 ring-1 ring-blue-500/50' : 'bg-slate-700/30'}
-        `}>
-          <div className="text-xs text-blue-400 mb-1 truncate">{homeTeam}</div>
-          <div className={`text-lg font-bold ${prediction.recommendation === 'HOME' ? 'text-blue-400' : 'text-slate-300'}`}>
-            {formatPercent(prediction.homeProb)}
-          </div>
-        </div>
-        
-        {/* 不进球 */}
-        <div className={`
-          text-center p-2 rounded-lg
-          ${prediction.recommendation === 'NO_GOAL' ? 'bg-slate-500/20 ring-1 ring-slate-500/50' : 'bg-slate-700/30'}
-        `}>
-          <div className="text-xs text-slate-400 mb-1">无进球</div>
-          <div className={`text-lg font-bold ${prediction.recommendation === 'NO_GOAL' ? 'text-slate-300' : 'text-slate-400'}`}>
-            {formatPercent(prediction.noGoalProb)}
-          </div>
-        </div>
-        
-        {/* 客队 */}
-        <div className={`
-          text-center p-2 rounded-lg
-          ${prediction.recommendation === 'AWAY' ? 'bg-red-500/20 ring-1 ring-red-500/50' : 'bg-slate-700/30'}
-        `}>
-          <div className="text-xs text-red-400 mb-1 truncate">{awayTeam}</div>
-          <div className={`text-lg font-bold ${prediction.recommendation === 'AWAY' ? 'text-red-400' : 'text-slate-300'}`}>
-            {formatPercent(prediction.awayProb)}
-          </div>
-        </div>
-      </div>
-      
-      {/* 推荐和预计时间 */}
-      <div className="flex items-center justify-between text-xs">
-        <span className={`font-medium ${getRecommendationColor()}`}>
-          {getRecommendationText()}
-        </span>
-        {prediction.expectedMinutes > currentMinute && prediction.recommendation !== 'NO_GOAL' && (
-          <span className="text-slate-500">
-            预计 {prediction.expectedMinutes}'
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * 高置信度推荐横幅
- */
-function HighConfidenceBanner({ tip, homeTeam, awayTeam }: { 
-  tip: GoalBettingTipsType['highConfidenceTip'];
-  homeTeam: string;
-  awayTeam: string;
-}) {
-  if (!tip) return null;
-  
-  const getDescription = () => {
-    switch (tip.type) {
-      case 'OVER':
-        return `大 ${tip.line} 球`;
-      case 'UNDER':
-        return `小 ${tip.line} 球`;
-      case 'NEXT_GOAL_HOME':
-        return `${homeTeam} 进下一球`;
-      case 'NEXT_GOAL_AWAY':
-        return `${awayTeam} 进下一球`;
-      default:
-        return tip.description;
-    }
-  };
-
-  return (
-    <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-red-500/20 via-amber-500/20 to-red-500/20 border border-amber-500/30">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl animate-bounce">🔥</span>
-          <div>
-            <div className="text-xs text-amber-400 font-medium">高信心推荐</div>
-            <div className="text-white font-bold">{getDescription()}</div>
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-amber-400">
-            {formatPercent(tip.probability)}
-          </div>
-          <div className="text-xs text-slate-400">
-            置信度 {formatPercent(tip.confidence)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
  * 主组件
  */
 export function GoalBettingTips({ 
@@ -290,196 +29,181 @@ export function GoalBettingTips({
   matchStatus, 
   homeTeam, 
   awayTeam,
-  currentScore,
-  currentMinute,
   liveOdds
 }: GoalBettingTipsProps) {
-  const currentGoals = currentScore.home + currentScore.away;
   const isLive = matchStatus === 'live' || matchStatus === 'halftime';
-  const isPreMatch = matchStatus === 'not_started';
-  
-  // 筛选显示的大小球盘口（根据当前进球数）
-  const relevantLines = tips.overUnder.filter(ou => {
-    // 🟢 过滤掉已经确定的盘口（当前进球数 > 盘口线）
-    if (currentGoals >= ou.line) return false;
-    
-    // 🟢 过滤掉概率过于极端的盘口（>95% 或 <5%）
-    if (ou.overProb > 0.95 || ou.underProb > 0.95) return false;
-    
-    // 赛前显示 1.5, 2.5, 3.5
-    if (isPreMatch) return ou.line === 2.5 || ou.line === 1.5 || ou.line === 3.5;
-    
-    // 滚球中显示当前进球数附近的盘口（但必须大于当前进球数）
-    return ou.line > currentGoals && ou.line <= currentGoals + 3;
-  }).slice(0, 3);
+  const hasLiveOdds = liveOdds && (liveOdds.overUnder?.length || liveOdds.asianHandicap?.length);
 
   return (
     <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
-      {/* 标题 */}
-      <div className="flex items-center justify-between mb-4">
+      {/* 标题栏 */}
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/50">
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
           ⚽ 进球投注建议
-          {isLive && <span className="text-xs text-green-400 animate-pulse">● 滚球</span>}
-          {isPreMatch && <span className="text-xs text-blue-400">赛前</span>}
+          {isLive && <span className="text-xs text-green-400 animate-pulse">● LIVE</span>}
         </h3>
-        <div className="text-right">
-          <div className="text-xs text-slate-400">预期总进球</div>
-          <div className="text-lg font-bold text-amber-400">
-            {tips.totalExpectedGoals.toFixed(1)}
+        <div className="flex items-center gap-3">
+          {liveOdds?.status && (
+            <span className="text-sm text-amber-400 font-mono">
+              {liveOdds.status.elapsed}'
+            </span>
+          )}
+          <div className="text-right">
+            <div className="text-xs text-slate-500">预期进球</div>
+            <div className="text-lg font-bold text-amber-400">
+              {tips.totalExpectedGoals.toFixed(1)}
+            </div>
           </div>
         </div>
       </div>
-      
-      {/* 高置信度推荐横幅 */}
-      <HighConfidenceBanner tip={tips.highConfidenceTip} homeTeam={homeTeam} awayTeam={awayTeam} />
-      
-      {/* 🟢 实时滚球赔率显示 */}
-      {(liveOdds?.overUnder || liveOdds?.asianHandicap || liveOdds?.matchWinner) && (
-        <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-purple-500/10 border border-purple-500/30">
-          {/* 标题和状态 */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-purple-400 flex items-center gap-2">
-              💰 实时滚球赔率
-              <span className="text-xs text-green-400 animate-pulse">● LIVE</span>
-              {liveOdds.status && (
-                <span className="text-xs text-amber-400 ml-2">
-                  {liveOdds.status.elapsed}' ({liveOdds.status.seconds})
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-slate-500">
-              {liveOdds.updateTime ? new Date(liveOdds.updateTime).toLocaleTimeString() : ''}
-            </div>
-          </div>
-          
-          {/* 🟢 胜平负赔率 (1x2) */}
+
+      {/* 实时赔率区域 - 主要显示 */}
+      {hasLiveOdds && (
+        <div className="space-y-4">
+          {/* 胜平负 1x2 */}
           {liveOdds.matchWinner && (
-            <div className="mb-3">
-              <div className="text-xs text-slate-400 mb-2">胜平负 (1x2)</div>
+            <div>
+              <div className="text-xs text-slate-400 mb-2 font-medium">胜平负</div>
               <div className="grid grid-cols-3 gap-2">
-                <div className={`text-center p-2 rounded ${liveOdds.matchWinner.suspended ? 'bg-red-500/10 opacity-50' : 'bg-blue-500/10'}`}>
+                <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-blue-500/10 hover:bg-blue-500/20'} transition-colors`}>
                   <div className="text-xs text-blue-400 mb-1">主胜</div>
-                  <div className="text-lg font-bold text-white">{liveOdds.matchWinner.home.toFixed(2)}</div>
+                  <div className="text-xl font-bold text-white">{formatOdds(liveOdds.matchWinner.home)}</div>
                 </div>
-                <div className={`text-center p-2 rounded ${liveOdds.matchWinner.suspended ? 'bg-red-500/10 opacity-50' : 'bg-slate-500/10'}`}>
+                <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-slate-700/30 hover:bg-slate-700/50'} transition-colors`}>
                   <div className="text-xs text-slate-400 mb-1">平局</div>
-                  <div className="text-lg font-bold text-white">{liveOdds.matchWinner.draw.toFixed(2)}</div>
+                  <div className="text-xl font-bold text-white">{formatOdds(liveOdds.matchWinner.draw)}</div>
                 </div>
-                <div className={`text-center p-2 rounded ${liveOdds.matchWinner.suspended ? 'bg-red-500/10 opacity-50' : 'bg-red-500/10'}`}>
+                <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-red-500/10 hover:bg-red-500/20'} transition-colors`}>
                   <div className="text-xs text-red-400 mb-1">客胜</div>
-                  <div className="text-lg font-bold text-white">{liveOdds.matchWinner.away.toFixed(2)}</div>
+                  <div className="text-xl font-bold text-white">{formatOdds(liveOdds.matchWinner.away)}</div>
                 </div>
               </div>
-              {liveOdds.matchWinner.suspended && (
-                <div className="text-xs text-red-400 text-center mt-1">⚠️ 暂停接受投注</div>
-              )}
             </div>
           )}
-          
-          {/* 🟢 亚洲盘口 (Asian Handicap) */}
+
+          {/* 亚洲盘口 */}
           {liveOdds.asianHandicap && liveOdds.asianHandicap.length > 0 && (
-            <div className="mb-3">
-              <div className="text-xs text-slate-400 mb-2">亚洲盘口 (让球)</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {liveOdds.asianHandicap.map((ah, idx) => {
-                  const isMain = ah.main;
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`
-                        text-center p-2 rounded transition-all
-                        ${isMain ? 'bg-amber-500/20 ring-1 ring-amber-500/50' : 'bg-slate-800/50'}
-                        ${ah.suspended ? 'opacity-50' : ''}
-                      `}
-                    >
-                      <div className="text-xs text-amber-400 mb-1 flex items-center justify-center gap-1">
-                        {ah.line.startsWith('-') ? '' : '+'}{ah.line}
-                        {isMain && <span className="text-[10px] bg-amber-500/30 px-1 rounded">主</span>}
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-blue-400">主 {ah.home.toFixed(2)}</span>
-                        <span className="text-red-400">客 {ah.away.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+            <div>
+              <div className="text-xs text-slate-400 mb-2 font-medium">亚洲盘口</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-slate-500">
+                      <th className="text-left py-1 px-2">盘口</th>
+                      <th className="text-center py-1 px-2 text-blue-400">{homeTeam.slice(0, 6)}</th>
+                      <th className="text-center py-1 px-2 text-red-400">{awayTeam.slice(0, 6)}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveOdds.asianHandicap.slice(0, 5).map((ah, idx) => (
+                      <tr 
+                        key={idx} 
+                        className={`
+                          border-t border-slate-700/30
+                          ${ah.main ? 'bg-amber-500/10' : ''}
+                          ${ah.suspended ? 'opacity-50' : ''}
+                        `}
+                      >
+                        <td className="py-2 px-2">
+                          <span className={`font-mono ${ah.main ? 'text-amber-400 font-bold' : 'text-slate-300'}`}>
+                            {ah.line.startsWith('-') ? '' : '+'}{ah.line}
+                          </span>
+                          {ah.main && <span className="ml-1 text-[10px] text-amber-400">★</span>}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <span className="text-blue-400 font-bold">{formatOdds(ah.home)}</span>
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <span className="text-red-400 font-bold">{formatOdds(ah.away)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
-          
-          {/* 🟢 大小球赔率 (Over/Under) */}
+
+          {/* 大小球 */}
           {liveOdds.overUnder && liveOdds.overUnder.length > 0 && (
             <div>
-              <div className="text-xs text-slate-400 mb-2">大小球 (Over/Under)</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {liveOdds.overUnder.map((ou, idx) => {
-                  const isMain = ou.main;
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`
-                        text-center p-2 rounded transition-all
-                        ${isMain ? 'bg-amber-500/20 ring-1 ring-amber-500/50' : 'bg-slate-800/50'}
-                        ${ou.suspended ? 'opacity-50' : ''}
-                      `}
-                    >
-                      <div className="text-xs text-slate-300 mb-1 flex items-center justify-center gap-1">
-                        {ou.line}球
-                        {isMain && <span className="text-[10px] bg-amber-500/30 px-1 rounded">主</span>}
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-green-400">大 {ou.over.toFixed(2)}</span>
-                        <span className="text-blue-400">小 {ou.under.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="text-xs text-slate-400 mb-2 font-medium">大小球</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-slate-500">
+                      <th className="text-left py-1 px-2">盘口</th>
+                      <th className="text-center py-1 px-2 text-green-400">大球</th>
+                      <th className="text-center py-1 px-2 text-blue-400">小球</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveOdds.overUnder.slice(0, 5).map((ou, idx) => (
+                      <tr 
+                        key={idx} 
+                        className={`
+                          border-t border-slate-700/30
+                          ${ou.main ? 'bg-amber-500/10' : ''}
+                          ${ou.suspended ? 'opacity-50' : ''}
+                        `}
+                      >
+                        <td className="py-2 px-2">
+                          <span className={`font-mono ${ou.main ? 'text-amber-400 font-bold' : 'text-slate-300'}`}>
+                            {ou.line}球
+                          </span>
+                          {ou.main && <span className="ml-1 text-[10px] text-amber-400">★</span>}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <span className="text-green-400 font-bold">{formatOdds(ou.over)}</span>
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <span className="text-blue-400 font-bold">{formatOdds(ou.under)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* AI 大小球预测 */}
-      <div className="mb-4">
-        <div className="text-sm font-medium text-slate-400 mb-2 flex items-center gap-2">
-          🤖 AI 大小球预测
-          {isLive && (
-            <span className="text-xs text-slate-500">
-              (当前 {currentGoals} 球，剩余预期 +{tips.remainingExpectedGoals.toFixed(1)})
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {relevantLines.map((prediction) => (
-            <OverUnderCard 
-              key={prediction.line} 
-              prediction={prediction} 
-              currentGoals={currentGoals}
-            />
-          ))}
-        </div>
-      </div>
-      
-      {/* 下一球预测（仅滚球中显示） */}
-      {isLive && (
-        <div>
-          <div className="text-sm font-medium text-slate-400 mb-2">
-            🎯 下一球预测
+      {/* 无实时赔率时显示 AI 预测 */}
+      {!hasLiveOdds && (
+        <div className="text-center py-8">
+          <div className="text-slate-500 mb-2">暂无实时赔率数据</div>
+          <div className="text-xs text-slate-600">
+            AI 预测：预期总进球 {tips.totalExpectedGoals.toFixed(1)} 球
           </div>
-          <NextGoalCard 
-            prediction={tips.nextGoal}
-            homeTeam={homeTeam}
-            awayTeam={awayTeam}
-            currentMinute={currentMinute}
-          />
         </div>
       )}
-      
-      {/* 赛前提示 */}
-      {isPreMatch && (
-        <div className="mt-3 p-2 rounded bg-slate-800/50 text-xs text-slate-400 text-center">
-          💡 比赛开始后将显示实时下一球预测
+
+      {/* 下一球预测 - 简化版 */}
+      {isLive && tips.nextGoal && (
+        <div className="mt-4 pt-4 border-t border-slate-700/50">
+          <div className="text-xs text-slate-400 mb-2 font-medium">🎯 下一球预测</div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className={`p-2 rounded ${tips.nextGoal.recommendation === 'HOME' ? 'bg-blue-500/20 ring-1 ring-blue-500/50' : 'bg-slate-800/50'}`}>
+              <div className="text-xs text-blue-400 truncate">{homeTeam}</div>
+              <div className="text-lg font-bold text-white">{(tips.nextGoal.homeProb * 100).toFixed(0)}%</div>
+            </div>
+            <div className={`p-2 rounded ${tips.nextGoal.recommendation === 'NO_GOAL' ? 'bg-slate-500/20 ring-1 ring-slate-500/50' : 'bg-slate-800/50'}`}>
+              <div className="text-xs text-slate-400">无进球</div>
+              <div className="text-lg font-bold text-white">{(tips.nextGoal.noGoalProb * 100).toFixed(0)}%</div>
+            </div>
+            <div className={`p-2 rounded ${tips.nextGoal.recommendation === 'AWAY' ? 'bg-red-500/20 ring-1 ring-red-500/50' : 'bg-slate-800/50'}`}>
+              <div className="text-xs text-red-400 truncate">{awayTeam}</div>
+              <div className="text-lg font-bold text-white">{(tips.nextGoal.awayProb * 100).toFixed(0)}%</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 暂停投注提示 */}
+      {liveOdds?.matchWinner?.suspended && (
+        <div className="mt-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 text-center">
+          ⚠️ 赔率暂停更新中
         </div>
       )}
     </div>
@@ -518,7 +242,7 @@ export function GoalTipBadge({ tips }: { tips: GoalBettingTipsType }) {
       inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border
       ${getBadgeColor()}
     `}>
-      🔥 {getShortText()} {formatPercent(tip.probability)}
+      🔥 {getShortText()} {(tip.probability * 100).toFixed(0)}%
     </span>
   );
 }
