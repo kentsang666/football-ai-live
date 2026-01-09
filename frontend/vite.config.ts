@@ -9,10 +9,10 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: ['5173-i8tko8mwvfqk17gl8iqmr-718071c2.sg1.manus.computer'],
   },
   define: {
-    // 在生产环境中，如果没有设置 VITE_API_URL，使用 Railway 后端 URL
+    // 生产环境使用空字符串（相对路径），开发环境使用本地后端
     'import.meta.env.VITE_API_URL': JSON.stringify(
       process.env.VITE_API_URL || 
-      (mode === 'production' ? 'https://football-ai-live-production.up.railway.app' : 'http://localhost:4000')
+      (mode === 'production' ? '' : 'http://localhost:4000')
     ),
   },
 }))

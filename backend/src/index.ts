@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createClient } from 'redis';
 import cors from 'cors';
+import path from 'path';
 import 'dotenv/config';
 
 // 导入真实数据服务
@@ -77,6 +78,10 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// 🟢 静态文件服务 - 服务前端构建产物
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
 
 const httpServer = createServer(app);
 
@@ -735,8 +740,8 @@ app.get('/health', async (req, res) => {
     });
 });
 
-// 根路径
-app.get('/', (req, res) => {
+// API 根路径
+app.get('/api', (req, res) => {
     res.json({
         service: 'Football Prediction Backend',
         version: '2.2.0',
@@ -753,6 +758,27 @@ app.get('/', (req, res) => {
             databaseStats: '/api/stats/database',
             batchPrediction: 'POST /api/predictions/batch',
             websocket: 'ws://[host]/socket.io'
+        }
+    });
+});
+
+// 🟢 SPA 回退路由 - 所有非 API 请求返回前端 index.html
+app.get('*', (req, res) => {
+    // 如果是 API 请求，返回 404
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    // 否则返回前端页面
+    const indexPath = path.join(frontendDistPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            // 如果前端文件不存在，返回 API 信息
+            res.json({
+                service: 'Football Prediction Backend',
+                version: '2.2.0',
+                status: 'running',
+                message: 'Frontend not built. Access /api for API endpoints.'
+            });
         }
     });
 });
