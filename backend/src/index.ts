@@ -11,6 +11,8 @@ import { createFootballService, FootballService } from './services/footballServi
 import { predictionService, MatchData, Prediction } from './services/predictionService';
 // 导入数据库服务
 import { databaseService, PredictionSnapshot } from './services/databaseService';
+// 导入结算服务
+import { settlementService } from './services/settlementService';
 
 // ===========================================
 // 云端部署配置
@@ -792,6 +794,114 @@ app.get('/health', async (req, res) => {
         database_stats: dbStats,
         prediction_service: `QuantPredict-v${predictionService.getVersion()}`
     });
+});
+
+// ===========================================
+// 🟢 结算 API - 获取完场比分并结算推荐
+// ===========================================
+
+// 获取单场比赛的完场比分
+app.get('/api/fixtures/:fixtureId/result', async (req, res) => {
+    const { fixtureId } = req.params;
+    
+    try {
+        const result = await settlementService.getFixtureResult(fixtureId);
+        
+        if (!result) {
+            return res.status(404).json({ 
+                error: 'Fixture not found',
+                message: `未找到比赛 ID: ${fixtureId}`
+            });
+        }
+        
+        res.json(result);
+    } catch (error: any) {
+        console.error('[API] 获取比赛结果失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 批量获取比赛结果
+app.post('/api/fixtures/results', async (req, res) => {
+    const { fixtureIds } = req.body;
+    
+    if (!Array.isArray(fixtureIds)) {
+        return res.status(400).json({ error: 'fixtureIds must be an array' });
+    }
+    
+    try {
+        const results = await settlementService.getMultipleFixtureResults(fixtureIds);
+        
+        // 转换 Map 为对象
+        const resultsObj: Record<string, any> = {};
+        results.forEach((value, key) => {
+            resultsObj[key] = value;
+        });
+        
+        res.json({
+            total: results.size,
+            results: resultsObj,
+        });
+    } catch (error: any) {
+        console.error('[API] 批量获取比赛结果失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 结算单条推荐
+app.post('/api/settlement/single', async (req, res) => {
+    const { matchId, type, selection, scoreWhenTip } = req.body;
+    
+    if (!matchId || !type || !selection || !scoreWhenTip) {
+        return res.status(400).json({ 
+            error: 'Missing required fields',
+            required: ['matchId', 'type', 'selection', 'scoreWhenTip']
+        });
+    }
+    
+    try {
+        const result = await settlementService.settleRecommendation({
+            matchId,
+            type,
+            selection,
+            scoreWhenTip,
+        });
+        
+        res.json(result);
+    } catch (error: any) {
+        console.error('[API] 结算失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 批量结算推荐
+app.post('/api/settlement/batch', async (req, res) => {
+    const { recommendations } = req.body;
+    
+    if (!Array.isArray(recommendations)) {
+        return res.status(400).json({ error: 'recommendations must be an array' });
+    }
+    
+    try {
+        const results = await settlementService.settleMultipleRecommendations(recommendations);
+        
+        // 统计结果
+        const stats = {
+            total: results.length,
+            wins: results.filter(r => r.result === 'WIN').length,
+            losses: results.filter(r => r.result === 'LOSS').length,
+            pushes: results.filter(r => r.result === 'PUSH').length,
+            pending: results.filter(r => r.result === 'PENDING').length,
+        };
+        
+        res.json({
+            stats,
+            results,
+        });
+    } catch (error: any) {
+        console.error('[API] 批量结算失败:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // 根路径
