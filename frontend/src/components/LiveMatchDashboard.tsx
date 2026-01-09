@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Activity, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { MatchCard } from './MatchCard';
+import { AlertToast } from './AlertToast';
+import { DebugPanel } from './DebugPanel';
 import { matchStore } from '../store/matchStore';
+import { 
+  usePredictionAlert, 
+  alertSoundManager 
+} from '../hooks/usePredictionAlert';
 import type { MatchState, MatchEvent, PredictionData } from '../store/matchStore';
 
 // ===========================================
@@ -31,6 +37,48 @@ export function LiveMatchDashboard() {
   const [connected, setConnected] = useState(false);
   const [matches, setMatches] = useState<MatchState[]>([]);
   const [lastUpdate, setLastUpdate] = useState<string>('');
+
+  // 🔔 集成通知系统
+  const {
+    activeToasts,
+    unreadCount,
+    dismissToast,
+    clearAllToasts,
+    triggerTestAlert,
+    isAudioEnabled,
+    enableAudio,
+    requestNotificationPermission,
+    isNotificationGranted,
+  } = usePredictionAlert(matches, {
+    confidenceThreshold: 0.80,  // 80% 信心度
+    valueEdgeThreshold: 0.10,   // 10% 价值边际
+    toastDuration: 10000,       // 10秒
+    soundEnabled: true,
+    titleFlashEnabled: true,
+    browserNotificationEnabled: true,
+  });
+
+  // 用户首次交互时启用音频
+  const handleUserInteraction = useCallback(() => {
+    if (!alertSoundManager.isEnabled()) {
+      alertSoundManager.enableAudio();
+      console.log('🔊 用户交互，音频已启用');
+    }
+  }, []);
+
+  // 监听用户首次交互
+  useEffect(() => {
+    const events = ['click', 'touchstart', 'keydown'];
+    const handler = () => {
+      handleUserInteraction();
+      // 只需要触发一次
+      events.forEach(e => document.removeEventListener(e, handler));
+    };
+    events.forEach(e => document.addEventListener(e, handler, { once: true }));
+    return () => {
+      events.forEach(e => document.removeEventListener(e, handler));
+    };
+  }, [handleUserInteraction]);
 
   // 初始化 WebSocket 连接
   useEffect(() => {
@@ -114,6 +162,14 @@ export function LiveMatchDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* 🔔 未读通知指示器 */}
+            {unreadCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/20 text-red-400 text-sm animate-pulse">
+                <span>🔔</span>
+                <span>{unreadCount} 新推荐</span>
+              </div>
+            )}
+
             {/* 刷新按钮 */}
             <button 
               onClick={handleRefresh}
@@ -182,6 +238,23 @@ export function LiveMatchDashboard() {
           <div className="mt-2">Football Prediction System v2.1 - 多场比赛实时监控</div>
         </footer>
       </div>
+
+      {/* 🔔 Toast 通知组件 */}
+      <AlertToast
+        alerts={activeToasts}
+        onDismiss={dismissToast}
+        onClearAll={clearAllToasts}
+      />
+
+      {/* 🔧 调试面板 */}
+      <DebugPanel
+        onTestNotification={triggerTestAlert}
+        onEnableAudio={enableAudio}
+        onRequestPermission={requestNotificationPermission}
+        isAudioEnabled={isAudioEnabled}
+        isNotificationGranted={isNotificationGranted}
+        unreadCount={unreadCount}
+      />
     </div>
   );
 }
