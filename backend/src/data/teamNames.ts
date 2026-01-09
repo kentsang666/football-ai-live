@@ -577,6 +577,150 @@ export const TEAM_NAMES: Record<string, string> = {
     'Duisburg': '杜伊斯堡',
 
     // ===========================================
+    // 沙特超 (补充)
+    // ===========================================
+    'Al Kholood': '卡鲁德',
+    'Al-Ittihad FC': '吉达伊蒂哈德',
+    'Al Taawon': '塔温',
+    'Al-Taawon': '塔温',
+    'Al Wehda': '维达',
+    'Al-Wehda': '维达',
+    'Damac FC': '达马克',
+    'Abha Club': '阿巴',
+    'Al Qadsiah': '卡迪西亚',
+    'Al-Qadsiah': '卡迪西亚',
+
+    // ===========================================
+    // 土甲 (Turkish 1. Lig)
+    // ===========================================
+    'Amed': '阿米德',
+    'Amed SK': '阿米德',
+    'Yeni Çorumspor': '新乔鲁姆',
+    'Yeni Corumspor': '新乔鲁姆',
+    'Göztepe': '戈兹特佩',
+    'Goztepe': '戈兹特佩',
+    'Eyüpspor': '埃丘普',
+    'Eyupspor': '埃丘普',
+    'Sakaryaspor': '萨卡里亚',
+    'Bandırmaspor': '班德尔马',
+    'Bandirmaspor': '班德尔马',
+    'Boluspor': '博卢',
+    'Çorum FK': '乔鲁姆',
+    'Corum FK': '乔鲁姆',
+    'Erzurumspor FK': '埃尔祖鲁姆',
+    'Gençlerbirliği': '根克勒比利',
+    'Genclerbirligi': '根克勒比利',
+    'Iğdırspor': '伊迪尔',
+    'Igdirspor': '伊迪尔',
+    'Keçiörengücü': '凯奇奥伦',
+    'Keciorengucu': '凯奇奥伦',
+    'Kocaelispor': '科贾埃利',
+    'Manisa FK': '马尼萨',
+    'Pendikspor': '彭迪克',
+    'Şanlıurfaspor': '尚勒乌尔法',
+    'Sanliurfaspor': '尚勒乌尔法',
+    'Tuzlaspor': '图兹拉',
+    'Ümraniyespor': '乌姆拉尼耶',
+    'Umraniyespor': '乌姆拉尼耶',
+
+    // ===========================================
+    // 塞浦甲 (Cyprus First Division)
+    // ===========================================
+    'AEL': 'AEL利马索尔',
+    'AEL Limassol': 'AEL利马索尔',
+    'Omonia Nicosia': '尼科西亚奥莫尼亚',
+    'Omonia': '尼科西亚奥莫尼亚',
+    'APOEL': '希腊人竞技',
+    'APOEL Nicosia': '希腊人竞技',
+    'Anorthosis': '阿诺索西斯',
+    'Anorthosis Famagusta': '阿诺索西斯',
+    'AEK Larnaca': 'AEK拉纳卡',
+    'Apollon Limassol': '阿波罗利马索尔',
+    'Apollon': '阿波罗利马索尔',
+    'Pafos FC': '帕福斯',
+    'Pafos': '帕福斯',
+    'Aris Limassol': '阿里斯利马索尔',
+    'Nea Salamis': '新萨拉米斯',
+    'Ethnikos Achnas': '埃特尼科斯',
+    'Karmiotissa': '卡米奥蒂萨',
+
+    // ===========================================
+    // 阿尔甲 (Algerian Ligue 1)
+    // ===========================================
+    'CR Belouizdad': '贝鲁伊扎德',
+    'JS Kabylie': '卡比利青年',
+    'MC Alger': '阿尔及尔穆卢迪亚',
+    'USM Alger': '阿尔及尔联合',
+    'ES Setif': '塞蒂夫',
+    'CS Constantine': '君士坦丁',
+    'MC Oran': '奥兰',
+    'ASO Chlef': '杰勒夫',
+    'JS Saoura': '索拉',
+    'NC Magra': '马格拉',
+    'Paradou AC': '帕拉杜',
+    'US Biskra': '比斯克拉',
+    'USM Khenchela': '肯舍拉',
+    'MC El Bayadh': '巴亚德',
+    'ES Mostaganem': '莫斯塔加内姆',
+    'Olympique Medea': '梅迪亚',
+
+    // ===========================================
+    // 苏冠 (Scottish Championship)
+    // ===========================================
+    'Dundee United': '邓迪联',
+    'Ayr United': '艾尔联',
+    'Partick Thistle': '帕蒂克',
+    'Partick': '帕蒂克',
+    'Raith Rovers': '雷斯流浪者',
+    'Raith': '雷斯流浪者',
+    'Falkirk': '福尔柯克',
+    'Queen\'s Park': '女王公园',
+    'Queens Park': '女王公园',
+    'Livingston': '利文斯顿',
+    'Airdrieonians': '艾尔德里',
+    'Airdrie': '艾尔德里',
+    'Hamilton Academical': '汉密尔顿',
+    'Hamilton': '汉密尔顿',
+    'Morton': '莫顿',
+    'Greenock Morton': '格林诺克莫顿',
+
+    // ===========================================
+    // 非洲杯 (Africa Cup of Nations)
+    // ===========================================
+    'Mali': '马里',
+    'Senegal': '塞内加尔',
+    'Nigeria': '尼日利亚',
+    'Egypt': '埃及',
+    'Morocco': '摩洛哥',
+    'Algeria': '阿尔及利亚',
+    'Tunisia': '突尼斯',
+    'Cameroon': '喀麦隆',
+    'Ghana': '加纳',
+    'Ivory Coast': '科特迪瓦',
+    'Cote D\'Ivoire': '科特迪瓦',
+    'South Africa': '南非',
+    'DR Congo': '刚果民主',
+    'Congo DR': '刚果民主',
+    'Burkina Faso': '布基纳法索',
+    'Guinea': '几内亚',
+    'Cape Verde': '佛得角',
+    'Zambia': '赞比亚',
+    'Zimbabwe': '津巴布韦',
+    'Angola': '安哥拉',
+    'Equatorial Guinea': '赤道几内亚',
+    'Gabon': '加蓬',
+    'Tanzania': '坦桑尼亚',
+    'Uganda': '乌干达',
+    'Kenya': '肯尼亚',
+    'Sudan': '苏丹',
+    'Mozambique': '莫桑比克',
+    'Benin': '贝宁',
+    'Comoros': '科摩罗',
+    'Mauritania': '毛里塔尼亚',
+    'Namibia': '纳米比亚',
+    'Botswana': '博茨瓦纳',
+
+    // ===========================================
     // 其他常见球队
     // ===========================================
     'FC Lugano': '卢加诺',
@@ -586,6 +730,11 @@ export const TEAM_NAMES: Record<string, string> = {
     'KVC Westerlo': '韦斯特洛',
     'Westerlo': '韦斯特洛',
     'Malženice': '马尔热尼采',
+    
+    // ===========================================
+    // 其他亚洲球队
+    // ===========================================
+    '利雅得青年': '利雅得青年',  // 已经是中文
 };
 
 /**
