@@ -652,7 +652,7 @@ export class GoalPredictor {
   private liveProbability: LiveProbability;
   private maxGoals: number;
 
-  constructor(maxGoals = 10) {
+  constructor(maxGoals = 8) {  // [v2.1] 与 LiveProbability 保持一致
     this.liveProbability = new LiveProbability();
     this.maxGoals = maxGoals;
   }
@@ -667,11 +667,13 @@ export class GoalPredictor {
     let overProb = 0;
     let underProb = 0;
     
+    // [v2.1] 修复：使用 probMatrix 的实际长度，避免越界
+    const actualMaxGoals = probMatrix.length - 1;
     // 计算剩余进球数的概率
-    for (let addHome = 0; addHome <= this.maxGoals; addHome++) {
-      for (let addAway = 0; addAway <= this.maxGoals; addAway++) {
+    for (let addHome = 0; addHome <= actualMaxGoals; addHome++) {
+      for (let addAway = 0; addAway <= actualMaxGoals; addAway++) {
         const totalGoals = stats.homeScore + stats.awayScore + addHome + addAway;
-        const prob = probMatrix[addHome]![addAway] || 0;
+        const prob = probMatrix[addHome]?.[addAway] || 0;
         
         if (totalGoals > line) {
           overProb += prob;
