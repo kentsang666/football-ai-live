@@ -501,11 +501,13 @@ export class AsianHandicapPricer {
     let winProb = 0;
     let pushProb = 0;
 
-    for (let addHome = 0; addHome <= 10; addHome++) {
-      for (let addAway = 0; addAway <= 10; addAway++) {
+    // [v2.1] 修复：使用 probMatrix 的实际长度，避免越界
+    const maxGoals = probMatrix.length - 1;
+    for (let addHome = 0; addHome <= maxGoals; addHome++) {
+      for (let addAway = 0; addAway <= maxGoals; addAway++) {
         const finalHome = stats.homeScore + addHome;
         const finalAway = stats.awayScore + addAway;
-        const prob = probMatrix[addHome]![addAway] || 0;
+        const prob = probMatrix[addHome]?.[addAway] || 0;
 
         let adjustedDiff: number;
         if (forHome) {
@@ -1015,8 +1017,10 @@ export class GoalPredictor {
     let winProb = 0;
     let loseProb = 0;
     
-    for (let addHome = 0; addHome <= 10; addHome++) {
-      for (let addAway = 0; addAway <= 10; addAway++) {
+    // [v2.1] 修复：使用 probMatrix 的实际长度，避免越界
+    const maxGoals = probMatrix.length - 1;
+    for (let addHome = 0; addHome <= maxGoals; addHome++) {
+      for (let addAway = 0; addAway <= maxGoals; addAway++) {
         // 剩余时间的进球差
         const remainingMargin = addHome - addAway;
         const prob = probMatrix[addHome]?.[addAway] || 0;
@@ -1176,8 +1180,10 @@ export class GoalPredictor {
     let winProb = 0;
     let loseProb = 0;
     
-    for (let addHome = 0; addHome <= 10; addHome++) {
-      for (let addAway = 0; addAway <= 10; addAway++) {
+    // [v2.1] 修复：使用 probMatrix 的实际长度，避免越界
+    const maxGoals = probMatrix.length - 1;
+    for (let addHome = 0; addHome <= maxGoals; addHome++) {
+      for (let addAway = 0; addAway <= maxGoals; addAway++) {
         const finalMargin = (stats.homeScore + addHome) - (stats.awayScore + addAway);
         const prob = probMatrix[addHome]?.[addAway] || 0;
         
