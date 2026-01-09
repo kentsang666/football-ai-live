@@ -163,7 +163,7 @@ const LEAGUE_INFO: Record<number, LeagueInfo> = {
     // 国际赛事
     1: { name: '世界杯', fullName: '🌍 世界杯 (FIFA World Cup)', country: '国际' },
     7: { name: '亚洲杯', fullName: '🌏 亚洲杯 (AFC Asian Cup)', country: '亚洲' },
-    667: { name: '球会友谊', fullName: '⚽ 球会友谊 (Club Friendlies)', country: '国际' },
+    // 667: { name: '球会友谊', fullName: '⚽ 球会友谊 (Club Friendlies)', country: '国际' }, // 已移除，不监听友谊赛
 };
 
 // 兼容旧的 LEAGUE_NAMES 格式（用于日志显示）
@@ -305,11 +305,19 @@ export class FootballService {
     
     private logLeagueFilterConfig(): void {
         console.log('\n' + '='.repeat(60));
-        console.log('⚽ 联赛白名单过滤配置');
+        console.log('⚽ 联赛过滤配置');
         console.log('='.repeat(60));
         
+        // 显示黑名单
+        if (FootballService.LEAGUE_BLACKLIST.length > 0) {
+            console.log('🚫 黑名单 (永不监听):');
+            FootballService.LEAGUE_BLACKLIST.forEach(leagueId => {
+                console.log(`   ❌ ${leagueId}: 球会友谊 (Club Friendlies)`);
+            });
+        }
+        
         if (this.allowedLeagues.length === 0) {
-            console.log('📋 模式: 不过滤 (监听所有联赛)');
+            console.log('📋 模式: 监听所有联赛 (除黑名单外)');
         } else {
             console.log(`📋 模式: 白名单过滤 (仅监听 ${this.allowedLeagues.length} 个联赛)`);
             console.log('📋 监听的联赛列表:');
@@ -326,8 +334,18 @@ export class FootballService {
     // 检查联赛是否在白名单中
     // ===========================================
     
+    // 联赛黑名单 - 这些联赛永远不会被监听
+    private static readonly LEAGUE_BLACKLIST: number[] = [
+        667,  // 球会友谊 (Club Friendlies)
+    ];
+    
     private isLeagueAllowed(leagueId: number): boolean {
-        // 如果白名单为空，允许所有联赛
+        // 首先检查黑名单 - 黑名单中的联赛永远不允许
+        if (FootballService.LEAGUE_BLACKLIST.includes(leagueId)) {
+            return false;
+        }
+        
+        // 如果白名单为空，允许所有联赛（除了黑名单）
         if (this.allowedLeagues.length === 0) {
             return true;
         }
