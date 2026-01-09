@@ -114,12 +114,25 @@ export function GoalBettingTips({
               {liveOdds.status.elapsed}'
             </span>
           )}
-          <div className="text-right">
-            <div className="text-xs text-slate-500">预期进球</div>
-            <div className="text-lg font-bold text-amber-400">
-              {tips.totalExpectedGoals.toFixed(1)}
+          {/* 显示实时大小球主盘口 */}
+          {mainOverUnder ? (
+            <div className="text-right bg-emerald-500/10 rounded-lg px-3 py-1 border border-emerald-500/30">
+              <div className="text-[10px] text-emerald-400">大小球主盘</div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold text-white">{mainOverUnder.line}</span>
+                <span className="text-xs text-slate-400">|</span>
+                <span className="text-xs text-green-400">大 {mainOverUnder.over.toFixed(2)}</span>
+                <span className="text-xs text-blue-400">小 {mainOverUnder.under.toFixed(2)}</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-right">
+              <div className="text-xs text-slate-500">预期进球</div>
+              <div className="text-lg font-bold text-amber-400">
+                {tips.totalExpectedGoals.toFixed(1)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
