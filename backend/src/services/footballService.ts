@@ -8,6 +8,29 @@ import { getTeamChineseName } from '../data/teamNames';
 // ===========================================
 
 // 我们系统内部使用的简化比赛数据格式
+// 实时赔率数据
+export interface LiveOdds {
+    matchWinner?: {
+        home: number;
+        draw: number;
+        away: number;
+        bookmaker: string;
+        updateTime: string;
+    };
+    overUnder?: {
+        line: number;  // 0.5, 1.5, 2.5, 3.5, 4.5
+        over: number;  // 大球赔率
+        under: number; // 小球赔率
+    }[];
+    asianHandicap?: {
+        line: string;  // "-0.5", "+0.5", "-1", etc.
+        home: number;
+        away: number;
+    }[];
+    bookmaker?: string;
+    updateTime?: string;
+}
+
 export interface MatchData {
     match_id: string;
     home_team: string;
@@ -19,6 +42,7 @@ export interface MatchData {
     league: string;
     league_id: number;  // 新增：联赛ID用于过滤
     timestamp: string;
+    liveOdds?: LiveOdds;  // 🟢 新增：实时赔率数据
 }
 
 // 比赛事件（用于发送给 AI 和前端）
@@ -394,7 +418,18 @@ export class FootballService {
         // 1. 转换为我们的内部格式
         const matchData = this.mapExternalData(fixture);
         
-        // 2. 差异检测：检查是否有变化
+        // 🟢 2. 获取实时赔率数据
+        try {
+            const liveOdds = await this.fetchLiveOdds(fixture.fixture.id);
+            if (liveOdds) {
+                matchData.liveOdds = liveOdds;
+            }
+        } catch (error) {
+            // 赔率获取失败不影响主流程
+            console.warn(`⚠️ 获取赔率失败 [${matchData.match_id}]:`, error);
+        }
+        
+        // 3. 差异检测：检查是否有变化
         const cachedMatch = this.matchCache.get(matchData.match_id);
         const hasChanged = this.detectChanges(cachedMatch, matchData);
 
@@ -402,14 +437,120 @@ export class FootballService {
             return; // 没有变化，跳过
         }
 
-        // 3. 更新缓存
+        // 4. 更新缓存
         this.matchCache.set(matchData.match_id, matchData);
 
-        // 4. 构建事件
+        // 5. 构建事件
         const event = this.buildMatchEvent(cachedMatch, matchData);
 
-        // 5. 发送事件
+        // 6. 发送事件
         await this.emitEvent(event);
+    }
+
+    // ===========================================
+    // 🟢 新增：获取实时赔率数据
+    // ===========================================
+
+    private async fetchLiveOdds(fixtureId: number): Promise<LiveOdds | null> {
+        try {
+            const response = await this.apiClient.get('/odds', {
+                params: { fixture: fixtureId }
+            });
+
+            const oddsData = response.data.response?.[0];
+            if (!oddsData || !oddsData.bookmakers || oddsData.bookmakers.length === 0) {
+                return null;
+            }
+
+            // 使用第一个博彩公司的数据
+            const bookmaker = oddsData.bookmakers[0];
+            const bets = bookmaker.bets;
+
+            const liveOdds: LiveOdds = {
+                bookmaker: bookmaker.name,
+                updateTime: oddsData.update
+            };
+
+            // 解析胜平负赔率
+            const matchWinnerBet = bets.find((b: any) => b.id === 1 || b.name === 'Match Winner');
+            if (matchWinnerBet) {
+                const homeOdd = matchWinnerBet.values.find((v: any) => v.value === 'Home');
+                const drawOdd = matchWinnerBet.values.find((v: any) => v.value === 'Draw');
+                const awayOdd = matchWinnerBet.values.find((v: any) => v.value === 'Away');
+                
+                if (homeOdd && drawOdd && awayOdd) {
+                    liveOdds.matchWinner = {
+                        home: parseFloat(homeOdd.odd),
+                        draw: parseFloat(drawOdd.odd),
+                        away: parseFloat(awayOdd.odd),
+                        bookmaker: bookmaker.name,
+                        updateTime: oddsData.update
+                    };
+                }
+            }
+
+            // 解析大小球赔率
+            const overUnderBet = bets.find((b: any) => b.id === 5 || b.name === 'Goals Over/Under');
+            if (overUnderBet) {
+                const overUnderOdds: LiveOdds['overUnder'] = [];
+                const lines = [0.5, 1.5, 2.5, 3.5, 4.5];
+                
+                for (const line of lines) {
+                    const overValue = overUnderBet.values.find((v: any) => v.value === `Over ${line}`);
+                    const underValue = overUnderBet.values.find((v: any) => v.value === `Under ${line}`);
+                    
+                    if (overValue && underValue) {
+                        overUnderOdds.push({
+                            line,
+                            over: parseFloat(overValue.odd),
+                            under: parseFloat(underValue.odd)
+                        });
+                    }
+                }
+                
+                if (overUnderOdds.length > 0) {
+                    liveOdds.overUnder = overUnderOdds;
+                }
+            }
+
+            // 解析亚洲盘口
+            const asianHandicapBet = bets.find((b: any) => b.id === 4 || b.name === 'Asian Handicap');
+            if (asianHandicapBet) {
+                const asianHandicapOdds: LiveOdds['asianHandicap'] = [];
+                
+                // 解析所有亚盘线
+                const homeValues = asianHandicapBet.values.filter((v: any) => v.value.startsWith('Home'));
+                const awayValues = asianHandicapBet.values.filter((v: any) => v.value.startsWith('Away'));
+                
+                for (const homeVal of homeValues) {
+                    // 提取盘口线，例如 "Home -0.5" -> "-0.5"
+                    const lineMatch = homeVal.value.match(/Home\s*([+-]?[\d.]+)/);
+                    if (lineMatch) {
+                        const line = lineMatch[1];
+                        // 找到对应的客队盘口
+                        const awayLine = line.startsWith('-') ? line.replace('-', '+') : line.replace('+', '-');
+                        const awayVal = awayValues.find((v: any) => v.value.includes(awayLine) || v.value.includes(line.replace('-', '').replace('+', '')));
+                        
+                        if (awayVal) {
+                            asianHandicapOdds.push({
+                                line,
+                                home: parseFloat(homeVal.odd),
+                                away: parseFloat(awayVal.odd)
+                            });
+                        }
+                    }
+                }
+                
+                if (asianHandicapOdds.length > 0) {
+                    liveOdds.asianHandicap = asianHandicapOdds;
+                }
+            }
+
+            return liveOdds;
+        } catch (error) {
+            // 静默失败，返回 null
+            return null;
+        }
     }
 
     // ===========================================

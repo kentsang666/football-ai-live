@@ -5,7 +5,7 @@
  * 高置信度推荐会以红色/高亮标签标注
  */
 
-import type { GoalBettingTips as GoalBettingTipsType, GoalPrediction, NextGoalPrediction } from '../../types/prediction';
+import type { GoalBettingTips as GoalBettingTipsType, GoalPrediction, NextGoalPrediction, LiveOdds } from '../../types/prediction';
 
 interface GoalBettingTipsProps {
   /** 进球投注建议数据 */
@@ -20,6 +20,8 @@ interface GoalBettingTipsProps {
   currentScore: { home: number; away: number };
   /** 当前分钟 */
   currentMinute: number;
+  /** 🟢 实时赔率数据 */
+  liveOdds?: LiveOdds;
 }
 
 /**
@@ -289,11 +291,13 @@ export function GoalBettingTips({
   homeTeam, 
   awayTeam,
   currentScore,
-  currentMinute
+  currentMinute,
+  liveOdds
 }: GoalBettingTipsProps) {
   const currentGoals = currentScore.home + currentScore.away;
   const isLive = matchStatus === 'live' || matchStatus === 'halftime';
   const isPreMatch = matchStatus === 'not_started';
+  const hasLiveOdds = liveOdds?.overUnder && liveOdds.overUnder.length > 0;
   
   // 筛选显示的大小球盘口（根据当前进球数）
   const relevantLines = tips.overUnder.filter(ou => {
@@ -323,10 +327,36 @@ export function GoalBettingTips({
       {/* 高置信度推荐横幅 */}
       <HighConfidenceBanner tip={tips.highConfidenceTip} homeTeam={homeTeam} awayTeam={awayTeam} />
       
-      {/* 大小球预测 */}
+      {/* 🟢 实时赔率显示 */}
+      {hasLiveOdds && (
+        <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-purple-400 flex items-center gap-2">
+              💰 实时大小球赔率
+              <span className="text-xs text-green-400 animate-pulse">● LIVE</span>
+            </div>
+            <div className="text-xs text-slate-500">
+              {liveOdds.bookmaker} | {liveOdds.updateTime ? new Date(liveOdds.updateTime).toLocaleTimeString() : ''}
+            </div>
+          </div>
+          <div className="grid grid-cols-5 gap-2">
+            {liveOdds.overUnder!.map((odds) => (
+              <div key={odds.line} className="text-center p-2 rounded bg-slate-800/50">
+                <div className="text-xs text-slate-400 mb-1">{odds.line}球</div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-green-400">大 {odds.over.toFixed(2)}</span>
+                  <span className="text-blue-400">小 {odds.under.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* AI 大小球预测 */}
       <div className="mb-4">
         <div className="text-sm font-medium text-slate-400 mb-2 flex items-center gap-2">
-          📊 大小球预测
+          🤖 AI 大小球预测
           {isLive && (
             <span className="text-xs text-slate-500">
               (当前 {currentGoals} 球，剩余预期 +{tips.remainingExpectedGoals.toFixed(1)})

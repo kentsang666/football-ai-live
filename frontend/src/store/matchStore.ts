@@ -2,7 +2,7 @@
 // 多场比赛状态管理
 // ===========================================
 
-import type { PressureAnalysis, Momentum, GoalBettingTips } from '../types/prediction';
+import type { PressureAnalysis, Momentum, GoalBettingTips, LiveOdds } from '../types/prediction';
 
 // 比赛数据类型
 export interface MatchData {
@@ -59,6 +59,8 @@ export interface MatchState extends MatchData {
     // v2.2 新增：进球投注建议
     goalBettingTips?: GoalBettingTips;
   };
+  // 🟢 v2.3 新增：实时赔率数据
+  liveOdds?: LiveOdds;
   events: MatchEvent[];
 }
 

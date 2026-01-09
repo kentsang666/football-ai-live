@@ -221,6 +221,7 @@ export function MatchCard({ match }: MatchCardProps) {
             awayTeam={match.away_team}
             currentScore={{ home: match.home_score, away: match.away_score }}
             currentMinute={match.minute}
+            liveOdds={match.liveOdds}  // 🟢 传递实时赔率数据
           />
         </div>
       )}

@@ -159,6 +159,36 @@ export interface GoalBettingTips {
 }
 
 /**
+ * 🟢 实时赔率数据
+ */
+export interface LiveOdds {
+  /** 胜平负赔率 */
+  matchWinner?: {
+    home: number;
+    draw: number;
+    away: number;
+    bookmaker: string;
+    updateTime: string;
+  };
+  /** 大小球赔率 */
+  overUnder?: {
+    line: number;  // 0.5, 1.5, 2.5, 3.5, 4.5
+    over: number;  // 大球赔率
+    under: number; // 小球赔率
+  }[];
+  /** 亚洲盘口 */
+  asianHandicap?: {
+    line: string;  // "-0.5", "+0.5", "-1", etc.
+    home: number;
+    away: number;
+  }[];
+  /** 博彩公司名称 */
+  bookmaker?: string;
+  /** 更新时间 */
+  updateTime?: string;
+}
+
+/**
  * 简化的预测概率（用于 MatchState）
  */
 export interface SimplePrediction extends Probabilities {

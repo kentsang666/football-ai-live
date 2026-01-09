@@ -508,8 +508,9 @@ app.get('/api/matches/live', (req, res) => {
                     momentum: prediction.momentum,
                     pressureAnalysis: prediction.pressureAnalysis,
                     confidence: prediction.confidence,
-                    goalBettingTips: prediction.goalBettingTips,  // 🟢 新增：进球投注建议
+                    goalBettingTips: prediction.goalBettingTips,  // 🟢 进球投注建议
                 },
+                liveOdds: match.liveOdds,  // 🟢 新增：实时赔率数据
                 prediction_confidence: prediction.confidence,
                 prediction_algorithm: prediction.algorithm
             };
