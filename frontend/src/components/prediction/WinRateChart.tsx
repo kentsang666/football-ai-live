@@ -12,31 +12,6 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 
-// 历史预测数据点接口
-interface PredictionHistoryPoint {
-  id: number;
-  match_id: string;
-  minute: number;
-  home_score: number;
-  away_score: number;
-  home_win_prob: number;
-  draw_prob: number;
-  away_win_prob: number;
-  confidence: number;
-  features_snapshot: {
-    momentum?: {
-      home: number;
-      away: number;
-    };
-    pressureAnalysis?: {
-      homeNormalized: number;
-      awayNormalized: number;
-      dominantTeam: 'HOME' | 'AWAY' | 'BALANCED';
-    };
-  };
-  created_at: string;
-}
-
 // 图表数据点接口
 interface ChartDataPoint {
   minute: number;
@@ -146,7 +121,13 @@ const WinRateChart: React.FC<WinRateChartProps> = ({ matchId, homeTeam, awayTeam
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data: PredictionHistoryPoint[] = await response.json();
+      const responseData = await response.json();
+      
+      // 后端返回的格式是 { match_id, total_records, history: [...] }
+      // 需要提取 history 数组
+      const data = Array.isArray(responseData) 
+        ? responseData 
+        : (responseData.history || []);
       
       if (!data || data.length === 0) {
         setChartData([]);
@@ -158,29 +139,40 @@ const WinRateChart: React.FC<WinRateChartProps> = ({ matchId, homeTeam, awayTeam
       const goals: number[] = [];
       let lastScore = { home: 0, away: 0 };
       
-      const formattedData: ChartDataPoint[] = data.map((point) => {
+      const formattedData: ChartDataPoint[] = data.map((point: any) => {
+        // 后端返回的新格式使用嵌套对象
+        const homeScore = point.score?.home ?? point.home_score ?? 0;
+        const awayScore = point.score?.away ?? point.away_score ?? 0;
+        const homeWinProb = point.probabilities?.home ?? point.home_win_prob ?? 0;
+        const drawProb = point.probabilities?.draw ?? point.draw_prob ?? 0;
+        const awayWinProb = point.probabilities?.away ?? point.away_win_prob ?? 0;
+        const homePressure = point.pressure?.home ?? point.features_snapshot?.pressureAnalysis?.homeNormalized ?? 50;
+        const awayPressure = point.pressure?.away ?? point.features_snapshot?.pressureAnalysis?.awayNormalized ?? 50;
+        const confidence = point.confidence ?? 0.5;
+        const timestamp = point.timestamp ?? point.created_at ?? new Date().toISOString();
+        
         // 检测进球
         const isGoal = 
-          point.home_score !== lastScore.home || 
-          point.away_score !== lastScore.away;
+          homeScore !== lastScore.home || 
+          awayScore !== lastScore.away;
         
         if (isGoal && point.minute > 0) {
           goals.push(point.minute);
         }
         
-        lastScore = { home: point.home_score, away: point.away_score };
+        lastScore = { home: homeScore, away: awayScore };
         
         return {
           minute: point.minute,
-          timestamp: format(new Date(point.created_at), 'HH:mm:ss'),
-          homeWin: point.home_win_prob * 100,
-          draw: point.draw_prob * 100,
-          awayWin: point.away_win_prob * 100,
-          homeScore: point.home_score,
-          awayScore: point.away_score,
-          homePressure: point.features_snapshot?.pressureAnalysis?.homeNormalized || 50,
-          awayPressure: point.features_snapshot?.pressureAnalysis?.awayNormalized || 50,
-          confidence: point.confidence * 100,
+          timestamp: format(new Date(timestamp), 'HH:mm:ss'),
+          homeWin: homeWinProb * 100,
+          draw: drawProb * 100,
+          awayWin: awayWinProb * 100,
+          homeScore,
+          awayScore,
+          homePressure,
+          awayPressure,
+          confidence: confidence * 100,
           isGoal,
         };
       });
