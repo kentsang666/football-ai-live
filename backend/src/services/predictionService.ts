@@ -133,8 +133,8 @@ interface MatchState {
  * - 自动清理结束比赛的内存
  */
 export class PredictionService {
-  private readonly VERSION = '2.1.1';
-  private readonly ALGORITHM = 'QuantPredict-v2.1.1';
+  private readonly VERSION = '2.1.2';
+  private readonly ALGORITHM = 'QuantPredict-v2.1.2';
   
   // 🟢 新增：用来"记住"每场比赛状态的 Map
   private matchStates: Map<string, MatchState> = new Map();

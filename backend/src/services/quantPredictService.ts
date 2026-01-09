@@ -1,7 +1,12 @@
 /**
- * QuantPredict v2.1.1 - 增强版足球滚球预测引擎
+ * QuantPredict v2.1.2 - 增强版足球滚球预测引擎
  * 
  * 核心逻辑：寻找"市场赔率"与"模型真实概率"之间的偏差
+ * 
+ * v2.1.2 修改日志 (模型微调)：
+ * 1. [TIME_DECAY] 加强时间衰减，剩余时间<10%时使用平方衰减，Lambda迅速趋近 0
+ * 2. [MOMENTUM] 动量系数严格限制在 0.6~1.4 之间，防止极端数据导致概率失真
+ * 3. [DRAW_BOOST] 平局修正：比赛末段且比分持平时，给予平局额外权重加成
  * 
  * v2.1.1 修改日志：
  * 1. [CRITICAL] 引入 PredictorManager，修复状态丢失问题，确保动量历史生效
@@ -245,12 +250,19 @@ export class PressureIndex {
       awaySmoothed = CONFIG.MOMENTUM_SMOOTHING * awayNorm + (1 - CONFIG.MOMENTUM_SMOOTHING) * awayAvg;
     }
 
-    // 映射到 0.7 - 1.3 区间
+    // [v2.1.2] 设置动量阈值：严格限制在 0.6 - 1.4 之间
+    // 防止极端数据导致概率失真
     // 50分 -> 1.0 (正常)
-    // 100分 -> 1.3 (极强)
-    // 0分 -> 0.7 (极弱)
-    const homeFactor = 0.7 + (homeSmoothed / 100) * 0.6;
-    const awayFactor = 0.7 + (awaySmoothed / 100) * 0.6;
+    // 100分 -> 1.4 (极强，上限）
+    // 0分 -> 0.6 (极弱，下限）
+    let homeFactor = 0.6 + (homeSmoothed / 100) * 0.8;  // 0.6 + 0~0.8 = 0.6~1.4
+    let awayFactor = 0.6 + (awaySmoothed / 100) * 0.8;
+    
+    // [v2.1.2] 严格限制动量系数范围
+    const MIN_MOMENTUM = 0.6;
+    const MAX_MOMENTUM = 1.4;
+    homeFactor = Math.max(MIN_MOMENTUM, Math.min(MAX_MOMENTUM, homeFactor));
+    awayFactor = Math.max(MIN_MOMENTUM, Math.min(MAX_MOMENTUM, awayFactor));
 
     return [homeFactor, awayFactor];
   }
@@ -306,17 +318,27 @@ export class LiveProbability {
 
   /**
    * 计算时间衰减系数
-   * [v2.1] 优化时间衰减逻辑，最后10分钟进球意愿提升
+   * [v2.1.2] 加强时间衰减，确保末段 Lambda 迅速趋近 0
    */
   calculateTimeDecay(currentMinute: number, totalMinutes = 90): number {
     const remainingTime = Math.max(0, totalMinutes - currentMinute);
-    let decay = remainingTime / totalMinutes;
+    const remainingRatio = remainingTime / totalMinutes;
     
-    // [v2.1] 补时/绝杀修正：如果是最后10分钟，进球意愿提升
-    if (currentMinute > 80) {
-      decay *= CONFIG.NON_LINEAR_TIME_BOOST;
+    // [v2.1.2] 加强时间衰减：使用平方衰减，让末段衰减更快
+    // 例如：80分钟时 remainingRatio = 0.11，平方后 = 0.012
+    //       85分钟时 remainingRatio = 0.056，平方后 = 0.003
+    let decay = remainingRatio;
+    
+    // [v2.1.2] 剩余时间少于 10% (81分钟+) 时，使用平方衰减
+    if (remainingRatio < 0.1) {
+      // 平方衰减：让 Lambda 迅速趋近 0
+      decay = remainingRatio * remainingRatio * 10;  // 乘以 10 确保在 10% 处连续
     }
-    return decay;
+    
+    // [v2.1.2] 移除原来的80分钟后的提升系数，因为这会导致概率偏高
+    // 如果需要补时绝杀修正，应该在其他地方处理
+    
+    return Math.max(0, decay);
   }
 
   /**
@@ -421,11 +443,35 @@ export class LiveProbability {
     }
 
     // 归一化
-    const total = homeWinProb + drawProb + awayWinProb;
+    let total = homeWinProb + drawProb + awayWinProb;
     if (total > 0) {
       homeWinProb /= total;
       drawProb /= total;
       awayWinProb /= total;
+    }
+
+    // [v2.1.2] 平局修正：比赛临近结束且比分持平时，给予平局额外权重
+    const isDrawScore = stats.homeScore === stats.awayScore;
+    const timeProgress = stats.minute / 90;  // 0 ~ 1
+    
+    if (isDrawScore && timeProgress > 0.7) {  // 63分钟后开始修正
+      // 平局加成系数：随时间推移逐渐增加
+      // 70% 时间 -> 1.0 (无加成)
+      // 80% 时间 -> 1.1 (10% 加成)
+      // 90% 时间 -> 1.3 (30% 加成)
+      // 100% 时间 -> 1.5 (50% 加成)
+      const drawBoost = 1.0 + (timeProgress - 0.7) * (0.5 / 0.3);  // 0.7~1.0 映射到 1.0~1.5
+      
+      // 应用平局加成
+      drawProb *= drawBoost;
+      
+      // 重新归一化
+      total = homeWinProb + drawProb + awayWinProb;
+      if (total > 0) {
+        homeWinProb /= total;
+        drawProb /= total;
+        awayWinProb /= total;
+      }
     }
 
     return [homeWinProb, drawProb, awayWinProb];
@@ -456,7 +502,7 @@ export class LiveProbability {
       homeMomentum: parseFloat(homeMomentum.toFixed(2)),
       awayMomentum: parseFloat(awayMomentum.toFixed(2)),
       confidence: parseFloat(confidence.toFixed(2)),
-      algorithm: 'QuantPredict-v2.1.1',
+      algorithm: 'QuantPredict-v2.1.2',
       pressureAnalysis: {
         homeNormalized: pressureSummary.homeNormalized,
         awayNormalized: pressureSummary.awayNormalized,
