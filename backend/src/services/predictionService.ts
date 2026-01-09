@@ -32,22 +32,22 @@ export interface MatchData {
   home_score: number;
   away_score: number;
   minute: number;
-  status?: string;
-  league?: string;
-  home_shots_on_target?: number;
-  away_shots_on_target?: number;
-  home_shots_off_target?: number;
-  away_shots_off_target?: number;
-  home_possession?: number;
-  away_possession?: number;
-  home_corners?: number;
-  away_corners?: number;
-  home_red_cards?: number;
-  away_red_cards?: number;
-  home_dangerous_attacks?: number;
-  away_dangerous_attacks?: number;
+  status?: string | undefined;
+  league?: string | undefined;
+  home_shots_on_target?: number | undefined;
+  away_shots_on_target?: number | undefined;
+  home_shots_off_target?: number | undefined;
+  away_shots_off_target?: number | undefined;
+  home_possession?: number | undefined;
+  away_possession?: number | undefined;
+  home_corners?: number | undefined;
+  away_corners?: number | undefined;
+  home_red_cards?: number | undefined;
+  away_red_cards?: number | undefined;
+  home_dangerous_attacks?: number | undefined;
+  away_dangerous_attacks?: number | undefined;
   stats?: any; // 原始统计数据对象
-  liveAsianHandicap?: LiveAsianHandicap[];  // 🟢 新增：实时亚洲盘口数据
+  liveAsianHandicap?: LiveAsianHandicap[] | undefined;  // 🟢 新增：实时亚洲盘口数据
 }
 
 export interface Prediction {

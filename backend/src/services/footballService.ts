@@ -68,8 +68,19 @@ export interface MatchData {
     timestamp: string;
     liveOdds?: LiveOdds;  // 🟢 新增：实时赔率数据
     // 🟢 新增：红牌数据
-    home_red_cards?: number;
-    away_red_cards?: number;
+    home_red_cards?: number | undefined;
+    away_red_cards?: number | undefined;
+    // 🟢 新增：比赛统计数据（用于 AI 分析）
+    home_shots_on_target?: number | undefined;
+    away_shots_on_target?: number | undefined;
+    home_shots_off_target?: number | undefined;
+    away_shots_off_target?: number | undefined;
+    home_corners?: number | undefined;
+    away_corners?: number | undefined;
+    home_possession?: number | undefined;
+    away_possession?: number | undefined;
+    home_dangerous_attacks?: number | undefined;
+    away_dangerous_attacks?: number | undefined;
 }
 
 // 比赛事件（用于发送给 AI 和前端）
@@ -955,6 +966,56 @@ export class FootballService {
             }
         }
         
+        // 🟢 新增：解析比赛统计数据
+        let homeShotsOnTarget: number | undefined;
+        let awayShotsOnTarget: number | undefined;
+        let homeShotsOffTarget: number | undefined;
+        let awayShotsOffTarget: number | undefined;
+        let homeCorners: number | undefined;
+        let awayCorners: number | undefined;
+        let homePossession: number | undefined;
+        let awayPossession: number | undefined;
+        let homeDangerousAttacks: number | undefined;
+        let awayDangerousAttacks: number | undefined;
+        
+        if (fixture.statistics && fixture.statistics.length >= 2) {
+            // API-Football 返回的 statistics 数组包含两个元素：[0] 是主队，[1] 是客队
+            const homeStats = fixture.statistics.find(s => s.team.id === fixture.teams.home.id);
+            const awayStats = fixture.statistics.find(s => s.team.id === fixture.teams.away.id);
+            
+            // 辅助函数：从统计数组中获取指定类型的值
+            const getStatValue = (stats: typeof homeStats, type: string): number | undefined => {
+                if (!stats) return undefined;
+                const stat = stats.statistics.find(s => s.type === type);
+                if (!stat || stat.value === null) return undefined;
+                // 处理百分比字符串（如 "65%"）
+                if (typeof stat.value === 'string') {
+                    const numValue = parseFloat(stat.value.replace('%', ''));
+                    return isNaN(numValue) ? undefined : numValue;
+                }
+                return typeof stat.value === 'number' ? stat.value : undefined;
+            };
+            
+            // 解析各项统计数据
+            homeShotsOnTarget = getStatValue(homeStats, 'Shots on Goal');
+            awayShotsOnTarget = getStatValue(awayStats, 'Shots on Goal');
+            homeShotsOffTarget = getStatValue(homeStats, 'Shots off Goal');
+            awayShotsOffTarget = getStatValue(awayStats, 'Shots off Goal');
+            homeCorners = getStatValue(homeStats, 'Corner Kicks');
+            awayCorners = getStatValue(awayStats, 'Corner Kicks');
+            homePossession = getStatValue(homeStats, 'Ball Possession');
+            awayPossession = getStatValue(awayStats, 'Ball Possession');
+            // 危险进攻可能叫 "Dangerous Attacks" 或不存在
+            homeDangerousAttacks = getStatValue(homeStats, 'Dangerous Attacks');
+            awayDangerousAttacks = getStatValue(awayStats, 'Dangerous Attacks');
+            
+            // 🟢 调试日志：输出解析到的统计数据
+            if (homeShotsOnTarget !== undefined || homeCorners !== undefined) {
+                console.log(`[统计数据] ${fixture.teams.home.name}: 射正=${homeShotsOnTarget}, 角球=${homeCorners}, 控球=${homePossession}%`);
+                console.log(`[统计数据] ${fixture.teams.away.name}: 射正=${awayShotsOnTarget}, 角球=${awayCorners}, 控球=${awayPossession}%`);
+            }
+        }
+        
         return {
             match_id: `api-${fixture.fixture.id}`,
             home_team: homeTeamChinese,  // 使用中文球队名
@@ -966,9 +1027,20 @@ export class FootballService {
             league: `${chineseCountry} - ${chineseLeagueName}`,  // 使用中文名称
             league_id: fixture.league.id,  // 保存联赛ID
             timestamp: new Date().toISOString(),
-            // 🟢 新增：红牌数据
+            // 🟢 红牌数据
             home_red_cards: homeRedCards,
-            away_red_cards: awayRedCards
+            away_red_cards: awayRedCards,
+            // 🟢 比赛统计数据
+            home_shots_on_target: homeShotsOnTarget,
+            away_shots_on_target: awayShotsOnTarget,
+            home_shots_off_target: homeShotsOffTarget,
+            away_shots_off_target: awayShotsOffTarget,
+            home_corners: homeCorners,
+            away_corners: awayCorners,
+            home_possession: homePossession,
+            away_possession: awayPossession,
+            home_dangerous_attacks: homeDangerousAttacks,
+            away_dangerous_attacks: awayDangerousAttacks
         };
     }
 

@@ -364,9 +364,20 @@ async function updateAllPredictions() {
             minute: match.minute,
             status: match.status,
             league: match.league,
-            // 统计数据通过 match 对象传递（如果有）
-            stats: (match as any).stats,
-            // 🟢 新增：传递实时亚洲盘口数据
+            // 🟢 传递比赛统计数据给 AI 分析
+            home_shots_on_target: (match as any).home_shots_on_target,
+            away_shots_on_target: (match as any).away_shots_on_target,
+            home_shots_off_target: (match as any).home_shots_off_target,
+            away_shots_off_target: (match as any).away_shots_off_target,
+            home_corners: (match as any).home_corners,
+            away_corners: (match as any).away_corners,
+            home_possession: (match as any).home_possession,
+            away_possession: (match as any).away_possession,
+            home_dangerous_attacks: (match as any).home_dangerous_attacks,
+            away_dangerous_attacks: (match as any).away_dangerous_attacks,
+            home_red_cards: (match as any).home_red_cards,
+            away_red_cards: (match as any).away_red_cards,
+            // 🟢 传递实时亚洲盘口数据
             liveAsianHandicap: (match as any).liveOdds?.asianHandicap,
         };
         
@@ -511,7 +522,20 @@ app.get('/api/matches/live', (req, res) => {
                     home_score: match.home_score,
                     away_score: match.away_score,
                     minute: match.minute,
-                    // 🟢 新增：传递实时亚洲盘口数据给预测服务
+                    // 🟢 传递比赛统计数据给 AI 分析
+                    home_shots_on_target: match.home_shots_on_target,
+                    away_shots_on_target: match.away_shots_on_target,
+                    home_shots_off_target: match.home_shots_off_target,
+                    away_shots_off_target: match.away_shots_off_target,
+                    home_corners: match.home_corners,
+                    away_corners: match.away_corners,
+                    home_possession: match.home_possession,
+                    away_possession: match.away_possession,
+                    home_dangerous_attacks: match.home_dangerous_attacks,
+                    away_dangerous_attacks: match.away_dangerous_attacks,
+                    home_red_cards: match.home_red_cards,
+                    away_red_cards: match.away_red_cards,
+                    // 🟢 传递实时亚洲盘口数据
                     liveAsianHandicap: match.liveOdds?.asianHandicap
                 };
                 prediction = predictionService.calculatePrediction(matchData);
@@ -594,11 +618,22 @@ app.get('/api/predictions/:matchId', (req, res) => {
                     home_score: match.home_score,
                     away_score: match.away_score,
                     minute: match.minute,
+                    // 🟢 传递比赛统计数据给 AI 分析
+                    home_shots_on_target: match.home_shots_on_target,
+                    away_shots_on_target: match.away_shots_on_target,
+                    home_shots_off_target: match.home_shots_off_target,
+                    away_shots_off_target: match.away_shots_off_target,
+                    home_corners: match.home_corners,
+                    away_corners: match.away_corners,
+                    home_possession: match.home_possession,
+                    away_possession: match.away_possession,
+                    home_dangerous_attacks: match.home_dangerous_attacks,
+                    away_dangerous_attacks: match.away_dangerous_attacks,
+                    home_red_cards: match.home_red_cards,
+                    away_red_cards: match.away_red_cards,
+                    // 🟢 传递实时亚洲盘口数据
+                    liveAsianHandicap: match.liveOdds?.asianHandicap
                 };
-                // 🟢 新增：传递实时亚洲盘口数据（只在有数据时）
-                if (match.liveOdds?.asianHandicap) {
-                    matchData.liveAsianHandicap = match.liveOdds.asianHandicap;
-                }
                 prediction = predictionService.calculatePrediction(matchData);
                 predictionCache.set(matchId, prediction);
             }
