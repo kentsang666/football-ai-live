@@ -22,6 +22,7 @@ import {
   GoalBettingTips,
   GoalPrediction,
   NextGoalPrediction,
+  LiveAsianHandicap,  // 🟢 新增：实时亚洲盘口类型
 } from './quantPredictService';
 
 export interface MatchData {
@@ -46,6 +47,7 @@ export interface MatchData {
   home_dangerous_attacks?: number;
   away_dangerous_attacks?: number;
   stats?: any; // 原始统计数据对象
+  liveAsianHandicap?: LiveAsianHandicap[];  // 🟢 新增：实时亚洲盘口数据
 }
 
 export interface Prediction {
@@ -196,9 +198,9 @@ export class PredictionService {
     // 获取亚洲盘口数据
     const asianHandicap = this.handicapPricer.getAllHandicapLines(stats);
 
-    // 🟢 新增：获取进球投注建议
+    // 🟢 新增：获取进球投注建议，传入实时亚洲盘口数据
     const goalPredictor = new GoalPredictor();
-    const goalBettingTips = goalPredictor.generateGoalBettingTips(stats);
+    const goalBettingTips = goalPredictor.generateGoalBettingTips(stats, match.liveAsianHandicap);
 
     return {
       match_id: match.match_id,

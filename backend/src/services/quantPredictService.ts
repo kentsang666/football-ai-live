@@ -578,15 +578,27 @@ export interface NextGoalPrediction {
   expectedMinutes: number; // 预计下一球时间（分钟）
 }
 
+// 实时亚洲盘口数据接口（从 footballService 传入）
+export interface LiveAsianHandicap {
+  line: string;      // 盘口线: "-0.5", "+0.5", "-1", "-1.25"...
+  home: number;      // 主队赔率
+  away: number;      // 客队赔率
+  main?: boolean;    // 是否主盘
+  suspended?: boolean;
+}
+
 // 让球盘推荐接口
 export interface HandicapRecommendation {
-  recommendedLine: string;         // 推荐盘口（如 "-1", "+0.5"）
+  recommendedLine: string;         // 实时主盘口（如 "-1", "+0.5"）
   recommendedSide: 'HOME' | 'AWAY'; // 推荐方向
   predictedMargin: number;         // AI 预测分差（正数=主队赢）
-  edgeValue: number;               // 优势值（预测分差 - 盘口）
+  edgeValue: number;               // 优势值
   winProbability: number;          // 赢盘概率
   confidence: number;              // 置信度
   reason: string;                  // 推荐理由
+  marketOdds: number;              // 推荐方向的市场赔率
+  fairOdds: number;                // AI 计算的公平赔率
+  valueEdge: number;               // 价值边际（市场赔率/公平赔率 - 1）
 }
 
 export interface GoalBettingTips {
@@ -731,8 +743,10 @@ export class GoalPredictor {
 
   /**
    * 生成完整的进球投注建议
+   * @param stats 比赛统计数据
+   * @param liveAsianHandicap 实时亚洲盘口数据（可选）
    */
-  generateGoalBettingTips(stats: MatchStats): GoalBettingTips {
+  generateGoalBettingTips(stats: MatchStats, liveAsianHandicap?: LiveAsianHandicap[]): GoalBettingTips {
     const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
     const currentGoals = stats.homeScore + stats.awayScore;
     
@@ -807,8 +821,13 @@ export class GoalPredictor {
       }
     }
     
-    // 🟢 新增：计算让球盘推荐
-    const handicapRecommendation = this.calculateHandicapRecommendation(stats, homeLambda, awayLambda);
+    // 🟢 新增：基于实时盘口计算让球盘推荐
+    const handicapRecommendation = this.calculateHandicapRecommendationFromLiveOdds(
+      stats, 
+      homeLambda, 
+      awayLambda, 
+      liveAsianHandicap
+    );
     
     return {
       overUnder,
@@ -821,7 +840,225 @@ export class GoalPredictor {
   }
   
   /**
-   * 🟢 新增：计算让球盘推荐
+   * 🟢 新版：基于实时盘口计算让球盘推荐
+   * 
+   * 核心逻辑：
+   * 1. 使用实时主盘口作为分析基础
+   * 2. 计算 AI 预测的赢盘概率
+   * 3. 比较市场赔率与公平赔率，找出价值投注
+   * 
+   * 重要：API-Football 返回的盘口是基于当前比分的（滚球盘）
+   * 例如：比分 1-0，盘口 -1.5 表示主队需要再赢 1.5 球（即总比分赢 2.5 球）
+   */
+  calculateHandicapRecommendationFromLiveOdds(
+    stats: MatchStats, 
+    homeLambda: number, 
+    awayLambda: number,
+    liveAsianHandicap?: LiveAsianHandicap[]
+  ): HandicapRecommendation | null {
+    // 如果没有实时盘口数据，返回 null
+    if (!liveAsianHandicap || liveAsianHandicap.length === 0) {
+      return null;
+    }
+    
+    // 找到主盘口
+    const mainHandicap = liveAsianHandicap.find(h => h.main) || liveAsianHandicap[0];
+    if (!mainHandicap || mainHandicap.suspended) {
+      return null;
+    }
+    
+    // 解析盘口线（例如 "-0.5", "+0.75", "-1"）
+    const handicapLine = parseFloat(mainHandicap.line);
+    if (isNaN(handicapLine)) {
+      return null;
+    }
+    
+    // 计算 AI 预测的剩余进球差
+    // 注意：这是剩余时间的预测，不是从 0-0 开始
+    const expectedRemainingMargin = homeLambda - awayLambda;
+    
+    // 计算主队和客队的赢盘概率
+    // 盘口解读：
+    // - 盘口 -0.5 表示主队让 0.5 球，主队需要剩余时间净胜 > 0.5 球
+    // - 盘口 +0.5 表示主队受让 0.5 球，主队剩余时间净胜 > -0.5 球（即不输 1 球即可）
+    const homeWinProb = this.calculateRemainingHandicapWinProb(
+      homeLambda, 
+      awayLambda, 
+      handicapLine, 
+      true
+    );
+    const awayWinProb = this.calculateRemainingHandicapWinProb(
+      homeLambda, 
+      awayLambda, 
+      handicapLine, 
+      false
+    );
+    
+    // 计算公平赔率
+    const homeFairOdds = homeWinProb > 0 ? 1 / homeWinProb : 20;
+    const awayFairOdds = awayWinProb > 0 ? 1 / awayWinProb : 20;
+    
+    // 计算价值边际（市场赔率 / 公平赔率 - 1）
+    const homeValueEdge = mainHandicap.home / homeFairOdds - 1;
+    const awayValueEdge = mainHandicap.away / awayFairOdds - 1;
+    
+    // 选择有价值的方向
+    // 条件：赢盘概率 > 50% 且价值边际 > 5%
+    const MIN_WIN_PROB = 0.50;
+    const MIN_VALUE_EDGE = 0.03; // 3% 价值边际
+    
+    let recommendation: HandicapRecommendation | null = null;
+    
+    // 优先选择价值边际更大的方向
+    let bestValueEdge = 0;
+    
+    if (homeWinProb >= MIN_WIN_PROB && homeValueEdge >= MIN_VALUE_EDGE) {
+      if (homeValueEdge > bestValueEdge) {
+        bestValueEdge = homeValueEdge;
+        recommendation = {
+          recommendedLine: mainHandicap.line,
+          recommendedSide: 'HOME',
+          predictedMargin: Math.round(expectedRemainingMargin * 100) / 100,
+          edgeValue: Math.round(expectedRemainingMargin * 100) / 100,
+          winProbability: Math.round(homeWinProb * 10000) / 10000,
+          confidence: Math.min(0.95, 0.5 + homeValueEdge * 0.5 + (homeWinProb - 0.5) * 0.3),
+          reason: this.generateLiveHandicapReason(
+            'HOME', 
+            expectedRemainingMargin, 
+            handicapLine, 
+            homeWinProb, 
+            mainHandicap.home, 
+            homeFairOdds,
+            homeValueEdge
+          ),
+          marketOdds: mainHandicap.home,
+          fairOdds: Math.round(homeFairOdds * 100) / 100,
+          valueEdge: Math.round(homeValueEdge * 10000) / 10000,
+        };
+      }
+    }
+    
+    if (awayWinProb >= MIN_WIN_PROB && awayValueEdge >= MIN_VALUE_EDGE) {
+      if (awayValueEdge > bestValueEdge) {
+        bestValueEdge = awayValueEdge;
+        recommendation = {
+          recommendedLine: mainHandicap.line,
+          recommendedSide: 'AWAY',
+          predictedMargin: Math.round(expectedRemainingMargin * 100) / 100,
+          edgeValue: Math.round(-expectedRemainingMargin * 100) / 100,
+          winProbability: Math.round(awayWinProb * 10000) / 10000,
+          confidence: Math.min(0.95, 0.5 + awayValueEdge * 0.5 + (awayWinProb - 0.5) * 0.3),
+          reason: this.generateLiveHandicapReason(
+            'AWAY', 
+            expectedRemainingMargin, 
+            handicapLine, 
+            awayWinProb, 
+            mainHandicap.away, 
+            awayFairOdds,
+            awayValueEdge
+          ),
+          marketOdds: mainHandicap.away,
+          fairOdds: Math.round(awayFairOdds * 100) / 100,
+          valueEdge: Math.round(awayValueEdge * 10000) / 10000,
+        };
+      }
+    }
+    
+    return recommendation;
+  }
+  
+  /**
+   * 计算剩余时间内的赢盘概率
+   * 
+   * @param homeLambda 主队剩余时间预期进球
+   * @param awayLambda 客队剩余时间预期进球
+   * @param handicapLine 盘口线（负数=主队让球，正数=主队受让）
+   * @param isHome 是否计算主队赢盘概率
+   */
+  private calculateRemainingHandicapWinProb(
+    homeLambda: number,
+    awayLambda: number,
+    handicapLine: number,
+    isHome: boolean
+  ): number {
+    const probMatrix = this.liveProbability.calculateScoreProbabilities(homeLambda, awayLambda);
+    let winProb = 0;
+    let loseProb = 0;
+    
+    for (let addHome = 0; addHome <= 10; addHome++) {
+      for (let addAway = 0; addAway <= 10; addAway++) {
+        // 剩余时间的进球差
+        const remainingMargin = addHome - addAway;
+        const prob = probMatrix[addHome]?.[addAway] || 0;
+        
+        if (isHome) {
+          // 主队赢盘：剩余进球差 > -handicapLine
+          // 例如：盘口 -0.5，主队需要剩余时间净胜 > 0.5 球（即至少赢 1 球）
+          // 例如：盘口 +0.5，主队需要剩余时间净胜 > -0.5 球（即不输 1 球）
+          if (remainingMargin > -handicapLine) {
+            winProb += prob;
+          } else if (remainingMargin < -handicapLine) {
+            loseProb += prob;
+          }
+          // 刚好等于盘口线时为走盘，不计入
+        } else {
+          // 客队赢盘：剩余进球差 < -handicapLine
+          if (remainingMargin < -handicapLine) {
+            winProb += prob;
+          } else if (remainingMargin > -handicapLine) {
+            loseProb += prob;
+          }
+        }
+      }
+    }
+    
+    const total = winProb + loseProb;
+    return total > 0 ? winProb / total : 0.5;
+  }
+  
+  /**
+   * 生成实时盘口推荐理由
+   */
+  private generateLiveHandicapReason(
+    side: 'HOME' | 'AWAY',
+    expectedRemainingMargin: number,
+    handicapLine: number,
+    winProb: number,
+    marketOdds: number,
+    fairOdds: number,
+    valueEdge: number
+  ): string {
+    const sideText = side === 'HOME' ? '主队' : '客队';
+    
+    // 盘口解读
+    let handicapText: string;
+    if (handicapLine < 0) {
+      handicapText = `${sideText === '主队' ? '让' : '受让'} ${Math.abs(handicapLine)} 球`;
+    } else if (handicapLine > 0) {
+      handicapText = `${sideText === '主队' ? '受让' : '让'} ${Math.abs(handicapLine)} 球`;
+    } else {
+      handicapText = '平手盘';
+    }
+    
+    // AI 预测解读
+    const marginText = expectedRemainingMargin > 0.1
+      ? `AI 预测主队剩余时间净胜 ${expectedRemainingMargin.toFixed(2)} 球`
+      : expectedRemainingMargin < -0.1
+        ? `AI 预测客队剩余时间净胜 ${Math.abs(expectedRemainingMargin).toFixed(2)} 球`
+        : 'AI 预测剩余时间均势';
+    
+    // 价值分析
+    const valueText = valueEdge > 0.1 
+      ? `价值边际 ${(valueEdge * 100).toFixed(1)}%，有明显价值`
+      : valueEdge > 0.05
+        ? `价值边际 ${(valueEdge * 100).toFixed(1)}%，有一定价值`
+        : `价值边际 ${(valueEdge * 100).toFixed(1)}%`;
+    
+    return `推荐 ${sideText} | 当前盘口${handicapText}，${marginText}。赢盘率 ${(winProb * 100).toFixed(1)}%，市场赔率 ${marketOdds.toFixed(2)} vs 公平赔率 ${fairOdds.toFixed(2)}，${valueText}。`;
+  }
+
+  /**
+   * 🟢 旧版：计算让球盘推荐（保留作为备用）
    * 核心逻辑：比较 AI 预测分差与实时盘口，找出最优投注方向
    */
   calculateHandicapRecommendation(
@@ -859,6 +1096,7 @@ export class GoalPredictor {
       // 选择最佳方向
       if (homeWinHandicap > 0.55 && homeEdge > bestEdge && homeEdge > 0.3) {
         bestEdge = homeEdge;
+        const homeFairOdds = homeWinHandicap > 0 ? 1 / homeWinHandicap : 20;
         bestRecommendation = {
           recommendedLine: line >= 0 ? `+${line}` : `${line}`,
           recommendedSide: 'HOME',
@@ -867,11 +1105,15 @@ export class GoalPredictor {
           winProbability: Math.round(homeWinHandicap * 10000) / 10000,
           confidence: Math.min(0.95, 0.5 + homeEdge * 0.2 + (homeWinHandicap - 0.5) * 0.3),
           reason: this.generateHandicapReason('HOME', predictedMargin, line, homeEdge, homeWinHandicap),
+          marketOdds: 0, // 旧版方法没有市场赔率
+          fairOdds: Math.round(homeFairOdds * 100) / 100,
+          valueEdge: 0, // 旧版方法没有价值边际
         };
       }
       
       if (awayWinHandicap > 0.55 && awayEdge > bestEdge && awayEdge > 0.3) {
         bestEdge = awayEdge;
+        const awayFairOdds = awayWinHandicap > 0 ? 1 / awayWinHandicap : 20;
         bestRecommendation = {
           recommendedLine: line >= 0 ? `+${line}` : `${line}`,
           recommendedSide: 'AWAY',
@@ -880,6 +1122,9 @@ export class GoalPredictor {
           winProbability: Math.round(awayWinHandicap * 10000) / 10000,
           confidence: Math.min(0.95, 0.5 + awayEdge * 0.2 + (awayWinHandicap - 0.5) * 0.3),
           reason: this.generateHandicapReason('AWAY', predictedMargin, line, awayEdge, awayWinHandicap),
+          marketOdds: 0, // 旧版方法没有市场赔率
+          fairOdds: Math.round(awayFairOdds * 100) / 100,
+          valueEdge: 0, // 旧版方法没有价值边际
         };
       }
     }

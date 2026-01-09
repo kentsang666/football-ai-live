@@ -210,6 +210,16 @@ export function GoalBettingTips({
                 <div className="text-xs text-slate-400">
                   置信度: {(tips.handicapRecommendation.confidence * 100).toFixed(0)}%
                 </div>
+                {/* 显示价值边际 */}
+                {tips.handicapRecommendation.valueEdge > 0 && (
+                  <div className={`text-xs px-2 py-0.5 rounded ${
+                    tips.handicapRecommendation.valueEdge > 0.1 
+                      ? 'bg-green-500/30 text-green-400' 
+                      : 'bg-yellow-500/30 text-yellow-400'
+                  }`}>
+                    价值 +{(tips.handicapRecommendation.valueEdge * 100).toFixed(1)}%
+                  </div>
+                )}
               </div>
               
               {/* 推荐内容 */}
@@ -228,7 +238,9 @@ export function GoalBettingTips({
                   <div className="text-center">
                     <div className="text-xs text-slate-400">盘口</div>
                     <div className="text-xl font-bold text-white">
-                      {tips.handicapRecommendation.recommendedLine}
+                      {tips.handicapRecommendation.recommendedLine.startsWith('-') || tips.handicapRecommendation.recommendedLine.startsWith('+') 
+                        ? tips.handicapRecommendation.recommendedLine 
+                        : (parseFloat(tips.handicapRecommendation.recommendedLine) >= 0 ? '+' : '') + tips.handicapRecommendation.recommendedLine}
                     </div>
                   </div>
                   
@@ -239,6 +251,22 @@ export function GoalBettingTips({
                       {(tips.handicapRecommendation.winProbability * 100).toFixed(1)}%
                     </div>
                   </div>
+                  
+                  {/* 市场赔率 vs 公平赔率 */}
+                  {tips.handicapRecommendation.marketOdds > 0 && (
+                    <div className="text-center">
+                      <div className="text-xs text-slate-400">赔率对比</div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg font-bold text-amber-400">
+                          {tips.handicapRecommendation.marketOdds.toFixed(2)}
+                        </span>
+                        <span className="text-xs text-slate-500">vs</span>
+                        <span className="text-sm text-slate-400">
+                          {tips.handicapRecommendation.fairOdds.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* 优势值 */}
@@ -249,7 +277,7 @@ export function GoalBettingTips({
                     tips.handicapRecommendation.predictedMargin < 0 ? 'text-red-400' : 'text-slate-400'
                   }`}>
                     {tips.handicapRecommendation.predictedMargin > 0 ? '+' : ''}
-                    {tips.handicapRecommendation.predictedMargin.toFixed(1)}
+                    {tips.handicapRecommendation.predictedMargin.toFixed(2)}
                   </div>
                 </div>
               </div>

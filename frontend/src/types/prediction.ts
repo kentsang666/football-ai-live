@@ -146,13 +146,13 @@ export interface HighConfidenceTip {
  * 🟢 新增：让球盘推荐
  */
 export interface HandicapRecommendation {
-  /** 推荐盘口（如 "-1", "+0.5"） */
+  /** 实时主盘口（如 "-1", "+0.5"） */
   recommendedLine: string;
   /** 推荐方向 */
   recommendedSide: 'HOME' | 'AWAY';
-  /** AI 预测分差（正数=主队赢） */
+  /** AI 预测分差（剩余时间内） */
   predictedMargin: number;
-  /** 优势值（预测分差 - 盘口） */
+  /** 优势值 */
   edgeValue: number;
   /** 赢盘概率 */
   winProbability: number;
@@ -160,6 +160,12 @@ export interface HandicapRecommendation {
   confidence: number;
   /** 推荐理由 */
   reason: string;
+  /** 推荐方向的市场赔率 */
+  marketOdds: number;
+  /** AI 计算的公平赔率 */
+  fairOdds: number;
+  /** 价值边际（市场赔率/公平赔率 - 1） */
+  valueEdge: number;
 }
 
 /**

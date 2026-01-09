@@ -366,6 +366,8 @@ async function updateAllPredictions() {
             league: match.league,
             // 统计数据通过 match 对象传递（如果有）
             stats: (match as any).stats,
+            // 🟢 新增：传递实时亚洲盘口数据
+            liveAsianHandicap: (match as any).liveOdds?.asianHandicap,
         };
         
         const prediction = predictionService.calculatePrediction(matchData);
@@ -495,7 +497,9 @@ app.get('/api/matches/live', (req, res) => {
                     away_team: match.away_team,
                     home_score: match.home_score,
                     away_score: match.away_score,
-                    minute: match.minute
+                    minute: match.minute,
+                    // 🟢 新增：传递实时亚洲盘口数据给预测服务
+                    liveAsianHandicap: match.liveOdds?.asianHandicap
                 };
                 prediction = predictionService.calculatePrediction(matchData);
                 predictionCache.set(match.match_id, prediction);
@@ -576,8 +580,12 @@ app.get('/api/predictions/:matchId', (req, res) => {
                     away_team: match.away_team,
                     home_score: match.home_score,
                     away_score: match.away_score,
-                    minute: match.minute
+                    minute: match.minute,
                 };
+                // 🟢 新增：传递实时亚洲盘口数据（只在有数据时）
+                if (match.liveOdds?.asianHandicap) {
+                    matchData.liveAsianHandicap = match.liveOdds.asianHandicap;
+                }
                 prediction = predictionService.calculatePrediction(matchData);
                 predictionCache.set(matchId, prediction);
             }
