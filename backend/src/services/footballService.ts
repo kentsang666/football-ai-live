@@ -1,7 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 // Redis 类型在运行时动态处理
 import { Server } from 'socket.io';
-import { getTeamChineseName } from '../data/teamNames';
+import { getTeamChineseName as getTeamChineseNameLegacy } from '../data/teamNames';
+import { getTeamChineseNameSmart, getLeagueChineseNameSmart, formatLeagueDisplayName } from '../utils/nameResolver';
 
 // ===========================================
 // 类型定义
@@ -221,16 +222,32 @@ const LEAGUE_NAMES: Record<number, string> = Object.fromEntries(
 
 /**
  * 获取联赛中文名称（用于前端显示）
+ * 深度汉化策略：使用智能名称解析器
+ * 
+ * 优先级：
+ * 1. 本地精修字典 (ID 精确匹配)
+ * 2. 本地别名字典 (名称模糊匹配)
+ * 3. LEAGUE_INFO 映射表 (历史兼容)
+ * 4. 原始名称
+ * 
  * @param leagueId 联赛 ID
  * @param fallbackName 备用名称（英文）
  * @returns 中文联赛名称
  */
 function getLeagueChineseName(leagueId: number, fallbackName?: string): string {
+    // 优先级 1 & 2: 使用智能名称解析器
+    const smartName = getLeagueChineseNameSmart(fallbackName || '', leagueId);
+    if (smartName !== fallbackName && smartName !== '') {
+        return smartName;
+    }
+    
+    // 优先级 3: LEAGUE_INFO 映射表 (历史兼容)
     const info = LEAGUE_INFO[leagueId];
     if (info) {
         return info.name;
     }
-    // 如果没有映射，返回原始名称
+    
+    // 优先级 4: 返回原始名称
     return fallbackName || `联赛${leagueId}`;
 }
 
@@ -329,6 +346,8 @@ export class FootballService {
         allowedLeagues: number[] = []
     ) {
         // 初始化 API 客户端
+        // 深度汉化策略第一步：API 请求配置
+        // 注意：API-Football 不支持 lang 参数，我们通过智能名称解析器实现汉化
         this.apiClient = axios.create({
             baseURL: apiUrl,
             headers: {
@@ -1053,8 +1072,11 @@ export class FootballService {
         const chineseCountry = getCountryChineseName(leagueId, fixture.league.country);
         
         // 获取中文球队名称
-        const homeTeamChinese = getTeamChineseName(fixture.teams.home.name);
-        const awayTeamChinese = getTeamChineseName(fixture.teams.away.name);
+        // 深度汉化策略：优先使用智能名称解析器，回退到旧版映射表
+        const homeTeamChinese = getTeamChineseNameSmart(fixture.teams.home.name, fixture.teams.home.id) 
+            || getTeamChineseNameLegacy(fixture.teams.home.name);
+        const awayTeamChinese = getTeamChineseNameSmart(fixture.teams.away.name, fixture.teams.away.id)
+            || getTeamChineseNameLegacy(fixture.teams.away.name);
         
         // 🟢 新增：从比赛事件中统计红牌数
         let homeRedCards = 0;
