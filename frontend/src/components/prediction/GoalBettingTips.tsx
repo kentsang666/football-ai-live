@@ -1,10 +1,11 @@
 /**
  * GoalBettingTips - 进球投注建议组件
  * 
- * 简洁版：只显示实时主盘口
+ * 简洁版：只显示实时主盘口，带赔率变动颜色
  */
 
 import type { GoalBettingTips as GoalBettingTipsType, LiveOdds } from '../../types/prediction';
+import type { OddsChange, OddsDirection } from '../../store/matchStore';
 
 interface GoalBettingTipsProps {
   tips: GoalBettingTipsType;
@@ -12,6 +13,7 @@ interface GoalBettingTipsProps {
   homeTeam: string;
   awayTeam: string;
   liveOdds?: LiveOdds;
+  oddsChange?: OddsChange;
 }
 
 /**
@@ -22,6 +24,65 @@ function formatOdds(odds: number): string {
 }
 
 /**
+ * 获取赔率变动的颜色和箭头
+ */
+function getOddsChangeStyle(direction: OddsDirection | undefined): {
+  color: string;
+  arrow: string;
+  bgColor: string;
+} {
+  switch (direction) {
+    case 'up':
+      return { 
+        color: 'text-red-400', 
+        arrow: '↑', 
+        bgColor: 'bg-red-500/20 ring-1 ring-red-500/50' 
+      };
+    case 'down':
+      return { 
+        color: 'text-green-400', 
+        arrow: '↓', 
+        bgColor: 'bg-green-500/20 ring-1 ring-green-500/50' 
+      };
+    default:
+      return { 
+        color: 'text-white', 
+        arrow: '', 
+        bgColor: '' 
+      };
+  }
+}
+
+/**
+ * 赔率显示组件（带变动指示）
+ */
+function OddsValue({ 
+  value, 
+  direction, 
+  baseColor = 'text-white' 
+}: { 
+  value: number; 
+  direction?: OddsDirection;
+  baseColor?: string;
+}) {
+  const { color, arrow, bgColor } = getOddsChangeStyle(direction);
+  const hasChange = direction === 'up' || direction === 'down';
+  
+  return (
+    <div className={`relative inline-flex items-center justify-center gap-1 transition-all duration-300 ${hasChange ? bgColor : ''} rounded px-1`}>
+      <span className={`text-lg font-bold ${hasChange ? color : baseColor} transition-colors duration-300`}>
+        {formatOdds(value)}
+      </span>
+      {arrow && (
+        <span className={`text-sm font-bold ${color} animate-pulse`}>
+          {arrow}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
  * 主组件
  */
 export function GoalBettingTips({ 
@@ -29,7 +90,8 @@ export function GoalBettingTips({
   matchStatus, 
   homeTeam, 
   awayTeam,
-  liveOdds
+  liveOdds,
+  oddsChange
 }: GoalBettingTipsProps) {
   const isLive = matchStatus === 'live' || matchStatus === 'halftime';
   const hasLiveOdds = liveOdds && (liveOdds.overUnder?.length || liveOdds.asianHandicap?.length);
@@ -67,19 +129,54 @@ export function GoalBettingTips({
           {/* 胜平负 1x2 */}
           {liveOdds.matchWinner && (
             <div>
-              <div className="text-xs text-slate-400 mb-2 font-medium">胜平负 (1x2)</div>
+              <div className="text-xs text-slate-400 mb-2 font-medium flex items-center gap-2">
+                胜平负 (1x2)
+                {oddsChange?.matchWinner && (
+                  <span className="text-[10px] text-slate-500">赔率变动中</span>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-blue-500/10 hover:bg-blue-500/20'} transition-colors`}>
+                <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                  liveOdds.matchWinner.suspended 
+                    ? 'bg-red-900/20 opacity-60' 
+                    : oddsChange?.matchWinner?.home !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.matchWinner?.home).bgColor 
+                      : 'bg-blue-500/10 hover:bg-blue-500/20'
+                }`}>
                   <div className="text-xs text-blue-400 mb-1">主胜</div>
-                  <div className="text-xl font-bold text-white">{formatOdds(liveOdds.matchWinner.home)}</div>
+                  <OddsValue 
+                    value={liveOdds.matchWinner.home} 
+                    direction={oddsChange?.matchWinner?.home}
+                    baseColor="text-white"
+                  />
                 </div>
-                <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-slate-700/30 hover:bg-slate-700/50'} transition-colors`}>
+                <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                  liveOdds.matchWinner.suspended 
+                    ? 'bg-red-900/20 opacity-60' 
+                    : oddsChange?.matchWinner?.draw !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.matchWinner?.draw).bgColor 
+                      : 'bg-slate-700/30 hover:bg-slate-700/50'
+                }`}>
                   <div className="text-xs text-slate-400 mb-1">平局</div>
-                  <div className="text-xl font-bold text-white">{formatOdds(liveOdds.matchWinner.draw)}</div>
+                  <OddsValue 
+                    value={liveOdds.matchWinner.draw} 
+                    direction={oddsChange?.matchWinner?.draw}
+                    baseColor="text-white"
+                  />
                 </div>
-                <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-red-500/10 hover:bg-red-500/20'} transition-colors`}>
+                <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                  liveOdds.matchWinner.suspended 
+                    ? 'bg-red-900/20 opacity-60' 
+                    : oddsChange?.matchWinner?.away !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.matchWinner?.away).bgColor 
+                      : 'bg-red-500/10 hover:bg-red-500/20'
+                }`}>
                   <div className="text-xs text-red-400 mb-1">客胜</div>
-                  <div className="text-xl font-bold text-white">{formatOdds(liveOdds.matchWinner.away)}</div>
+                  <OddsValue 
+                    value={liveOdds.matchWinner.away} 
+                    direction={oddsChange?.matchWinner?.away}
+                    baseColor="text-white"
+                  />
                 </div>
               </div>
             </div>
@@ -100,13 +197,29 @@ export function GoalBettingTips({
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-blue-500/10 rounded-lg p-2">
+                  <div className={`rounded-lg p-2 transition-all duration-300 ${
+                    oddsChange?.asianHandicap?.home !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.asianHandicap?.home).bgColor 
+                      : 'bg-blue-500/10'
+                  }`}>
                     <div className="text-[10px] text-blue-400 truncate">{homeTeam}</div>
-                    <div className="text-lg font-bold text-blue-400">{formatOdds(mainAsianHandicap.home)}</div>
+                    <OddsValue 
+                      value={mainAsianHandicap.home} 
+                      direction={oddsChange?.asianHandicap?.home}
+                      baseColor="text-blue-400"
+                    />
                   </div>
-                  <div className="bg-red-500/10 rounded-lg p-2">
+                  <div className={`rounded-lg p-2 transition-all duration-300 ${
+                    oddsChange?.asianHandicap?.away !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.asianHandicap?.away).bgColor 
+                      : 'bg-red-500/10'
+                  }`}>
                     <div className="text-[10px] text-red-400 truncate">{awayTeam}</div>
-                    <div className="text-lg font-bold text-red-400">{formatOdds(mainAsianHandicap.away)}</div>
+                    <OddsValue 
+                      value={mainAsianHandicap.away} 
+                      direction={oddsChange?.asianHandicap?.away}
+                      baseColor="text-red-400"
+                    />
                   </div>
                 </div>
               </div>
@@ -125,13 +238,29 @@ export function GoalBettingTips({
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-green-500/10 rounded-lg p-2">
+                  <div className={`rounded-lg p-2 transition-all duration-300 ${
+                    oddsChange?.overUnder?.over !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.overUnder?.over).bgColor 
+                      : 'bg-green-500/10'
+                  }`}>
                     <div className="text-[10px] text-green-400">大球</div>
-                    <div className="text-lg font-bold text-green-400">{formatOdds(mainOverUnder.over)}</div>
+                    <OddsValue 
+                      value={mainOverUnder.over} 
+                      direction={oddsChange?.overUnder?.over}
+                      baseColor="text-green-400"
+                    />
                   </div>
-                  <div className="bg-blue-500/10 rounded-lg p-2">
+                  <div className={`rounded-lg p-2 transition-all duration-300 ${
+                    oddsChange?.overUnder?.under !== 'same' 
+                      ? getOddsChangeStyle(oddsChange?.overUnder?.under).bgColor 
+                      : 'bg-blue-500/10'
+                  }`}>
                     <div className="text-[10px] text-blue-400">小球</div>
-                    <div className="text-lg font-bold text-blue-400">{formatOdds(mainOverUnder.under)}</div>
+                    <OddsValue 
+                      value={mainOverUnder.under} 
+                      direction={oddsChange?.overUnder?.under}
+                      baseColor="text-blue-400"
+                    />
                   </div>
                 </div>
               </div>
@@ -186,6 +315,16 @@ export function GoalBettingTips({
               )}
             </div>
           )}
+
+          {/* 赔率变动图例 */}
+          <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500 pt-2">
+            <span className="flex items-center gap-1">
+              <span className="text-red-400">↑</span> 赔率上升
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-green-400">↓</span> 赔率下降
+            </span>
+          </div>
         </div>
       )}
 

@@ -4,6 +4,26 @@
 
 import type { PressureAnalysis, Momentum, GoalBettingTips, LiveOdds } from '../types/prediction';
 
+// 赔率变动方向
+export type OddsDirection = 'up' | 'down' | 'same';
+
+// 赔率变动追踪
+export interface OddsChange {
+  matchWinner?: {
+    home: OddsDirection;
+    draw: OddsDirection;
+    away: OddsDirection;
+  };
+  asianHandicap?: {
+    home: OddsDirection;
+    away: OddsDirection;
+  };
+  overUnder?: {
+    over: OddsDirection;
+    under: OddsDirection;
+  };
+}
+
 // 比赛数据类型
 export interface MatchData {
   match_id: string;
@@ -61,6 +81,10 @@ export interface MatchState extends MatchData {
   };
   // 🟢 v2.3 新增：实时赔率数据
   liveOdds?: LiveOdds;
+  // 🟢 v2.4 新增：上一次赔率数据（用于变动比较）
+  prevLiveOdds?: LiveOdds;
+  // 🟢 v2.4 新增：赔率变动方向
+  oddsChange?: OddsChange;
   events: MatchEvent[];
 }
 
@@ -179,8 +203,14 @@ export class MatchStore {
         existing.status = match.status;
         existing.league = match.league;
         existing.timestamp = match.timestamp;
-        // 🟢 更新实时赔率数据
+        // 🟢 更新实时赔率数据，并追踪变动
         if (match.liveOdds) {
+          // 保存上一次赔率
+          if (existing.liveOdds) {
+            existing.prevLiveOdds = existing.liveOdds;
+            // 计算赔率变动方向
+            existing.oddsChange = this.calculateOddsChange(existing.liveOdds, match.liveOdds);
+          }
           existing.liveOdds = match.liveOdds;
         }
         // 更新预测数据
@@ -227,6 +257,49 @@ export class MatchStore {
       }
     });
     this.notify();
+  }
+
+  // 🟢 v2.4 新增：计算赔率变动方向
+  private calculateOddsChange(prev: LiveOdds, current: LiveOdds): OddsChange {
+    const getDirection = (prevVal: number | undefined, currVal: number | undefined): OddsDirection => {
+      if (prevVal === undefined || currVal === undefined) return 'same';
+      if (currVal > prevVal + 0.01) return 'up';
+      if (currVal < prevVal - 0.01) return 'down';
+      return 'same';
+    };
+
+    const change: OddsChange = {};
+
+    // 胜平负赔率变动
+    if (prev.matchWinner && current.matchWinner) {
+      change.matchWinner = {
+        home: getDirection(prev.matchWinner.home, current.matchWinner.home),
+        draw: getDirection(prev.matchWinner.draw, current.matchWinner.draw),
+        away: getDirection(prev.matchWinner.away, current.matchWinner.away),
+      };
+    }
+
+    // 亚洲盘口赔率变动（只比较主盘）
+    const prevMainAH = prev.asianHandicap?.find(ah => ah.main);
+    const currMainAH = current.asianHandicap?.find(ah => ah.main);
+    if (prevMainAH && currMainAH) {
+      change.asianHandicap = {
+        home: getDirection(prevMainAH.home, currMainAH.home),
+        away: getDirection(prevMainAH.away, currMainAH.away),
+      };
+    }
+
+    // 大小球赔率变动（只比较主盘）
+    const prevMainOU = prev.overUnder?.find(ou => ou.main);
+    const currMainOU = current.overUnder?.find(ou => ou.main);
+    if (prevMainOU && currMainOU) {
+      change.overUnder = {
+        over: getDirection(prevMainOU.over, currMainOU.over),
+        under: getDirection(prevMainOU.under, currMainOU.under),
+      };
+    }
+
+    return change;
   }
 
   // 清理已结束的比赛

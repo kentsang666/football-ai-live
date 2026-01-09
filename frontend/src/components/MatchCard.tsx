@@ -220,6 +220,7 @@ export function MatchCard({ match }: MatchCardProps) {
             homeTeam={match.home_team}
             awayTeam={match.away_team}
             liveOdds={match.liveOdds}
+            oddsChange={match.oddsChange}
           />
         </div>
       )}
