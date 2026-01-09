@@ -8,27 +8,40 @@ import { getTeamChineseName } from '../data/teamNames';
 // ===========================================
 
 // 我们系统内部使用的简化比赛数据格式
-// 实时赔率数据
+// 🟢 实时滚球赔率数据 (Live/In-Play Odds)
 export interface LiveOdds {
+    // 胜平负赔率 (1x2)
     matchWinner?: {
         home: number;
         draw: number;
         away: number;
         bookmaker: string;
         updateTime: string;
+        suspended?: boolean;  // 是否暂停接受投注
     };
+    // 大小球赔率 (Over/Under)
     overUnder?: {
-        line: number;  // 0.5, 1.5, 2.5, 3.5, 4.5
-        over: number;  // 大球赔率
-        under: number; // 小球赔率
+        line: number;      // 盘口线: 0.5, 1.5, 2.5, 2.75, 3, 3.5...
+        over: number;      // 大球赔率
+        under: number;     // 小球赔率
+        main?: boolean;    // 是否主盘
+        suspended?: boolean;
     }[];
+    // 亚洲盘口 (Asian Handicap)
     asianHandicap?: {
-        line: string;  // "-0.5", "+0.5", "-1", etc.
-        home: number;
-        away: number;
+        line: string;      // 盘口线: "-0.5", "+0.5", "-1", "-1.25"...
+        home: number;      // 主队赔率
+        away: number;      // 客队赔率
+        main?: boolean;    // 是否主盘
+        suspended?: boolean;
     }[];
     bookmaker?: string;
     updateTime?: string;
+    // 比赛状态
+    status?: {
+        elapsed: number;   // 已进行分钟数
+        seconds: string;   // 精确时间 "43:13"
+    };
 }
 
 export interface MatchData {
@@ -448,31 +461,49 @@ export class FootballService {
     }
 
     // ===========================================
-    // 🟢 新增：获取实时赔率数据
+    // 🟢 获取实时滚球赔率数据 (Live/In-Play Odds)
     // ===========================================
+
+    // 缓存滚球赔率数据，避免重复请求
+    private liveOddsCache: Map<number, { data: LiveOdds; timestamp: number }> = new Map();
+    private readonly LIVE_ODDS_CACHE_TTL = 10000; // 10秒缓存
 
     private async fetchLiveOdds(fixtureId: number): Promise<LiveOdds | null> {
         try {
-            const response = await this.apiClient.get('/odds', {
-                params: { fixture: fixtureId }
-            });
+            // 检查缓存
+            const cached = this.liveOddsCache.get(fixtureId);
+            if (cached && Date.now() - cached.timestamp < this.LIVE_ODDS_CACHE_TTL) {
+                return cached.data;
+            }
 
-            const oddsData = response.data.response?.[0];
-            if (!oddsData || !oddsData.bookmakers || oddsData.bookmakers.length === 0) {
+            // 🟢 使用滚球赔率接口 /odds/live
+            const response = await this.apiClient.get('/odds/live');
+            const allLiveOdds = response.data.response || [];
+            
+            // 找到对应比赛的赔率数据
+            const fixtureOdds = allLiveOdds.find((item: any) => item.fixture?.id === fixtureId);
+            if (!fixtureOdds || !fixtureOdds.odds || fixtureOdds.odds.length === 0) {
                 return null;
             }
 
-            // 使用第一个博彩公司的数据
-            const bookmaker = oddsData.bookmakers[0];
-            const bets = bookmaker.bets;
+            const odds = fixtureOdds.odds;
+            const status = fixtureOdds.fixture?.status;
 
             const liveOdds: LiveOdds = {
-                bookmaker: bookmaker.name,
-                updateTime: oddsData.update
+                bookmaker: 'Live',
+                updateTime: new Date().toISOString()
             };
+            
+            // 添加比赛状态
+            if (status && status.elapsed !== undefined && status.seconds) {
+                liveOdds.status = {
+                    elapsed: status.elapsed,
+                    seconds: status.seconds
+                };
+            }
 
-            // 解析胜平负赔率
-            const matchWinnerBet = bets.find((b: any) => b.id === 1 || b.name === 'Match Winner');
+            // 🟢 解析实时胜平负赔率 (1x2)
+            const matchWinnerBet = odds.find((b: any) => b.id === 1 || b.name === '1x2');
             if (matchWinnerBet) {
                 const homeOdd = matchWinnerBet.values.find((v: any) => v.value === 'Home');
                 const drawOdd = matchWinnerBet.values.find((v: any) => v.value === 'Draw');
@@ -483,68 +514,83 @@ export class FootballService {
                         home: parseFloat(homeOdd.odd),
                         draw: parseFloat(drawOdd.odd),
                         away: parseFloat(awayOdd.odd),
-                        bookmaker: bookmaker.name,
-                        updateTime: oddsData.update
+                        bookmaker: 'Live',
+                        updateTime: new Date().toISOString(),
+                        suspended: homeOdd.suspended || drawOdd.suspended || awayOdd.suspended
                     };
                 }
             }
 
-            // 解析大小球赔率
-            const overUnderBet = bets.find((b: any) => b.id === 5 || b.name === 'Goals Over/Under');
+            // 🟢 解析实时大小球赔率 (Over/Under Line - id: 36)
+            const overUnderBet = odds.find((b: any) => b.id === 36 || b.name === 'Over/Under Line');
             if (overUnderBet) {
                 const overUnderOdds: LiveOdds['overUnder'] = [];
-                const lines = [0.5, 1.5, 2.5, 3.5, 4.5];
+                const overValues = overUnderBet.values.filter((v: any) => v.value === 'Over');
+                const underValues = overUnderBet.values.filter((v: any) => v.value === 'Under');
                 
-                for (const line of lines) {
-                    const overValue = overUnderBet.values.find((v: any) => v.value === `Over ${line}`);
-                    const underValue = overUnderBet.values.find((v: any) => v.value === `Under ${line}`);
+                // 按 handicap 分组配对
+                const handicaps = [...new Set(overValues.map((v: any) => v.handicap))];
+                
+                for (const handicap of handicaps) {
+                    const overVal = overValues.find((v: any) => v.handicap === handicap);
+                    const underVal = underValues.find((v: any) => v.handicap === handicap);
                     
-                    if (overValue && underValue) {
+                    if (overVal && underVal && typeof handicap === 'string') {
                         overUnderOdds.push({
-                            line,
-                            over: parseFloat(overValue.odd),
-                            under: parseFloat(underValue.odd)
+                            line: parseFloat(handicap),
+                            over: parseFloat(overVal.odd),
+                            under: parseFloat(underVal.odd),
+                            main: overVal.main || false,
+                            suspended: overVal.suspended || underVal.suspended
                         });
                     }
                 }
+                
+                // 按盘口线排序
+                overUnderOdds.sort((a, b) => a.line - b.line);
                 
                 if (overUnderOdds.length > 0) {
                     liveOdds.overUnder = overUnderOdds;
                 }
             }
 
-            // 解析亚洲盘口
-            const asianHandicapBet = bets.find((b: any) => b.id === 4 || b.name === 'Asian Handicap');
+            // 🟢 解析实时亚洲盘口 (Asian Handicap - id: 33)
+            const asianHandicapBet = odds.find((b: any) => b.id === 33 || b.name === 'Asian Handicap');
             if (asianHandicapBet) {
                 const asianHandicapOdds: LiveOdds['asianHandicap'] = [];
+                const homeValues = asianHandicapBet.values.filter((v: any) => v.value === 'Home');
+                const awayValues = asianHandicapBet.values.filter((v: any) => v.value === 'Away');
                 
-                // 解析所有亚盘线
-                const homeValues = asianHandicapBet.values.filter((v: any) => v.value.startsWith('Home'));
-                const awayValues = asianHandicapBet.values.filter((v: any) => v.value.startsWith('Away'));
-                
+                // 按 handicap 分组配对
                 for (const homeVal of homeValues) {
-                    // 提取盘口线，例如 "Home -0.5" -> "-0.5"
-                    const lineMatch = homeVal.value.match(/Home\s*([+-]?[\d.]+)/);
-                    if (lineMatch) {
-                        const line = lineMatch[1];
-                        // 找到对应的客队盘口
-                        const awayLine = line.startsWith('-') ? line.replace('-', '+') : line.replace('+', '-');
-                        const awayVal = awayValues.find((v: any) => v.value.includes(awayLine) || v.value.includes(line.replace('-', '').replace('+', '')));
-                        
-                        if (awayVal) {
-                            asianHandicapOdds.push({
-                                line,
-                                home: parseFloat(homeVal.odd),
-                                away: parseFloat(awayVal.odd)
-                            });
-                        }
+                    const handicap = homeVal.handicap;
+                    // 找到对应的客队盘口（handicap 符号相反）
+                    const awayHandicap = handicap.startsWith('-') 
+                        ? handicap.replace('-', '') 
+                        : '-' + handicap;
+                    const awayVal = awayValues.find((v: any) => v.handicap === awayHandicap);
+                    
+                    if (awayVal) {
+                        asianHandicapOdds.push({
+                            line: handicap,
+                            home: parseFloat(homeVal.odd),
+                            away: parseFloat(awayVal.odd),
+                            main: homeVal.main || false,
+                            suspended: homeVal.suspended || awayVal.suspended
+                        });
                     }
                 }
+                
+                // 按盘口线排序
+                asianHandicapOdds.sort((a, b) => parseFloat(a.line) - parseFloat(b.line));
                 
                 if (asianHandicapOdds.length > 0) {
                     liveOdds.asianHandicap = asianHandicapOdds;
                 }
             }
+
+            // 缓存结果
+            this.liveOddsCache.set(fixtureId, { data: liveOdds, timestamp: Date.now() });
 
             return liveOdds;
         } catch (error) {

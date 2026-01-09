@@ -327,29 +327,110 @@ export function GoalBettingTips({
       {/* 高置信度推荐横幅 */}
       <HighConfidenceBanner tip={tips.highConfidenceTip} homeTeam={homeTeam} awayTeam={awayTeam} />
       
-      {/* 🟢 实时赔率显示 */}
-      {hasLiveOdds && (
-        <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium text-purple-400 flex items-center gap-2">
-              💰 实时大小球赔率
+      {/* 🟢 实时滚球赔率显示 */}
+      {(liveOdds?.overUnder || liveOdds?.asianHandicap || liveOdds?.matchWinner) && (
+        <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-purple-500/10 border border-purple-500/30">
+          {/* 标题和状态 */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-purple-400 flex items-center gap-2">
+              💰 实时滚球赔率
               <span className="text-xs text-green-400 animate-pulse">● LIVE</span>
+              {liveOdds.status && (
+                <span className="text-xs text-amber-400 ml-2">
+                  {liveOdds.status.elapsed}' ({liveOdds.status.seconds})
+                </span>
+              )}
             </div>
             <div className="text-xs text-slate-500">
-              {liveOdds.bookmaker} | {liveOdds.updateTime ? new Date(liveOdds.updateTime).toLocaleTimeString() : ''}
+              {liveOdds.updateTime ? new Date(liveOdds.updateTime).toLocaleTimeString() : ''}
             </div>
           </div>
-          <div className="grid grid-cols-5 gap-2">
-            {liveOdds.overUnder!.map((odds) => (
-              <div key={odds.line} className="text-center p-2 rounded bg-slate-800/50">
-                <div className="text-xs text-slate-400 mb-1">{odds.line}球</div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-green-400">大 {odds.over.toFixed(2)}</span>
-                  <span className="text-blue-400">小 {odds.under.toFixed(2)}</span>
+          
+          {/* 🟢 胜平负赔率 (1x2) */}
+          {liveOdds.matchWinner && (
+            <div className="mb-3">
+              <div className="text-xs text-slate-400 mb-2">胜平负 (1x2)</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className={`text-center p-2 rounded ${liveOdds.matchWinner.suspended ? 'bg-red-500/10 opacity-50' : 'bg-blue-500/10'}`}>
+                  <div className="text-xs text-blue-400 mb-1">主胜</div>
+                  <div className="text-lg font-bold text-white">{liveOdds.matchWinner.home.toFixed(2)}</div>
+                </div>
+                <div className={`text-center p-2 rounded ${liveOdds.matchWinner.suspended ? 'bg-red-500/10 opacity-50' : 'bg-slate-500/10'}`}>
+                  <div className="text-xs text-slate-400 mb-1">平局</div>
+                  <div className="text-lg font-bold text-white">{liveOdds.matchWinner.draw.toFixed(2)}</div>
+                </div>
+                <div className={`text-center p-2 rounded ${liveOdds.matchWinner.suspended ? 'bg-red-500/10 opacity-50' : 'bg-red-500/10'}`}>
+                  <div className="text-xs text-red-400 mb-1">客胜</div>
+                  <div className="text-lg font-bold text-white">{liveOdds.matchWinner.away.toFixed(2)}</div>
                 </div>
               </div>
-            ))}
-          </div>
+              {liveOdds.matchWinner.suspended && (
+                <div className="text-xs text-red-400 text-center mt-1">⚠️ 暂停接受投注</div>
+              )}
+            </div>
+          )}
+          
+          {/* 🟢 亚洲盘口 (Asian Handicap) */}
+          {liveOdds.asianHandicap && liveOdds.asianHandicap.length > 0 && (
+            <div className="mb-3">
+              <div className="text-xs text-slate-400 mb-2">亚洲盘口 (让球)</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                {liveOdds.asianHandicap.map((ah, idx) => {
+                  const isMain = ah.main;
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`
+                        text-center p-2 rounded transition-all
+                        ${isMain ? 'bg-amber-500/20 ring-1 ring-amber-500/50' : 'bg-slate-800/50'}
+                        ${ah.suspended ? 'opacity-50' : ''}
+                      `}
+                    >
+                      <div className="text-xs text-amber-400 mb-1 flex items-center justify-center gap-1">
+                        {ah.line.startsWith('-') ? '' : '+'}{ah.line}
+                        {isMain && <span className="text-[10px] bg-amber-500/30 px-1 rounded">主</span>}
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-blue-400">主 {ah.home.toFixed(2)}</span>
+                        <span className="text-red-400">客 {ah.away.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          
+          {/* 🟢 大小球赔率 (Over/Under) */}
+          {liveOdds.overUnder && liveOdds.overUnder.length > 0 && (
+            <div>
+              <div className="text-xs text-slate-400 mb-2">大小球 (Over/Under)</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                {liveOdds.overUnder.map((ou, idx) => {
+                  const isMain = ou.main;
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`
+                        text-center p-2 rounded transition-all
+                        ${isMain ? 'bg-amber-500/20 ring-1 ring-amber-500/50' : 'bg-slate-800/50'}
+                        ${ou.suspended ? 'opacity-50' : ''}
+                      `}
+                    >
+                      <div className="text-xs text-slate-300 mb-1 flex items-center justify-center gap-1">
+                        {ou.line}球
+                        {isMain && <span className="text-[10px] bg-amber-500/30 px-1 rounded">主</span>}
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-green-400">大 {ou.over.toFixed(2)}</span>
+                        <span className="text-blue-400">小 {ou.under.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

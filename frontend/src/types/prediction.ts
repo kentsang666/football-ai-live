@@ -159,33 +159,43 @@ export interface GoalBettingTips {
 }
 
 /**
- * 🟢 实时赔率数据
+ * 🟢 实时滚球赔率数据 (Live/In-Play Odds)
  */
 export interface LiveOdds {
-  /** 胜平负赔率 */
+  /** 胜平负赔率 (1x2) */
   matchWinner?: {
     home: number;
     draw: number;
     away: number;
     bookmaker: string;
     updateTime: string;
+    suspended?: boolean;  // 是否暂停接受投注
   };
-  /** 大小球赔率 */
+  /** 大小球赔率 (Over/Under) */
   overUnder?: {
-    line: number;  // 0.5, 1.5, 2.5, 3.5, 4.5
-    over: number;  // 大球赔率
-    under: number; // 小球赔率
+    line: number;      // 盘口线: 0.5, 1.5, 2.5, 2.75, 3, 3.5...
+    over: number;      // 大球赔率
+    under: number;     // 小球赔率
+    main?: boolean;    // 是否主盘
+    suspended?: boolean;
   }[];
-  /** 亚洲盘口 */
+  /** 亚洲盘口 (Asian Handicap) */
   asianHandicap?: {
-    line: string;  // "-0.5", "+0.5", "-1", etc.
-    home: number;
-    away: number;
+    line: string;      // 盘口线: "-0.5", "+0.5", "-1", "-1.25"...
+    home: number;      // 主队赔率
+    away: number;      // 客队赔率
+    main?: boolean;    // 是否主盘
+    suspended?: boolean;
   }[];
   /** 博彩公司名称 */
   bookmaker?: string;
   /** 更新时间 */
   updateTime?: string;
+  /** 比赛状态 */
+  status?: {
+    elapsed: number;   // 已进行分钟数
+    seconds: string;   // 精确时间 "43:13"
+  };
 }
 
 /**
