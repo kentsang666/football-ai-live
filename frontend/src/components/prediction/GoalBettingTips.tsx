@@ -96,9 +96,13 @@ export function GoalBettingTips({
   const isLive = matchStatus === 'live' || matchStatus === 'halftime';
   const hasLiveOdds = liveOdds && (liveOdds.overUnder?.length || liveOdds.asianHandicap?.length);
 
-  // 获取主盘口
+  // 获取滚球主盘口
   const mainAsianHandicap = liveOdds?.asianHandicap?.find(ah => ah.main);
   const mainOverUnder = liveOdds?.overUnder?.find(ou => ou.main);
+  
+  // 🟢 获取赛前原始盘口
+  const preMatchAsianHandicap = liveOdds?.preMatchAsianHandicap;
+  const preMatchOverUnder = liveOdds?.preMatchOverUnder;
 
   return (
     <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
@@ -274,9 +278,60 @@ export function GoalBettingTips({
             </div>
           )}
 
-          {/* 主盘口卡片 - 亚洲盘和大小球并排显示 */}
+          {/* 🟢 赛前原始盘口 (基于 0-0 开球) */}
+          {(preMatchAsianHandicap || preMatchOverUnder) && (
+            <div className="mb-3">
+              <div className="text-[10px] text-cyan-400 mb-2 font-medium flex items-center gap-1">
+                🏁 赛前原始盘口 <span className="text-slate-500">(基于 0-0 开球)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {/* 赛前亚洲让球盘 */}
+                {preMatchAsianHandicap && (
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border border-cyan-500/30">
+                    <div className="text-[10px] text-cyan-400 mb-1 font-medium">🎯 让球盘</div>
+                    <div className="text-center mb-1">
+                      <span className="text-lg font-bold text-cyan-300">
+                        {preMatchAsianHandicap.line.startsWith('-') ? '' : '+'}{preMatchAsianHandicap.line}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-center">
+                      <div className="bg-cyan-500/10 rounded p-1">
+                        <div className="text-[9px] text-cyan-400 truncate">{homeTeam}</div>
+                        <div className="text-sm font-bold text-cyan-300">{preMatchAsianHandicap.home.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-cyan-500/10 rounded p-1">
+                        <div className="text-[9px] text-cyan-400 truncate">{awayTeam}</div>
+                        <div className="text-sm font-bold text-cyan-300">{preMatchAsianHandicap.away.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* 赛前大小球 */}
+                {preMatchOverUnder && (
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border border-cyan-500/30">
+                    <div className="text-[10px] text-cyan-400 mb-1 font-medium">⚽ 大小球</div>
+                    <div className="text-center mb-1">
+                      <span className="text-lg font-bold text-cyan-300">{preMatchOverUnder.line} 球</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-center">
+                      <div className="bg-cyan-500/10 rounded p-1">
+                        <div className="text-[9px] text-cyan-400">大球</div>
+                        <div className="text-sm font-bold text-cyan-300">{preMatchOverUnder.over.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-cyan-500/10 rounded p-1">
+                        <div className="text-[9px] text-cyan-400">小球</div>
+                        <div className="text-sm font-bold text-cyan-300">{preMatchOverUnder.under.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 滚球主盘口卡片 - 亚洲盘和大小球并排显示 */}
           <div className="grid grid-cols-2 gap-2">
-            {/* 亚洲盘口主盘 */}
+            {/* 滚球亚洲盘口主盘 */}
             {mainAsianHandicap && (
               <div className={`p-2 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-600/5 border ${
                 tips.handicapRecommendation 
@@ -284,7 +339,7 @@ export function GoalBettingTips({
                   : 'border-purple-500/20'
               } ${mainAsianHandicap.suspended ? 'opacity-50' : ''}`}>
                 <div className="text-[10px] text-purple-400 mb-1 font-medium flex items-center gap-1">
-                  🎯 亚盘
+                  🎯 滚球亚盘
                   <span className="text-amber-400">★</span>
                   {tips.handicapRecommendation && (
                     <span className="text-amber-400 text-[9px] bg-amber-500/20 px-1 rounded">←AI</span>
@@ -338,11 +393,11 @@ export function GoalBettingTips({
               </div>
             )}
 
-            {/* 大小球主盘 */}
+            {/* 滚球大小球主盘 */}
             {mainOverUnder && (
               <div className={`p-2 rounded-lg bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 ${mainOverUnder.suspended ? 'opacity-50' : ''}`}>
                 <div className="text-[10px] text-emerald-400 mb-1 font-medium flex items-center gap-1">
-                  ⚽ 大小球
+                  ⚽ 滚球大小球
                   <span className="text-amber-400">★</span>
                 </div>
                 <div className="text-center mb-1">

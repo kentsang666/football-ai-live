@@ -199,7 +199,7 @@ export interface LiveOdds {
     updateTime: string;
     suspended?: boolean;  // 是否暂停接受投注
   };
-  /** 大小球赔率 (Over/Under) */
+  /** 大小球赔率 (Over/Under) - 滚球盘口 */
   overUnder?: {
     line: number;      // 盘口线: 0.5, 1.5, 2.5, 2.75, 3, 3.5...
     over: number;      // 大球赔率
@@ -207,7 +207,7 @@ export interface LiveOdds {
     main?: boolean;    // 是否主盘
     suspended?: boolean;
   }[];
-  /** 亚洲盘口 (Asian Handicap) */
+  /** 亚洲盘口 (Asian Handicap) - 滚球盘口 */
   asianHandicap?: {
     line: string;      // 盘口线: "-0.5", "+0.5", "-1", "-1.25"...
     home: number;      // 主队赔率
@@ -215,6 +215,18 @@ export interface LiveOdds {
     main?: boolean;    // 是否主盘
     suspended?: boolean;
   }[];
+  /** 🟢 赛前原始亚洲让球盘 (基于 0-0 开球) */
+  preMatchAsianHandicap?: {
+    line: string;      // 原始盘口线: "-0.5", "+0.5", "-1"...
+    home: number;      // 主队赔率
+    away: number;      // 客队赔率
+  };
+  /** 🟢 赛前原始大小球盘口 (基于 0-0 开球) */
+  preMatchOverUnder?: {
+    line: number;      // 原始大小球盘口线
+    over: number;      // 大球赔率
+    under: number;     // 小球赔率
+  };
   /** 博彩公司名称 */
   bookmaker?: string;
   /** 更新时间 */

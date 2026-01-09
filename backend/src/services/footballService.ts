@@ -19,7 +19,7 @@ export interface LiveOdds {
         updateTime: string;
         suspended?: boolean;  // 是否暂停接受投注
     };
-    // 大小球赔率 (Over/Under)
+    // 大小球赔率 (Over/Under) - 滚球盘口
     overUnder?: {
         line: number;      // 盘口线: 0.5, 1.5, 2.5, 2.75, 3, 3.5...
         over: number;      // 大球赔率
@@ -27,7 +27,7 @@ export interface LiveOdds {
         main?: boolean;    // 是否主盘
         suspended?: boolean;
     }[];
-    // 亚洲盘口 (Asian Handicap)
+    // 亚洲盘口 (Asian Handicap) - 滚球盘口
     asianHandicap?: {
         line: string;      // 盘口线: "-0.5", "+0.5", "-1", "-1.25"...
         home: number;      // 主队赔率
@@ -35,6 +35,17 @@ export interface LiveOdds {
         main?: boolean;    // 是否主盘
         suspended?: boolean;
     }[];
+    // 🟢 原始赛前盘口 (Pre-match Odds) - 基于 0-0 开球
+    preMatchAsianHandicap?: {
+        line: string;      // 原始盘口线: "-0.5", "+0.5", "-1"...
+        home: number;      // 主队赔率
+        away: number;      // 客队赔率
+    };
+    preMatchOverUnder?: {
+        line: number;      // 原始大小球盘口线
+        over: number;      // 大球赔率
+        under: number;     // 小球赔率
+    };
     bookmaker?: string;
     updateTime?: string;
     // 比赛状态
@@ -607,6 +618,17 @@ export class FootballService {
                 }
             }
 
+            // 🟢 获取并缓存赛前原始盘口
+            const preMatchOdds = await this.fetchPreMatchOdds(fixtureId);
+            if (preMatchOdds) {
+                if (preMatchOdds.asianHandicap) {
+                    liveOdds.preMatchAsianHandicap = preMatchOdds.asianHandicap;
+                }
+                if (preMatchOdds.overUnder) {
+                    liveOdds.preMatchOverUnder = preMatchOdds.overUnder;
+                }
+            }
+
             // 缓存结果
             this.liveOddsCache.set(fixtureId, { data: liveOdds, timestamp: Date.now() });
 
@@ -615,6 +637,157 @@ export class FootballService {
             // 静默失败，返回 null
             return null;
         }
+    }
+
+    // ===========================================
+    // 🟢 获取赛前原始盘口 (Pre-match Odds)
+    // ===========================================
+
+    // 赛前盘口缓存 - 整场比赛不变
+    private preMatchOddsCache: Map<number, {
+        asianHandicap?: { line: string; home: number; away: number };
+        overUnder?: { line: number; over: number; under: number };
+    }> = new Map();
+
+    private async fetchPreMatchOdds(fixtureId: number): Promise<{
+        asianHandicap?: { line: string; home: number; away: number };
+        overUnder?: { line: number; over: number; under: number };
+    } | null> {
+        try {
+            // 检查缓存 - 赛前盘口整场比赛不变，不需要过期
+            const cached = this.preMatchOddsCache.get(fixtureId);
+            if (cached) {
+                return cached;
+            }
+
+            // 🟢 使用赛前赔率接口 /odds
+            const response = await this.apiClient.get('/odds', {
+                params: {
+                    fixture: fixtureId,
+                    bookmaker: 8  // Bet365
+                }
+            });
+
+            const oddsData = response.data.response?.[0]?.bookmakers?.[0]?.bets;
+            if (!oddsData || oddsData.length === 0) {
+                // 尝试其他博彩公司
+                const fallbackResponse = await this.apiClient.get('/odds', {
+                    params: {
+                        fixture: fixtureId,
+                        bookmaker: 6  // Bwin
+                    }
+                });
+                const fallbackOdds = fallbackResponse.data.response?.[0]?.bookmakers?.[0]?.bets;
+                if (!fallbackOdds || fallbackOdds.length === 0) {
+                    return null;
+                }
+                return this.parsePreMatchOdds(fallbackOdds, fixtureId);
+            }
+
+            return this.parsePreMatchOdds(oddsData, fixtureId);
+        } catch (error) {
+            // 静默失败
+            return null;
+        }
+    }
+
+    private parsePreMatchOdds(bets: any[], fixtureId: number): {
+        asianHandicap?: { line: string; home: number; away: number };
+        overUnder?: { line: number; over: number; under: number };
+    } | null {
+        const result: {
+            asianHandicap?: { line: string; home: number; away: number };
+            overUnder?: { line: number; over: number; under: number };
+        } = {};
+
+        // 🟢 解析亚洲让球盘 (Asian Handicap - id: 4)
+        const asianHandicapBet = bets.find((b: any) => b.id === 4 || b.name === 'Asian Handicap');
+        if (asianHandicapBet && asianHandicapBet.values && asianHandicapBet.values.length > 0) {
+            // 找到主盘口（通常是第一个或赔率最接近 1.9 的）
+            const homeValues = asianHandicapBet.values.filter((v: any) => v.value === 'Home');
+            const awayValues = asianHandicapBet.values.filter((v: any) => v.value === 'Away');
+            
+            // 找赔率最平衡的盘口（主客赔率最接近）
+            let bestPair: { line: string; home: number; away: number } | null = null;
+            let minDiff = Infinity;
+            
+            for (const homeVal of homeValues) {
+                const handicap = homeVal.handicap;
+                const awayHandicap = handicap.startsWith('-') 
+                    ? handicap.replace('-', '+').replace('++', '+') 
+                    : handicap.replace('+', '-').replace('--', '-');
+                const awayVal = awayValues.find((v: any) => 
+                    v.handicap === awayHandicap || 
+                    v.handicap === handicap.replace('-', '') ||
+                    parseFloat(v.handicap) === -parseFloat(handicap)
+                );
+                
+                if (awayVal) {
+                    const homeOdd = parseFloat(homeVal.odd);
+                    const awayOdd = parseFloat(awayVal.odd);
+                    const diff = Math.abs(homeOdd - awayOdd);
+                    
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestPair = {
+                            line: handicap,
+                            home: homeOdd,
+                            away: awayOdd
+                        };
+                    }
+                }
+            }
+            
+            if (bestPair) {
+                result.asianHandicap = bestPair;
+            }
+        }
+
+        // 🟢 解析大小球 (Over/Under - id: 5)
+        const overUnderBet = bets.find((b: any) => b.id === 5 || b.name === 'Goals Over/Under');
+        if (overUnderBet && overUnderBet.values && overUnderBet.values.length > 0) {
+            const overValues = overUnderBet.values.filter((v: any) => v.value === 'Over');
+            const underValues = overUnderBet.values.filter((v: any) => v.value === 'Under');
+            
+            // 找赔率最平衡的盘口
+            let bestPair: { line: number; over: number; under: number } | null = null;
+            let minDiff = Infinity;
+            
+            for (const overVal of overValues) {
+                const line = overVal.value.replace('Over ', '') || overVal.handicap;
+                const underVal = underValues.find((v: any) => 
+                    (v.value.replace('Under ', '') || v.handicap) === line ||
+                    v.handicap === overVal.handicap
+                );
+                
+                if (underVal) {
+                    const overOdd = parseFloat(overVal.odd);
+                    const underOdd = parseFloat(underVal.odd);
+                    const diff = Math.abs(overOdd - underOdd);
+                    
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestPair = {
+                            line: parseFloat(overVal.handicap || line),
+                            over: overOdd,
+                            under: underOdd
+                        };
+                    }
+                }
+            }
+            
+            if (bestPair) {
+                result.overUnder = bestPair;
+            }
+        }
+
+        // 缓存结果
+        if (result.asianHandicap || result.overUnder) {
+            this.preMatchOddsCache.set(fixtureId, result);
+            return result;
+        }
+
+        return null;
     }
 
     // ===========================================
