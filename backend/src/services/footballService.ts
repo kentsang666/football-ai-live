@@ -461,8 +461,9 @@ export class FootballService {
         const matchData = this.mapExternalData(fixture);
         
         // 🟢 2. 获取实时赔率数据
+        let liveOdds: any = null;
         try {
-            const liveOdds = await this.fetchLiveOdds(fixture.fixture.id);
+            liveOdds = await this.fetchLiveOdds(fixture.fixture.id);
             if (liveOdds) {
                 matchData.liveOdds = liveOdds;
             }
@@ -475,11 +476,24 @@ export class FootballService {
         const cachedMatch = this.matchCache.get(matchData.match_id);
         const hasChanged = this.detectChanges(cachedMatch, matchData);
 
-        if (!hasChanged) {
-            return; // 没有变化，跳过
+        // 🟢 关键修复：无论比赛数据是否变化，都要更新缓存中的 liveOdds
+        // 因为赔率是实时变化的，而 hasChanged 只检测比分/时间变化
+        if (cachedMatch) {
+            // 已存在缓存：只更新 liveOdds 字段
+            if (liveOdds) {
+                cachedMatch.liveOdds = liveOdds;
+            }
+            
+            if (!hasChanged) {
+                return; // 比赛数据没变化，跳过事件发送
+            }
         }
 
-        // 4. 更新缓存
+        // 4. 更新缓存（首次添加或有变化时）
+        // 🟢 确保 matchData 包含最新的 liveOdds
+        if (liveOdds) {
+            matchData.liveOdds = liveOdds;
+        }
         this.matchCache.set(matchData.match_id, matchData);
 
         // 5. 构建事件
@@ -502,6 +516,21 @@ export class FootballService {
             // 检查缓存
             const cached = this.liveOddsCache.get(fixtureId);
             if (cached && Date.now() - cached.timestamp < this.LIVE_ODDS_CACHE_TTL) {
+                console.log(`[滑球赔率] 使用缓存: fixture=${fixtureId}, 有赛前亚盘=${!!cached.data.preMatchAsianHandicap}`);
+                // 🟢 确保赛前盘口数据始终被包含（即使从缓存返回）
+                if (!cached.data.preMatchAsianHandicap || !cached.data.preMatchOverUnder) {
+                    console.log(`[滑球赔率] 缓存缺少赛前盘口，补充获取: fixture=${fixtureId}`);
+                    const preMatchOdds = await this.fetchPreMatchOdds(fixtureId);
+                    if (preMatchOdds) {
+                        if (preMatchOdds.asianHandicap) {
+                            cached.data.preMatchAsianHandicap = preMatchOdds.asianHandicap;
+                            console.log(`[滑球赔率] 已补充赛前亚盘: fixture=${fixtureId}`);
+                        }
+                        if (preMatchOdds.overUnder) {
+                            cached.data.preMatchOverUnder = preMatchOdds.overUnder;
+                        }
+                    }
+                }
                 return cached.data;
             }
 
@@ -620,16 +649,21 @@ export class FootballService {
 
             // 🟢 获取并缓存赛前原始盘口
             const preMatchOdds = await this.fetchPreMatchOdds(fixtureId);
+            console.log(`[赛前盘口] fixture=${fixtureId} 返回结果: ${JSON.stringify(preMatchOdds)}`);
             if (preMatchOdds) {
                 if (preMatchOdds.asianHandicap) {
                     liveOdds.preMatchAsianHandicap = preMatchOdds.asianHandicap;
+                    console.log(`[赛前盘口] 已赋值亚盘: ${JSON.stringify(preMatchOdds.asianHandicap)}`);
                 }
                 if (preMatchOdds.overUnder) {
                     liveOdds.preMatchOverUnder = preMatchOdds.overUnder;
+                    console.log(`[赛前盘口] 已赋值大小球: ${JSON.stringify(preMatchOdds.overUnder)}`);
                 }
             }
 
             // 缓存结果
+            console.log(`[滑球赔率] 缓存前 liveOdds keys: ${Object.keys(liveOdds).join(', ')}`);
+            console.log(`[滑球赔率] preMatchAsianHandicap: ${JSON.stringify(liveOdds.preMatchAsianHandicap)}`);
             this.liveOddsCache.set(fixtureId, { data: liveOdds, timestamp: Date.now() });
 
             return liveOdds;
@@ -657,8 +691,11 @@ export class FootballService {
             // 检查缓存 - 赛前盘口整场比赛不变，不需要过期
             const cached = this.preMatchOddsCache.get(fixtureId);
             if (cached) {
+                console.log(`[赛前盘口] 使用缓存: fixture=${fixtureId}`);
                 return cached;
             }
+
+            console.log(`[赛前盘口] 获取赛前盘口: fixture=${fixtureId}`);
 
             // 🟢 使用赛前赔率接口 /odds
             const response = await this.apiClient.get('/odds', {
@@ -668,8 +705,11 @@ export class FootballService {
                 }
             });
 
+            console.log(`[赛前盘口] Bet365 响应: ${response.data.response?.length || 0} 条记录`);
+
             const oddsData = response.data.response?.[0]?.bookmakers?.[0]?.bets;
             if (!oddsData || oddsData.length === 0) {
+                console.log(`[赛前盘口] Bet365 无数据，尝试 Bwin...`);
                 // 尝试其他博彩公司
                 const fallbackResponse = await this.apiClient.get('/odds', {
                     params: {
@@ -679,14 +719,15 @@ export class FootballService {
                 });
                 const fallbackOdds = fallbackResponse.data.response?.[0]?.bookmakers?.[0]?.bets;
                 if (!fallbackOdds || fallbackOdds.length === 0) {
+                    console.log(`[赛前盘口] Bwin 也无数据`);
                     return null;
                 }
                 return this.parsePreMatchOdds(fallbackOdds, fixtureId);
             }
 
             return this.parsePreMatchOdds(oddsData, fixtureId);
-        } catch (error) {
-            // 静默失败
+        } catch (error: any) {
+            console.log(`[赛前盘口] 获取失败: ${error.message}`);
             return null;
         }
     }
@@ -695,6 +736,9 @@ export class FootballService {
         asianHandicap?: { line: string; home: number; away: number };
         overUnder?: { line: number; over: number; under: number };
     } | null {
+        console.log(`[赛前盘口] 解析数据: fixture=${fixtureId}, bets=${bets.length}种类型`);
+        console.log(`[赛前盘口] 投注类型: ${bets.map((b: any) => `${b.id}:${b.name}`).join(', ')}`);
+        
         const result: {
             asianHandicap?: { line: string; home: number; away: number };
             overUnder?: { line: number; over: number; under: number };
@@ -702,37 +746,46 @@ export class FootballService {
 
         // 🟢 解析亚洲让球盘 (Asian Handicap - id: 4)
         const asianHandicapBet = bets.find((b: any) => b.id === 4 || b.name === 'Asian Handicap');
+        console.log(`[赛前盘口] 亚盘数据: ${JSON.stringify(asianHandicapBet?.values?.slice(0, 4))}`);
         if (asianHandicapBet && asianHandicapBet.values && asianHandicapBet.values.length > 0) {
-            // 找到主盘口（通常是第一个或赔率最接近 1.9 的）
-            const homeValues = asianHandicapBet.values.filter((v: any) => v.value === 'Home');
-            const awayValues = asianHandicapBet.values.filter((v: any) => v.value === 'Away');
+            // 🟢 新格式: value 是 "Home -1.25" 或 "Away -1.25"
+            const homeValues: { handicap: string; odd: number }[] = [];
+            const awayValues: { handicap: string; odd: number }[] = [];
+            
+            for (const v of asianHandicapBet.values) {
+                const valueStr = v.value || '';
+                const odd = parseFloat(v.odd);
+                
+                if (valueStr.startsWith('Home')) {
+                    // 提取盘口值: "Home -1.25" -> "-1.25"
+                    const handicap = valueStr.replace('Home', '').trim();
+                    homeValues.push({ handicap, odd });
+                } else if (valueStr.startsWith('Away')) {
+                    // 提取盘口值: "Away -1.25" -> "-1.25" (客队视角)
+                    const handicap = valueStr.replace('Away', '').trim();
+                    awayValues.push({ handicap, odd });
+                }
+            }
+            
+            console.log(`[赛前盘口] 解析后: home=${homeValues.length}个, away=${awayValues.length}个`);
             
             // 找赔率最平衡的盘口（主客赔率最接近）
             let bestPair: { line: string; home: number; away: number } | null = null;
             let minDiff = Infinity;
             
             for (const homeVal of homeValues) {
-                const handicap = homeVal.handicap;
-                const awayHandicap = handicap.startsWith('-') 
-                    ? handicap.replace('-', '+').replace('++', '+') 
-                    : handicap.replace('+', '-').replace('--', '-');
-                const awayVal = awayValues.find((v: any) => 
-                    v.handicap === awayHandicap || 
-                    v.handicap === handicap.replace('-', '') ||
-                    parseFloat(v.handicap) === -parseFloat(handicap)
-                );
+                // 找到对应的客队盘口 (同样的盘口值)
+                const awayVal = awayValues.find((a) => a.handicap === homeVal.handicap);
                 
                 if (awayVal) {
-                    const homeOdd = parseFloat(homeVal.odd);
-                    const awayOdd = parseFloat(awayVal.odd);
-                    const diff = Math.abs(homeOdd - awayOdd);
+                    const diff = Math.abs(homeVal.odd - awayVal.odd);
                     
                     if (diff < minDiff) {
                         minDiff = diff;
                         bestPair = {
-                            line: handicap,
-                            home: homeOdd,
-                            away: awayOdd
+                            line: homeVal.handicap,
+                            home: homeVal.odd,
+                            away: awayVal.odd
                         };
                     }
                 }
@@ -740,37 +793,56 @@ export class FootballService {
             
             if (bestPair) {
                 result.asianHandicap = bestPair;
+                console.log(`[赛前盘口] 亚盘主盘: ${bestPair.line}, home=${bestPair.home}, away=${bestPair.away}`);
             }
         }
 
         // 🟢 解析大小球 (Over/Under - id: 5)
         const overUnderBet = bets.find((b: any) => b.id === 5 || b.name === 'Goals Over/Under');
+        console.log(`[赛前盘口] 大小球数据: ${JSON.stringify(overUnderBet?.values?.slice(0, 4))}`);
         if (overUnderBet && overUnderBet.values && overUnderBet.values.length > 0) {
-            const overValues = overUnderBet.values.filter((v: any) => v.value === 'Over');
-            const underValues = overUnderBet.values.filter((v: any) => v.value === 'Under');
+            // 🟢 新格式: value 是 "Over 2.5" 或 "Under 2.5"
+            const overValues: { line: number; odd: number }[] = [];
+            const underValues: { line: number; odd: number }[] = [];
+            
+            for (const v of overUnderBet.values) {
+                const valueStr = v.value || '';
+                const odd = parseFloat(v.odd);
+                
+                if (valueStr.startsWith('Over')) {
+                    // 提取盘口值: "Over 2.5" -> 2.5
+                    const line = parseFloat(valueStr.replace('Over', '').trim());
+                    if (!isNaN(line)) {
+                        overValues.push({ line, odd });
+                    }
+                } else if (valueStr.startsWith('Under')) {
+                    // 提取盘口值: "Under 2.5" -> 2.5
+                    const line = parseFloat(valueStr.replace('Under', '').trim());
+                    if (!isNaN(line)) {
+                        underValues.push({ line, odd });
+                    }
+                }
+            }
+            
+            console.log(`[赛前盘口] 大小球解析后: over=${overValues.length}个, under=${underValues.length}个`);
             
             // 找赔率最平衡的盘口
             let bestPair: { line: number; over: number; under: number } | null = null;
             let minDiff = Infinity;
             
             for (const overVal of overValues) {
-                const line = overVal.value.replace('Over ', '') || overVal.handicap;
-                const underVal = underValues.find((v: any) => 
-                    (v.value.replace('Under ', '') || v.handicap) === line ||
-                    v.handicap === overVal.handicap
-                );
+                // 找到对应的 Under 盘口 (同样的盘口值)
+                const underVal = underValues.find((u) => u.line === overVal.line);
                 
                 if (underVal) {
-                    const overOdd = parseFloat(overVal.odd);
-                    const underOdd = parseFloat(underVal.odd);
-                    const diff = Math.abs(overOdd - underOdd);
+                    const diff = Math.abs(overVal.odd - underVal.odd);
                     
                     if (diff < minDiff) {
                         minDiff = diff;
                         bestPair = {
-                            line: parseFloat(overVal.handicap || line),
-                            over: overOdd,
-                            under: underOdd
+                            line: overVal.line,
+                            over: overVal.odd,
+                            under: underVal.odd
                         };
                     }
                 }
@@ -778,15 +850,18 @@ export class FootballService {
             
             if (bestPair) {
                 result.overUnder = bestPair;
+                console.log(`[赛前盘口] 大小球主盘: ${bestPair.line}, over=${bestPair.over}, under=${bestPair.under}`);
             }
         }
 
         // 缓存结果
         if (result.asianHandicap || result.overUnder) {
+            console.log(`[赛前盘口] 解析成功: fixture=${fixtureId}, 亚盘=${result.asianHandicap?.line || '无'}, 大小球=${result.overUnder?.line || '无'}`);
             this.preMatchOddsCache.set(fixtureId, result);
             return result;
         }
 
+        console.log(`[赛前盘口] 解析失败: fixture=${fixtureId}, 未找到亚盘或大小球数据`);
         return null;
     }
 
