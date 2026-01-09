@@ -52,12 +52,26 @@ class SettlementService {
   }
 
   /**
+   * 清理 matchId，去除 api- 前缀
+   */
+  private cleanMatchId(matchId: string): string {
+    // 去除 api- 前缀
+    if (matchId.startsWith('api-')) {
+      return matchId.substring(4);
+    }
+    return matchId;
+  }
+
+  /**
    * 获取单场比赛的完场比分
    */
   async getFixtureResult(fixtureId: string): Promise<FixtureResult | null> {
+    // 清理 matchId
+    const cleanId = this.cleanMatchId(fixtureId);
+    
     try {
       const response = await axios.get(`${this.apiUrl}/fixtures`, {
-        params: { id: fixtureId },
+        params: { id: cleanId },
         headers: {
           'x-apisports-key': this.apiKey,
         },
