@@ -313,7 +313,12 @@ app.get('/api/matches/live', (req, res) => {
             
             return {
                 ...match,
-                prediction: prediction.probabilities,
+                prediction: {
+                    ...prediction.probabilities,
+                    momentum: prediction.momentum,
+                    pressureAnalysis: prediction.pressureAnalysis,
+                    confidence: prediction.confidence,
+                },
                 prediction_confidence: prediction.confidence,
                 prediction_algorithm: prediction.algorithm
             };
@@ -347,7 +352,12 @@ app.get('/api/matches/live', (req, res) => {
                 status: matchState.is_live ? 'live' : 'finished',
                 league: 'England - Premier League',
                 timestamp: new Date().toISOString(),
-                prediction: prediction.probabilities,
+                prediction: {
+                    ...prediction.probabilities,
+                    momentum: prediction.momentum,
+                    pressureAnalysis: prediction.pressureAnalysis,
+                    confidence: prediction.confidence,
+                },
                 prediction_confidence: prediction.confidence,
                 prediction_algorithm: prediction.algorithm
             }]
