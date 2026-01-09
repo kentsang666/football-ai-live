@@ -417,7 +417,7 @@ app.get('/health', (req, res) => {
         uptime: process.uptime(),
         environment: process.env.NODE_ENV || 'development',
         redis: redisPub.isReady ? 'connected' : 'disconnected',
-        prediction_service: `SmartPredict-v${predictionService.getVersion()}`
+        prediction_service: `QuantPredict-v${predictionService.getVersion()}`
     });
 });
 
@@ -427,7 +427,7 @@ app.get('/', (req, res) => {
         service: 'Football Prediction Backend',
         version: '2.0.0',
         status: 'running',
-        prediction_engine: `SmartPredict-v${predictionService.getVersion()}`,
+        prediction_engine: `QuantPredict-v${predictionService.getVersion()}`,
         endpoints: {
             health: '/health',
             liveMatches: '/api/matches/live',

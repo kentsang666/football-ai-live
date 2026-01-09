@@ -1,233 +1,225 @@
 /**
- * 足球比赛预测服务
- * 基于比赛状态实时计算胜负概率
+ * 预测服务 - 使用 QuantPredict v2.0 算法
+ * 
+ * 这是一个高级足球滚球预测引擎，包含：
+ * - 动量引擎 (Pressure Index)
+ * - 动态泊松模型 (Dynamic Poisson)
+ * - 亚洲盘口转换器 (Asian Handicap Pricer)
+ * - 交易信号生成器 (Trading Signal Generator)
  */
 
+import {
+  predictMatch,
+  LiveProbability,
+  AsianHandicapPricer,
+  TradingSignalGenerator,
+  MatchStats,
+  AsianHandicapOdds,
+} from './quantPredictService';
+
 export interface MatchData {
-    match_id: string;
-    home_team: string;
-    away_team: string;
-    home_score: number;
-    away_score: number;
-    minute: number;
-    status?: string;
-    league?: string;
-    home_shots_on_target?: number;
-    away_shots_on_target?: number;
-    home_possession?: number;
-    away_possession?: number;
-    home_corners?: number;
-    away_corners?: number;
-    home_red_cards?: number;
-    away_red_cards?: number;
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  home_score: number;
+  away_score: number;
+  minute: number;
+  status?: string;
+  league?: string;
+  home_shots_on_target?: number;
+  away_shots_on_target?: number;
+  home_shots_off_target?: number;
+  away_shots_off_target?: number;
+  home_possession?: number;
+  away_possession?: number;
+  home_corners?: number;
+  away_corners?: number;
+  home_red_cards?: number;
+  away_red_cards?: number;
+  home_dangerous_attacks?: number;
+  away_dangerous_attacks?: number;
 }
 
 export interface Prediction {
-    match_id: string;
-    home_team: string;
-    away_team: string;
-    probabilities: {
-        home: number;
-        draw: number;
-        away: number;
-    };
-    algorithm: string;
-    confidence: number;
-    timestamp: string;
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  probabilities: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+  algorithm: string;
+  confidence: number;
+  timestamp: string;
+  momentum?: {
+    home: number;
+    away: number;
+  };
+  expectedGoals?: {
+    home: number;
+    away: number;
+  };
+  pressureAnalysis?: {
+    homeNormalized: number;
+    awayNormalized: number;
+    dominantTeam: string;
+  };
+  asianHandicap?: AsianHandicapOdds[];
 }
 
 /**
- * 预测服务类
+ * 将 MatchData 转换为 MatchStats 格式
+ */
+function convertToMatchStats(match: MatchData): MatchStats {
+  const stats: MatchStats = {
+    minute: match.minute || 0,
+    homeScore: match.home_score || 0,
+    awayScore: match.away_score || 0,
+  };
+
+  // 只有在有值时才设置可选属性
+  if (match.home_shots_on_target !== undefined) stats.homeShotsOnTarget = match.home_shots_on_target;
+  if (match.away_shots_on_target !== undefined) stats.awayShotsOnTarget = match.away_shots_on_target;
+  if (match.home_shots_off_target !== undefined) stats.homeShotsOffTarget = match.home_shots_off_target;
+  if (match.away_shots_off_target !== undefined) stats.awayShotsOffTarget = match.away_shots_off_target;
+  if (match.home_corners !== undefined) stats.homeCorners = match.home_corners;
+  if (match.away_corners !== undefined) stats.awayCorners = match.away_corners;
+  if (match.home_possession !== undefined) stats.homePossession = match.home_possession;
+  if (match.away_possession !== undefined) stats.awayPossession = match.away_possession;
+  if (match.home_red_cards !== undefined) stats.homeRedCards = match.home_red_cards;
+  if (match.away_red_cards !== undefined) stats.awayRedCards = match.away_red_cards;
+  if (match.home_dangerous_attacks !== undefined) stats.homeDangerousAttacks = match.home_dangerous_attacks;
+  if (match.away_dangerous_attacks !== undefined) stats.awayDangerousAttacks = match.away_dangerous_attacks;
+
+  // 估算最近5分钟的统计（基于全场数据的比例）
+  const minuteRatio = Math.min(1, 5 / Math.max(1, match.minute));
+  stats.recentHomeDangerousAttacks = Math.round((match.home_dangerous_attacks || 0) * minuteRatio);
+  stats.recentAwayDangerousAttacks = Math.round((match.away_dangerous_attacks || 0) * minuteRatio);
+  stats.recentHomeShotsOnTarget = Math.round((match.home_shots_on_target || 0) * minuteRatio);
+  stats.recentAwayShotsOnTarget = Math.round((match.away_shots_on_target || 0) * minuteRatio);
+  stats.recentHomeCorners = Math.round((match.home_corners || 0) * minuteRatio);
+  stats.recentAwayCorners = Math.round((match.away_corners || 0) * minuteRatio);
+
+  return stats;
+}
+
+/**
+ * 预测服务类 - QuantPredict v2.0
  */
 export class PredictionService {
-    private readonly VERSION = '1.0.0';
-    
-    /**
-     * 计算比赛预测概率
-     */
-    calculatePrediction(match: MatchData): Prediction {
-        const probs = this.calculateProbabilities(match);
-        const confidence = this.calculateConfidence(match);
-        
+  private readonly VERSION = '2.0.0';
+  private readonly ALGORITHM = 'QuantPredict-v2.0';
+  private liveProbability: LiveProbability;
+  private handicapPricer: AsianHandicapPricer;
+  private signalGenerator: TradingSignalGenerator;
+
+  constructor() {
+    this.liveProbability = new LiveProbability();
+    this.handicapPricer = new AsianHandicapPricer();
+    this.signalGenerator = new TradingSignalGenerator();
+  }
+
+  /**
+   * 计算比赛预测概率
+   */
+  calculatePrediction(match: MatchData): Prediction {
+    const stats = convertToMatchStats(match);
+    const prediction = predictMatch({
+      minute: stats.minute,
+      homeScore: stats.homeScore,
+      awayScore: stats.awayScore,
+      stats,
+    });
+
+    // 获取亚洲盘口数据
+    const asianHandicap = this.handicapPricer.getAllHandicapLines(stats);
+
+    return {
+      match_id: match.match_id,
+      home_team: match.home_team,
+      away_team: match.away_team,
+      probabilities: {
+        home: prediction.home,
+        draw: prediction.draw,
+        away: prediction.away,
+      },
+      algorithm: this.ALGORITHM,
+      confidence: prediction.confidence,
+      timestamp: new Date().toISOString(),
+      momentum: prediction.momentum,
+      expectedGoals: prediction.expectedGoals,
+      pressureAnalysis: prediction.pressureAnalysis,
+      asianHandicap,
+    };
+  }
+
+  /**
+   * 批量计算预测
+   */
+  calculatePredictions(matches: MatchData[]): Prediction[] {
+    return matches.map((match) => {
+      try {
+        return this.calculatePrediction(match);
+      } catch (error) {
+        console.error(`预测失败 [${match.match_id}]:`, error);
+        // 返回默认预测
         return {
-            match_id: match.match_id,
-            home_team: match.home_team,
-            away_team: match.away_team,
-            probabilities: probs,
-            algorithm: 'SmartPredict-v1',
-            confidence,
-            timestamp: new Date().toISOString()
+          match_id: match.match_id,
+          home_team: match.home_team,
+          away_team: match.away_team,
+          probabilities: {
+            home: 0.33,
+            draw: 0.34,
+            away: 0.33,
+          },
+          algorithm: `${this.ALGORITHM}-fallback`,
+          confidence: 0.5,
+          timestamp: new Date().toISOString(),
         };
+      }
+    });
+  }
+
+  /**
+   * 生成交易信号
+   */
+  generateTradingSignals(
+    match: MatchData,
+    marketOdds?: {
+      '1x2'?: { home: number; draw: number; away: number };
+      asianHandicap?: Record<string, { home: number; away: number }>;
     }
-    
-    /**
-     * 智能概率计算算法
-     * 考虑因素：比分、时间、射门、控球率、红牌等
-     */
-    private calculateProbabilities(match: MatchData): { home: number; draw: number; away: number } {
-        // 基础概率（根据历史数据，主场略有优势）
-        let pHome = 0.40;
-        let pDraw = 0.28;
-        let pAway = 0.32;
-        
-        const homeScore = match.home_score || 0;
-        const awayScore = match.away_score || 0;
-        const minute = match.minute || 45;
-        const goalDiff = homeScore - awayScore;
-        
-        // 1. 比分影响（最重要的因素）
-        if (goalDiff !== 0) {
-            const scoreFactor = Math.min(Math.abs(goalDiff), 4) * 0.12;
-            if (goalDiff > 0) {
-                pHome += scoreFactor;
-                pDraw -= scoreFactor * 0.4;
-                pAway -= scoreFactor * 0.6;
-            } else {
-                pAway += scoreFactor;
-                pDraw -= scoreFactor * 0.4;
-                pHome -= scoreFactor * 0.6;
-            }
-        }
-        
-        // 2. 时间因素（比赛越接近结束，领先方优势越大）
-        const timeProgress = Math.min(minute / 90, 1);
-        if (goalDiff !== 0) {
-            const timeFactor = timeProgress * 0.15;
-            if (goalDiff > 0) {
-                pHome += timeFactor;
-                pDraw -= timeFactor * 0.5;
-                pAway -= timeFactor * 0.5;
-            } else {
-                pAway += timeFactor;
-                pDraw -= timeFactor * 0.5;
-                pHome -= timeFactor * 0.5;
-            }
-        } else {
-            // 0-0 平局，随着时间推移平局概率增加
-            const drawBoost = timeProgress * 0.08;
-            pDraw += drawBoost;
-            pHome -= drawBoost * 0.5;
-            pAway -= drawBoost * 0.5;
-        }
-        
-        // 3. 射门数据（如果有）
-        if (match.home_shots_on_target !== undefined && match.away_shots_on_target !== undefined) {
-            const shotDiff = match.home_shots_on_target - match.away_shots_on_target;
-            const shotFactor = Math.min(Math.abs(shotDiff), 5) * 0.02;
-            if (shotDiff > 0) {
-                pHome += shotFactor;
-                pAway -= shotFactor;
-            } else if (shotDiff < 0) {
-                pAway += shotFactor;
-                pHome -= shotFactor;
-            }
-        }
-        
-        // 4. 控球率（如果有）
-        if (match.home_possession !== undefined && match.away_possession !== undefined) {
-            const possessionDiff = match.home_possession - match.away_possession;
-            const possessionFactor = possessionDiff * 0.002; // 每1%控球率影响0.2%概率
-            pHome += possessionFactor;
-            pAway -= possessionFactor;
-        }
-        
-        // 5. 红牌影响（如果有）
-        if (match.home_red_cards !== undefined && match.away_red_cards !== undefined) {
-            const redCardDiff = match.home_red_cards - match.away_red_cards;
-            if (redCardDiff > 0) {
-                // 主队有红牌，客队优势
-                pAway += 0.08 * redCardDiff;
-                pHome -= 0.06 * redCardDiff;
-                pDraw -= 0.02 * redCardDiff;
-            } else if (redCardDiff < 0) {
-                // 客队有红牌，主队优势
-                pHome += 0.08 * Math.abs(redCardDiff);
-                pAway -= 0.06 * Math.abs(redCardDiff);
-                pDraw -= 0.02 * Math.abs(redCardDiff);
-            }
-        }
-        
-        // 6. 特殊情况处理
-        // 大比分领先（3球以上）
-        if (Math.abs(goalDiff) >= 3) {
-            if (goalDiff > 0) {
-                pHome = Math.min(pHome + 0.15, 0.95);
-                pDraw = Math.max(pDraw - 0.10, 0.02);
-                pAway = Math.max(pAway - 0.05, 0.02);
-            } else {
-                pAway = Math.min(pAway + 0.15, 0.95);
-                pDraw = Math.max(pDraw - 0.10, 0.02);
-                pHome = Math.max(pHome - 0.05, 0.02);
-            }
-        }
-        
-        // 7. 比赛末段（85分钟以后）
-        if (minute >= 85) {
-            if (goalDiff > 0) {
-                pHome = Math.min(pHome * 1.1, 0.95);
-            } else if (goalDiff < 0) {
-                pAway = Math.min(pAway * 1.1, 0.95);
-            } else {
-                pDraw = Math.min(pDraw * 1.15, 0.80);
-            }
-        }
-        
-        // 归一化确保概率和为1
-        const total = pHome + pDraw + pAway;
-        pHome = pHome / total;
-        pDraw = pDraw / total;
-        pAway = pAway / total;
-        
-        // 确保概率在合理范围内
-        pHome = Math.max(0.01, Math.min(0.98, pHome));
-        pDraw = Math.max(0.01, Math.min(0.98, pDraw));
-        pAway = Math.max(0.01, Math.min(0.98, pAway));
-        
-        // 再次归一化
-        const finalTotal = pHome + pDraw + pAway;
-        
-        return {
-            home: Math.round((pHome / finalTotal) * 10000) / 10000,
-            draw: Math.round((pDraw / finalTotal) * 10000) / 10000,
-            away: Math.round((pAway / finalTotal) * 10000) / 10000
-        };
-    }
-    
-    /**
-     * 计算预测置信度
-     */
-    private calculateConfidence(match: MatchData): number {
-        let confidence = 0.6; // 基础置信度
-        
-        const minute = match.minute || 45;
-        const goalDiff = Math.abs((match.home_score || 0) - (match.away_score || 0));
-        
-        // 比赛进行时间越长，置信度越高
-        confidence += (minute / 90) * 0.2;
-        
-        // 比分差距越大，置信度越高
-        confidence += Math.min(goalDiff * 0.05, 0.15);
-        
-        // 有更多数据时置信度更高
-        if (match.home_shots_on_target !== undefined) confidence += 0.03;
-        if (match.home_possession !== undefined) confidence += 0.02;
-        
-        return Math.min(Math.round(confidence * 100) / 100, 0.95);
-    }
-    
-    /**
-     * 批量计算预测
-     */
-    calculatePredictions(matches: MatchData[]): Prediction[] {
-        return matches.map(match => this.calculatePrediction(match));
-    }
-    
-    /**
-     * 获取服务版本
-     */
-    getVersion(): string {
-        return this.VERSION;
-    }
+  ) {
+    const stats = convertToMatchStats(match);
+    return this.signalGenerator.generateFullAnalysis(stats, marketOdds);
+  }
+
+  /**
+   * 获取服务版本
+   */
+  getVersion(): string {
+    return this.VERSION;
+  }
+
+  /**
+   * 获取服务信息
+   */
+  getServiceInfo() {
+    return {
+      name: 'QuantPredict',
+      version: this.VERSION,
+      algorithm: this.ALGORITHM,
+      features: [
+        'Dynamic Poisson Model',
+        'Pressure Index (Momentum Engine)',
+        'Asian Handicap Pricer',
+        'Trading Signal Generator',
+        'Time Decay Analysis',
+        'Split Handicap Support',
+      ],
+    };
+  }
 }
 
 // 导出单例
