@@ -722,6 +722,7 @@ export class GoalPredictor {
    */
   generateGoalBettingTips(stats: MatchStats): GoalBettingTips {
     const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
+    const currentGoals = stats.homeScore + stats.awayScore;
     
     // 计算各个大小球盘口
     const lines = [0.5, 1.5, 2.5, 3.5, 4.5];
@@ -735,12 +736,24 @@ export class GoalPredictor {
     const remainingExpectedGoals = homeLambda + awayLambda;
     
     // 找出高置信度推荐
+    // 🟢 修复：过滤掉无意义的推荐（如已经超过的盘口）
     let highConfidenceTip: GoalBettingTips['highConfidenceTip'] = null;
     
     // 检查大小球推荐
     for (const ou of overUnder) {
-      if (ou.confidence >= 0.7 && ou.recommendation !== 'NEUTRAL') {
-        const prob = ou.recommendation === 'OVER' ? ou.overProb : ou.underProb;
+      // 🟢 跳过已经确定的盘口（当前进球数已经超过盘口线）
+      if (currentGoals > ou.line) {
+        continue; // 这个盘口已经确定为大球，不需要推荐
+      }
+      
+      // 🟢 跳过概率过于极端的推荐（>95% 或 <5%）
+      const prob = ou.recommendation === 'OVER' ? ou.overProb : ou.underProb;
+      if (prob > 0.95 || prob < 0.05) {
+        continue; // 概率过于极端，没有投注价值
+      }
+      
+      // 🟢 只推荐有实际投注价值的盘口（概率在 55%-85% 之间）
+      if (ou.confidence >= 0.55 && ou.recommendation !== 'NEUTRAL' && prob >= 0.55 && prob <= 0.85) {
         if (!highConfidenceTip || prob > highConfidenceTip.probability) {
           highConfidenceTip = {
             type: ou.recommendation,
@@ -756,29 +769,29 @@ export class GoalPredictor {
     }
     
     // 检查下一球推荐
-    if (nextGoal.confidence >= 0.7 && nextGoal.recommendation !== 'NEUTRAL') {
-      const prob = nextGoal.recommendation === 'HOME' ? nextGoal.homeProb 
-        : nextGoal.recommendation === 'AWAY' ? nextGoal.awayProb 
-        : nextGoal.noGoalProb;
+    // 🟢 只在比赛进行中且有明确优势时推荐
+    if (stats.minute > 0 && stats.minute < 85 && nextGoal.confidence >= 0.6 && nextGoal.recommendation !== 'NEUTRAL' && nextGoal.recommendation !== 'NO_GOAL') {
+      const prob = nextGoal.recommendation === 'HOME' ? nextGoal.homeProb : nextGoal.awayProb;
       
-      if (!highConfidenceTip || prob > highConfidenceTip.probability) {
-        const typeMap = {
-          'HOME': 'NEXT_GOAL_HOME' as const,
-          'AWAY': 'NEXT_GOAL_AWAY' as const,
-          'NO_GOAL': 'NONE' as const,
-          'NEUTRAL': 'NONE' as const,
-        };
-        
-        highConfidenceTip = {
-          type: typeMap[nextGoal.recommendation],
-          probability: prob,
-          confidence: nextGoal.confidence,
-          description: nextGoal.recommendation === 'HOME' 
-            ? `主队进下一球 (概率 ${(prob * 100).toFixed(1)}%)`
-            : nextGoal.recommendation === 'AWAY'
-            ? `客队进下一球 (概率 ${(prob * 100).toFixed(1)}%)`
-            : `不再进球 (概率 ${(prob * 100).toFixed(1)}%)`,
-        };
+      // 🟢 只推荐概率在 45%-75% 之间的下一球预测
+      if (prob >= 0.45 && prob <= 0.75) {
+        if (!highConfidenceTip || prob > highConfidenceTip.probability) {
+          const typeMap = {
+            'HOME': 'NEXT_GOAL_HOME' as const,
+            'AWAY': 'NEXT_GOAL_AWAY' as const,
+            'NO_GOAL': 'NONE' as const,
+            'NEUTRAL': 'NONE' as const,
+          };
+          
+          highConfidenceTip = {
+            type: typeMap[nextGoal.recommendation],
+            probability: prob,
+            confidence: nextGoal.confidence,
+            description: nextGoal.recommendation === 'HOME' 
+              ? `主队进下一球 (概率 ${(prob * 100).toFixed(1)}%)`
+              : `客队进下一球 (概率 ${(prob * 100).toFixed(1)}%)`,
+          };
+        }
       }
     }
     
