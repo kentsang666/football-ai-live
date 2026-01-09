@@ -508,6 +508,7 @@ app.get('/api/matches/live', (req, res) => {
                     momentum: prediction.momentum,
                     pressureAnalysis: prediction.pressureAnalysis,
                     confidence: prediction.confidence,
+                    goalBettingTips: prediction.goalBettingTips,  // 🟢 新增：进球投注建议
                 },
                 prediction_confidence: prediction.confidence,
                 prediction_algorithm: prediction.algorithm
@@ -547,6 +548,7 @@ app.get('/api/matches/live', (req, res) => {
                     momentum: prediction.momentum,
                     pressureAnalysis: prediction.pressureAnalysis,
                     confidence: prediction.confidence,
+                    goalBettingTips: prediction.goalBettingTips,  // 🟢 新增：进球投注建议
                 },
                 prediction_confidence: prediction.confidence,
                 prediction_algorithm: prediction.algorithm
