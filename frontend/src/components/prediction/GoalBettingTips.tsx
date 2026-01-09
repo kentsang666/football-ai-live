@@ -1,7 +1,7 @@
 /**
  * GoalBettingTips - 进球投注建议组件
  * 
- * 优化版：更清晰的布局，突出实时赔率
+ * 简洁版：只显示实时主盘口
  */
 
 import type { GoalBettingTips as GoalBettingTipsType, LiveOdds } from '../../types/prediction';
@@ -34,6 +34,10 @@ export function GoalBettingTips({
   const isLive = matchStatus === 'live' || matchStatus === 'halftime';
   const hasLiveOdds = liveOdds && (liveOdds.overUnder?.length || liveOdds.asianHandicap?.length);
 
+  // 获取主盘口
+  const mainAsianHandicap = liveOdds?.asianHandicap?.find(ah => ah.main);
+  const mainOverUnder = liveOdds?.overUnder?.find(ou => ou.main);
+
   return (
     <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
       {/* 标题栏 */}
@@ -57,13 +61,13 @@ export function GoalBettingTips({
         </div>
       </div>
 
-      {/* 实时赔率区域 - 主要显示 */}
+      {/* 实时主盘口区域 */}
       {hasLiveOdds && (
         <div className="space-y-4">
           {/* 胜平负 1x2 */}
           {liveOdds.matchWinner && (
             <div>
-              <div className="text-xs text-slate-400 mb-2 font-medium">胜平负</div>
+              <div className="text-xs text-slate-400 mb-2 font-medium">胜平负 (1x2)</div>
               <div className="grid grid-cols-3 gap-2">
                 <div className={`text-center p-3 rounded-lg ${liveOdds.matchWinner.suspended ? 'bg-red-900/20 opacity-60' : 'bg-blue-500/10 hover:bg-blue-500/20'} transition-colors`}>
                   <div className="text-xs text-blue-400 mb-1">主胜</div>
@@ -81,89 +85,105 @@ export function GoalBettingTips({
             </div>
           )}
 
-          {/* 亚洲盘口 */}
-          {liveOdds.asianHandicap && liveOdds.asianHandicap.length > 0 && (
-            <div>
-              <div className="text-xs text-slate-400 mb-2 font-medium">亚洲盘口</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-slate-500">
-                      <th className="text-left py-1 px-2">盘口</th>
-                      <th className="text-center py-1 px-2 text-blue-400">{homeTeam.slice(0, 6)}</th>
-                      <th className="text-center py-1 px-2 text-red-400">{awayTeam.slice(0, 6)}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {liveOdds.asianHandicap.slice(0, 5).map((ah, idx) => (
-                      <tr 
-                        key={idx} 
-                        className={`
-                          border-t border-slate-700/30
-                          ${ah.main ? 'bg-amber-500/10' : ''}
-                          ${ah.suspended ? 'opacity-50' : ''}
-                        `}
-                      >
-                        <td className="py-2 px-2">
-                          <span className={`font-mono ${ah.main ? 'text-amber-400 font-bold' : 'text-slate-300'}`}>
-                            {ah.line.startsWith('-') ? '' : '+'}{ah.line}
-                          </span>
-                          {ah.main && <span className="ml-1 text-[10px] text-amber-400">★</span>}
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <span className="text-blue-400 font-bold">{formatOdds(ah.home)}</span>
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <span className="text-red-400 font-bold">{formatOdds(ah.away)}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* 主盘口卡片 - 亚洲盘和大小球并排显示 */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* 亚洲盘口主盘 */}
+            {mainAsianHandicap && (
+              <div className={`p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 ${mainAsianHandicap.suspended ? 'opacity-50' : ''}`}>
+                <div className="text-xs text-purple-400 mb-2 font-medium flex items-center gap-1">
+                  🎯 亚洲盘口
+                  <span className="text-amber-400">★ 主盘</span>
+                </div>
+                <div className="text-center mb-3">
+                  <span className="text-2xl font-bold text-white">
+                    {mainAsianHandicap.line.startsWith('-') ? '' : '+'}{mainAsianHandicap.line}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-blue-500/10 rounded-lg p-2">
+                    <div className="text-[10px] text-blue-400 truncate">{homeTeam}</div>
+                    <div className="text-lg font-bold text-blue-400">{formatOdds(mainAsianHandicap.home)}</div>
+                  </div>
+                  <div className="bg-red-500/10 rounded-lg p-2">
+                    <div className="text-[10px] text-red-400 truncate">{awayTeam}</div>
+                    <div className="text-lg font-bold text-red-400">{formatOdds(mainAsianHandicap.away)}</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 大小球 */}
-          {liveOdds.overUnder && liveOdds.overUnder.length > 0 && (
-            <div>
-              <div className="text-xs text-slate-400 mb-2 font-medium">大小球</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-slate-500">
-                      <th className="text-left py-1 px-2">盘口</th>
-                      <th className="text-center py-1 px-2 text-green-400">大球</th>
-                      <th className="text-center py-1 px-2 text-blue-400">小球</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {liveOdds.overUnder.slice(0, 5).map((ou, idx) => (
-                      <tr 
-                        key={idx} 
-                        className={`
-                          border-t border-slate-700/30
-                          ${ou.main ? 'bg-amber-500/10' : ''}
-                          ${ou.suspended ? 'opacity-50' : ''}
-                        `}
-                      >
-                        <td className="py-2 px-2">
-                          <span className={`font-mono ${ou.main ? 'text-amber-400 font-bold' : 'text-slate-300'}`}>
-                            {ou.line}球
-                          </span>
-                          {ou.main && <span className="ml-1 text-[10px] text-amber-400">★</span>}
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <span className="text-green-400 font-bold">{formatOdds(ou.over)}</span>
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <span className="text-blue-400 font-bold">{formatOdds(ou.under)}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* 大小球主盘 */}
+            {mainOverUnder && (
+              <div className={`p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 ${mainOverUnder.suspended ? 'opacity-50' : ''}`}>
+                <div className="text-xs text-emerald-400 mb-2 font-medium flex items-center gap-1">
+                  ⚽ 大小球
+                  <span className="text-amber-400">★ 主盘</span>
+                </div>
+                <div className="text-center mb-3">
+                  <span className="text-2xl font-bold text-white">
+                    {mainOverUnder.line} 球
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-green-500/10 rounded-lg p-2">
+                    <div className="text-[10px] text-green-400">大球</div>
+                    <div className="text-lg font-bold text-green-400">{formatOdds(mainOverUnder.over)}</div>
+                  </div>
+                  <div className="bg-blue-500/10 rounded-lg p-2">
+                    <div className="text-[10px] text-blue-400">小球</div>
+                    <div className="text-lg font-bold text-blue-400">{formatOdds(mainOverUnder.under)}</div>
+                  </div>
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* 如果没有主盘，显示第一个盘口 */}
+          {!mainAsianHandicap && !mainOverUnder && (
+            <div className="grid grid-cols-2 gap-3">
+              {/* 亚洲盘口第一个 */}
+              {liveOdds.asianHandicap && liveOdds.asianHandicap[0] && (
+                <div className={`p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 ${liveOdds.asianHandicap[0].suspended ? 'opacity-50' : ''}`}>
+                  <div className="text-xs text-purple-400 mb-2 font-medium">🎯 亚洲盘口</div>
+                  <div className="text-center mb-3">
+                    <span className="text-2xl font-bold text-white">
+                      {liveOdds.asianHandicap[0].line.startsWith('-') ? '' : '+'}{liveOdds.asianHandicap[0].line}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-blue-500/10 rounded-lg p-2">
+                      <div className="text-[10px] text-blue-400 truncate">{homeTeam}</div>
+                      <div className="text-lg font-bold text-blue-400">{formatOdds(liveOdds.asianHandicap[0].home)}</div>
+                    </div>
+                    <div className="bg-red-500/10 rounded-lg p-2">
+                      <div className="text-[10px] text-red-400 truncate">{awayTeam}</div>
+                      <div className="text-lg font-bold text-red-400">{formatOdds(liveOdds.asianHandicap[0].away)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 大小球第一个 */}
+              {liveOdds.overUnder && liveOdds.overUnder[0] && (
+                <div className={`p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 ${liveOdds.overUnder[0].suspended ? 'opacity-50' : ''}`}>
+                  <div className="text-xs text-emerald-400 mb-2 font-medium">⚽ 大小球</div>
+                  <div className="text-center mb-3">
+                    <span className="text-2xl font-bold text-white">
+                      {liveOdds.overUnder[0].line} 球
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-green-500/10 rounded-lg p-2">
+                      <div className="text-[10px] text-green-400">大球</div>
+                      <div className="text-lg font-bold text-green-400">{formatOdds(liveOdds.overUnder[0].over)}</div>
+                    </div>
+                    <div className="bg-blue-500/10 rounded-lg p-2">
+                      <div className="text-[10px] text-blue-400">小球</div>
+                      <div className="text-lg font-bold text-blue-400">{formatOdds(liveOdds.overUnder[0].under)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -201,7 +221,7 @@ export function GoalBettingTips({
       )}
 
       {/* 暂停投注提示 */}
-      {liveOdds?.matchWinner?.suspended && (
+      {(mainAsianHandicap?.suspended || mainOverUnder?.suspended || liveOdds?.matchWinner?.suspended) && (
         <div className="mt-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 text-center">
           ⚠️ 赔率暂停更新中
         </div>
