@@ -103,14 +103,14 @@ function convertToMatchStats(match: MatchData): MatchStats {
   if (match.home_dangerous_attacks !== undefined) stats.homeDangerousAttacks = match.home_dangerous_attacks;
   if (match.away_dangerous_attacks !== undefined) stats.awayDangerousAttacks = match.away_dangerous_attacks;
 
-  // 估算最近5分钟的统计（基于全场数据的比例）
-  const minuteRatio = Math.min(1, 5 / Math.max(1, match.minute));
-  stats.recentHomeDangerousAttacks = Math.round((match.home_dangerous_attacks || 0) * minuteRatio);
-  stats.recentAwayDangerousAttacks = Math.round((match.away_dangerous_attacks || 0) * minuteRatio);
-  stats.recentHomeShotsOnTarget = Math.round((match.home_shots_on_target || 0) * minuteRatio);
-  stats.recentAwayShotsOnTarget = Math.round((match.away_shots_on_target || 0) * minuteRatio);
-  stats.recentHomeCorners = Math.round((match.home_corners || 0) * minuteRatio);
-  stats.recentAwayCorners = Math.round((match.away_corners || 0) * minuteRatio);
+  // 🟢 注意：最近5分钟的统计增量由 calculateRecentStats() 方法通过时间滑窗算法计算
+  // 这里只初始化为 0，实际值会在 calculatePrediction() 中被覆盖
+  stats.recentHomeDangerousAttacks = 0;
+  stats.recentAwayDangerousAttacks = 0;
+  stats.recentHomeShotsOnTarget = 0;
+  stats.recentAwayShotsOnTarget = 0;
+  stats.recentHomeCorners = 0;
+  stats.recentAwayCorners = 0;
 
   return stats;
 }
@@ -125,6 +125,20 @@ interface MatchState {
 }
 
 /**
+ * 🟢 统计数据快照（用于时间滑窗计算）
+ * 记录某一时刻的比赛统计数据，用于计算真实的增量
+ */
+interface StatsSnapshot {
+  timestamp: number;
+  homeDangerousAttacks: number;
+  awayDangerousAttacks: number;
+  homeShotsOnTarget: number;
+  awayShotsOnTarget: number;
+  homeCorners: number;
+  awayCorners: number;
+}
+
+/**
  * 预测服务类 - QuantPredict v2.1
  * 
  * 🟢 新增功能：
@@ -133,11 +147,18 @@ interface MatchState {
  * - 自动清理结束比赛的内存
  */
 export class PredictionService {
-  private readonly VERSION = '2.1.2';
-  private readonly ALGORITHM = 'QuantPredict-v2.1.2';
+  private readonly VERSION = '2.1.3';  // 🟢 版本升级：修复动量计算
+  private readonly ALGORITHM = 'QuantPredict-v2.1.3';
   
-  // 🟢 新增：用来"记住"每场比赛状态的 Map
+  // 🟢 新增：用来“记住”每场比赛状态的 Map
   private matchStates: Map<string, MatchState> = new Map();
+  
+  // 🟢 新增：统计数据历史记录（用于时间滑窗计算真实增量）
+  private matchStatsHistory: Map<string, StatsSnapshot[]> = new Map();
+  
+  // 🟢 时间滑窗配置
+  private readonly SLIDING_WINDOW_MS = 5 * 60 * 1000; // 5分钟滑窗
+  private readonly WINDOW_BUFFER_MS = 30 * 1000; // 30秒缓冲
   
   // 共享的盘口转换器和信号生成器（无状态）
   private handicapPricer: AsianHandicapPricer;
@@ -181,12 +202,85 @@ export class PredictionService {
   }
 
   /**
+   * 🟢 计算真实的最近5分钟统计增量（时间滑窗算法）
+   * 
+   * 修复了原来的错误逻辑：不再用全场数据的比例来估算，
+   * 而是通过记录历史快照，计算“当前总量 - 5分钟前的总量”得到真实增量。
+   * 
+   * 这样可以正确捕捉比赛的波峰波谷，例如：
+   * - 某队前85分钟0射门，最后5分钟5次射门 -> 增量=5（动量爆表）
+   * - 某队前85分钟18次射门，最后5分钟0次 -> 增量=0（动量很低）
+   */
+  private calculateRecentStats(matchId: string, currentMatch: MatchData): {
+    recentHomeDangerousAttacks: number;
+    recentAwayDangerousAttacks: number;
+    recentHomeShotsOnTarget: number;
+    recentAwayShotsOnTarget: number;
+    recentHomeCorners: number;
+    recentAwayCorners: number;
+  } {
+    const now = Date.now();
+    
+    // 创建当前时刻的快照
+    const currentSnapshot: StatsSnapshot = {
+      timestamp: now,
+      homeDangerousAttacks: currentMatch.home_dangerous_attacks || 0,
+      awayDangerousAttacks: currentMatch.away_dangerous_attacks || 0,
+      homeShotsOnTarget: currentMatch.home_shots_on_target || 0,
+      awayShotsOnTarget: currentMatch.away_shots_on_target || 0,
+      homeCorners: currentMatch.home_corners || 0,
+      awayCorners: currentMatch.away_corners || 0,
+    };
+    
+    // 获取该比赛的历史记录
+    let history = this.matchStatsHistory.get(matchId) || [];
+    history.push(currentSnapshot);
+    
+    // 移除过期数据（只保留滑窗时间 + 缓冲时间内的数据）
+    history = history.filter(s => now - s.timestamp <= this.SLIDING_WINDOW_MS + this.WINDOW_BUFFER_MS);
+    
+    // 更新历史记录
+    this.matchStatsHistory.set(matchId, history);
+    
+    // 找到最接近 5 分钟前的那个快照
+    // 如果比赛刚开始不到 5 分钟，就取最开始的快照（索引 0）
+    // 如果历史记录为空，使用当前快照作为基准（增量为0）
+    const baseSnapshot: StatsSnapshot = history.find(s => now - s.timestamp >= this.SLIDING_WINDOW_MS) || history[0] || currentSnapshot;
+    
+    // 计算增量 (Delta)
+    const recentStats = {
+      recentHomeDangerousAttacks: Math.max(0, currentSnapshot.homeDangerousAttacks - baseSnapshot.homeDangerousAttacks),
+      recentAwayDangerousAttacks: Math.max(0, currentSnapshot.awayDangerousAttacks - baseSnapshot.awayDangerousAttacks),
+      recentHomeShotsOnTarget: Math.max(0, currentSnapshot.homeShotsOnTarget - baseSnapshot.homeShotsOnTarget),
+      recentAwayShotsOnTarget: Math.max(0, currentSnapshot.awayShotsOnTarget - baseSnapshot.awayShotsOnTarget),
+      recentHomeCorners: Math.max(0, currentSnapshot.homeCorners - baseSnapshot.homeCorners),
+      recentAwayCorners: Math.max(0, currentSnapshot.awayCorners - baseSnapshot.awayCorners),
+    };
+    
+    // 调试日志（每10次输出一次）
+    const matchState = this.matchStates.get(matchId);
+    if (matchState && matchState.updateCount % 10 === 0) {
+      const timeDiff = Math.round((now - baseSnapshot.timestamp) / 1000);
+      console.log(`[时间滑窗] ${matchId}: 历史快照=${history.length}, 基准时间=${timeDiff}s前, 射正增量=${recentStats.recentHomeShotsOnTarget}-${recentStats.recentAwayShotsOnTarget}`);
+    }
+    
+    return recentStats;
+  }
+
+  /**
    * 计算比赛预测概率
    * 
-   * 🟢 修复逻辑：使用比赛专属的 LiveProbability 实例
+   * 🟢 v2.1.3 修复：使用时间滑窗计算真实的最近5分钟统计增量
    */
   calculatePrediction(match: MatchData): Prediction {
+    // 🟢 先转换基础统计数据
     const stats = convertToMatchStats(match);
+    
+    // 🟢 计算真实的最近5分钟增量（时间滑窗算法）
+    const recentStats = this.calculateRecentStats(match.match_id, match);
+    
+    // 🟢 用真实增量覆盖错误的估算值
+    Object.assign(stats, recentStats);
 
     // 🟢 获取或创建该比赛专属的计算实例
     const liveProbEngine = this.getOrCreateMatchEngine(match.match_id);
