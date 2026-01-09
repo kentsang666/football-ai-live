@@ -1,6 +1,8 @@
-import { Trophy } from 'lucide-react';
+import { useState } from 'react';
+import { Trophy, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import type { MatchState } from '../store/matchStore';
 import { MomentumGauge } from './prediction/MomentumGauge';
+import WinRateChart from './prediction/WinRateChart';
 
 interface MatchCardProps {
   match: MatchState;
@@ -15,12 +17,19 @@ const statusStyles: Record<string, { bg: string; text: string; label: string }> 
 };
 
 export function MatchCard({ match }: MatchCardProps) {
+  const [showChart, setShowChart] = useState(false);
+  
   const status = statusStyles[match.status] || statusStyles.live;
   const prediction = match.prediction || { home: 0.33, draw: 0.34, away: 0.33 };
 
   // 判断哪队领先
   const homeLeading = match.home_score > match.away_score;
   const awayLeading = match.away_score > match.home_score;
+
+  // 切换图表显示
+  const toggleChart = () => {
+    setShowChart(!showChart);
+  };
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all">
@@ -134,6 +143,41 @@ export function MatchCard({ match }: MatchCardProps) {
               比分 {match.events[0].home_score}-{match.events[0].away_score}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* 📊 趋势分析按钮 */}
+      <div className="mt-3 pt-3 border-t border-slate-700/50">
+        <button
+          onClick={toggleChart}
+          className={`
+            w-full flex items-center justify-center gap-2 
+            px-3 py-2 rounded-lg text-sm font-medium
+            transition-all duration-200
+            ${showChart 
+              ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' 
+              : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white border border-transparent'
+            }
+          `}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>📊 趋势分析</span>
+          {showChart ? (
+            <ChevronUp className="w-4 h-4 ml-1" />
+          ) : (
+            <ChevronDown className="w-4 h-4 ml-1" />
+          )}
+        </button>
+      </div>
+
+      {/* 📈 胜率走势图 - 展开显示 */}
+      {showChart && (
+        <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
+          <WinRateChart 
+            matchId={match.match_id}
+            homeTeam={match.home_team}
+            awayTeam={match.away_team}
+          />
         </div>
       )}
     </div>
