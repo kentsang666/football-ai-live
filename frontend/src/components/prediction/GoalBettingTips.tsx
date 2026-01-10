@@ -291,7 +291,7 @@ export function GoalBettingTips({
                     <div className="text-[10px] text-cyan-400 mb-1 font-medium">🎯 让球盘</div>
                     <div className="text-center mb-1">
                       <span className="text-lg font-bold text-cyan-300">
-                        {preMatchAsianHandicap.line.startsWith('-') ? '' : '+'}{preMatchAsianHandicap.line}
+                        {preMatchAsianHandicap.line.startsWith('-') || preMatchAsianHandicap.line.startsWith('+') ? '' : '+'}{preMatchAsianHandicap.line}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-1 text-center">
@@ -347,7 +347,7 @@ export function GoalBettingTips({
                 </div>
                 <div className="text-center mb-1">
                   <span className="text-lg font-bold text-white">
-                    {mainAsianHandicap.line.startsWith('-') ? '' : '+'}{mainAsianHandicap.line}
+                    {mainAsianHandicap.line.startsWith('-') || mainAsianHandicap.line.startsWith('+') ? '' : '+'}{mainAsianHandicap.line}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-center">
@@ -440,7 +440,7 @@ export function GoalBettingTips({
                   <div className="text-xs text-purple-400 mb-2 font-medium">🎯 亚洲盘口</div>
                   <div className="text-center mb-3">
                     <span className="text-2xl font-bold text-white">
-                      {liveOdds.asianHandicap[0].line.startsWith('-') ? '' : '+'}{liveOdds.asianHandicap[0].line}
+                      {liveOdds.asianHandicap[0].line.startsWith('-') || liveOdds.asianHandicap[0].line.startsWith('+') ? '' : '+'}{liveOdds.asianHandicap[0].line}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-center">

@@ -963,6 +963,10 @@ export class GoalPredictor {
     
     // 解析盘口线（例如 "-0.5", "+0.75", "-1"）
     const handicapLine = parseFloat(mainHandicap.line);
+    
+    // 🟢 调试日志：输出盘口数据
+    console.log(`[Handicap Debug] mainHandicap.line: "${mainHandicap.line}", parsed: ${handicapLine}, homeScore: ${stats.homeScore}, awayScore: ${stats.awayScore}`);
+    
     if (isNaN(handicapLine)) {
       return null;
     }
