@@ -1,7 +1,12 @@
 /**
- * QuantPredict v2.1.2 - 增强版足球滚球预测引擎
+ * QuantPredict v2.3.0 - 增强版足球滚球预测引擎
  * 
- * 核心逻辑：寻找"市场赔率"与"模型真实概率"之间的偏差
+ * 核心逻辑：寻找“市场赔率”与“模型真实概率”之间的偏差
+ * 
+ * v2.3.0 修改日志 (让球盘算法重写)：
+ * 1. [HANDICAP] 重写让球盘胜率计算，使用“全场比分还原法”
+ * 2. [LOGIC] 不再转换盘口线，直接用当前比分+剩余进球进行全场结算
+ * 3. [ACCURACY] 更准确处理“领先方防守”或“落后方反击”时的盘口价值
  * 
  * v2.1.2 修改日志 (模型微调)：
  * 1. [TIME_DECAY] 加强时间衰减，剩余时间<10%时使用平方衰减，Lambda迅速趋近 0
@@ -10,7 +15,7 @@
  * 
  * v2.1.1 修改日志：
  * 1. [CRITICAL] 引入 PredictorManager，修复状态丢失问题，确保动量历史生效
- * 2. [LOGIC] 修复让球盘计算逻辑，自动处理"当前比分"与"剩余盘口"的转换
+ * 2. [LOGIC] 修复让球盘计算逻辑，自动处理“当前比分”与“剩余盘口”的转换
  * 3. [ARCH] 让 GoalPredictor 共享同一个 LiveProbability 实例，不再重复创建
  * 
  * v2.1 修改日志：
@@ -962,32 +967,17 @@ export class GoalPredictor {
       return null;
     }
     
-    // 计算 AI 预测的剩余进球差
-    // 注意：这是剩余时间的预测，不是从 0-0 开始
+    // 🟢 [v2.3] 全场比分还原法 - 计算让球盘赢盘概率
+    // 核心逻辑：不直接对比剩余进球和盘口，而是把“当前比分”加回去进行全场结算
     const expectedRemainingMargin = homeLambda - awayLambda;
     
-    // 🟢 [v2.1.1 CRITICAL FIX] 将"全场盘口"转换为"剩余时间盘口"
-    // API 返回的盘口是基于 0-0 开球的全场盘口（含当前比分）
-    // AI 预测的是剩余时间的进球，所以需要转换
-    // 剩余时间有效盘口 = 原始盘口 + 当前比分差
-    // 例如：比分 1-0，盘口 -1.5 表示主队需要再赢 1.5 球
-    //       effectiveLine = -1.5 + (1-0) = -0.5，即剩余时间主队需要净胜 0.5 球
-    const currentScoreDiff = stats.homeScore - stats.awayScore;
-    const effectiveLine = handicapLine + currentScoreDiff;
-    
-    // 计算主队和客队的赢盘概率
-    // 使用转换后的 effectiveLine 而不是原始 handicapLine
-    const homeWinProb = this.calculateRemainingHandicapWinProb(
-      homeLambda, 
-      awayLambda, 
-      effectiveLine,  // 🟢 使用转换后的盘口
-      true
-    );
-    const awayWinProb = this.calculateRemainingHandicapWinProb(
-      homeLambda, 
-      awayLambda, 
-      effectiveLine,  // 🟢 使用转换后的盘口
-      false
+    // 使用新的全场比分还原法计算赢盘概率
+    const { homeWinProb, awayWinProb } = this.calculateHandicapWinProbability(
+      stats.homeScore,    // 当前主队得分
+      stats.awayScore,    // 当前客队得分
+      homeLambda,         // 主队剩余时间预期进球
+      awayLambda,         // 客队剩余时间预期进球
+      handicapLine        // 原始盘口线（不需要转换）
     );
     
     // 计算公平赔率
@@ -1064,54 +1054,66 @@ export class GoalPredictor {
   }
   
   /**
-   * 计算剩余时间内的赢盘概率
+   * 🟢 [v2.3] 全场比分还原法 - 计算让球盘赢盘概率
    * 
+   * 核心逻辑：不直接对比剩余进球和盘口，而是把“当前比分”加回去进行全场结算
+   * 
+   * @param currentHomeScore 当前主队得分
+   * @param currentAwayScore 当前客队得分
    * @param homeLambda 主队剩余时间预期进球
    * @param awayLambda 客队剩余时间预期进球
    * @param handicapLine 盘口线（负数=主队让球，正数=主队受让）
-   * @param isHome 是否计算主队赢盘概率
+   * @returns { homeWinProb, awayWinProb } 主队和客队的赢盘概率
    */
-  private calculateRemainingHandicapWinProb(
+  private calculateHandicapWinProbability(
+    currentHomeScore: number,
+    currentAwayScore: number,
     homeLambda: number,
     awayLambda: number,
-    handicapLine: number,
-    isHome: boolean
-  ): number {
+    handicapLine: number
+  ): { homeWinProb: number; awayWinProb: number } {
     const probMatrix = this.liveProbability.calculateScoreProbabilities(homeLambda, awayLambda);
-    let winProb = 0;
-    let loseProb = 0;
+    let homeWinProb = 0;
+    let awayWinProb = 0;
     
-    // [v2.1] 修复：使用 probMatrix 的实际长度，避免越界
+    // 波松模拟：遍历剩余比分的所有可能性 (i, j)
     const maxGoals = probMatrix.length - 1;
-    for (let addHome = 0; addHome <= maxGoals; addHome++) {
-      for (let addAway = 0; addAway <= maxGoals; addAway++) {
-        // 剩余时间的进球差
-        const remainingMargin = addHome - addAway;
-        const prob = probMatrix[addHome]?.[addAway] || 0;
+    for (let i = 0; i <= maxGoals; i++) {
+      for (let j = 0; j <= maxGoals; j++) {
+        const prob = probMatrix[i]?.[j] || 0;
+        if (prob === 0) continue;
         
-        if (isHome) {
-          // 主队赢盘：剩余进球差 > -handicapLine
-          // 例如：盘口 -0.5，主队需要剩余时间净胜 > 0.5 球（即至少赢 1 球）
-          // 例如：盘口 +0.5，主队需要剩余时间净胜 > -0.5 球（即不输 1 球）
-          if (remainingMargin > -handicapLine) {
-            winProb += prob;
-          } else if (remainingMargin < -handicapLine) {
-            loseProb += prob;
-          }
-          // 刚好等于盘口线时为走盘，不计入
-        } else {
-          // 客队赢盘：剩余进球差 < -handicapLine
-          if (remainingMargin < -handicapLine) {
-            winProb += prob;
-          } else if (remainingMargin > -handicapLine) {
-            loseProb += prob;
-          }
+        // 全场结果结算：预测全场比分 = 当前比分 + 剩余进球
+        const predictedHomeScore = currentHomeScore + i;
+        const predictedAwayScore = currentAwayScore + j;
+        
+        // 让球计算：主队得分 + 盘口线
+        // 例如：主队 2 球，盘口 -1.5，则 adjustedHomeScore = 2 + (-1.5) = 0.5
+        const adjustedHomeScore = predictedHomeScore + handicapLine;
+        
+        // 判定赢盘
+        if (adjustedHomeScore > predictedAwayScore) {
+          // 主队赢盘
+          homeWinProb += prob;
+        } else if (adjustedHomeScore < predictedAwayScore) {
+          // 客队赢盘
+          awayWinProb += prob;
         }
+        // adjustedHomeScore === predictedAwayScore 时为走水，不计入
       }
     }
     
-    const total = winProb + loseProb;
-    return total > 0 ? winProb / total : 0.5;
+    // 归一化：排除走水概率，只计算赢/输
+    const total = homeWinProb + awayWinProb;
+    if (total > 0) {
+      homeWinProb = homeWinProb / total;
+      awayWinProb = awayWinProb / total;
+    } else {
+      homeWinProb = 0.5;
+      awayWinProb = 0.5;
+    }
+    
+    return { homeWinProb, awayWinProb };
   }
   
   /**
