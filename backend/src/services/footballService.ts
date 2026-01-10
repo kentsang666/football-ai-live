@@ -547,8 +547,8 @@ export class FootballService {
         try {
             const bet365Odds = await this.bet365Service.getLiveOdds(fixture.fixture.id);
             if (bet365Odds) {
-                // 转换为系统内部格式
-                liveOdds = this.convertBet365ToLiveOdds(bet365Odds);
+                // 🟢 转换为系统内部格式，传入当前比分用于盘口转换
+                liveOdds = this.convertBet365ToLiveOdds(bet365Odds, matchData.home_score, matchData.away_score);
                 matchData.liveOdds = liveOdds;
             }
         } catch (error) {
@@ -1284,7 +1284,16 @@ export class FootballService {
     // 🔴 转换 Bet365 盘口数据为系统内部格式
     // ===========================================
 
-    private convertBet365ToLiveOdds(bet365Odds: Bet365LiveOdds): LiveOdds {
+    /**
+     * 🟢 [修正版] 转换 Bet365 盘口数据
+     * 关键修复：将 API 返回的"全场盘口"转换为"滚球盘口"
+     * 转换公式：滚球盘口 = API盘口 - (客队得分 - 主队得分)
+     * 
+     * @param bet365Odds Bet365 原始盘口数据
+     * @param homeScore 当前主队得分
+     * @param awayScore 当前客队得分
+     */
+    private convertBet365ToLiveOdds(bet365Odds: Bet365LiveOdds, homeScore: number, awayScore: number): LiveOdds {
         const liveOdds: LiveOdds = {
             bookmaker: 'Bet365',
             updateTime: bet365Odds.updateTime
@@ -1298,15 +1307,32 @@ export class FootballService {
             };
         }
 
-        // 🔴 转换亚洲让球盘
+        // 🔴 转换亚洲让球盘（关键修复：减去比分差）
         if (bet365Odds.asianHandicap && bet365Odds.asianHandicap.length > 0) {
-            liveOdds.asianHandicap = bet365Odds.asianHandicap.map(ah => ({
-                line: ah.line,
-                home: ah.home,
-                away: ah.away,
-                main: ah.main,
-                suspended: ah.suspended
-            }));
+            // 比分差 = 客队得分 - 主队得分
+            // 如果客队领先，比分差为正数，需要从盘口中减去
+            const scoreDiff = awayScore - homeScore;
+            
+            liveOdds.asianHandicap = bet365Odds.asianHandicap.map(ah => {
+                // 原始盘口（API 返回的是全场盘口）
+                const originalLine = parseFloat(ah.line);
+                // 转换后的滚球盘口 = 原始盘口 - 比分差
+                const adjustedLine = originalLine - scoreDiff;
+                
+                // 格式化盘口线：保留小数点后两位，去掉多余的 0
+                const formattedLine = adjustedLine === 0 ? '0' : 
+                    (adjustedLine > 0 ? adjustedLine.toString() : adjustedLine.toString());
+                
+                console.log(`[盘口转换] 原始=${ah.line}, 比分差=${scoreDiff}, 转换后=${formattedLine}`);
+                
+                return {
+                    line: formattedLine,
+                    home: ah.home,
+                    away: ah.away,
+                    main: ah.main,
+                    suspended: ah.suspended
+                };
+            });
         }
 
         // 🔴 转换大小球盘
