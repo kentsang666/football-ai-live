@@ -154,6 +154,24 @@ class HistoryLogService {
     winRate: number;
     avgConfidence: number;
     avgValueEdge: number;
+    // 让球盘统计
+    handicap: {
+      total: number;
+      pending: number;
+      wins: number;
+      losses: number;
+      pushes: number;
+      winRate: number;
+    };
+    // 大小球统计
+    overUnder: {
+      total: number;
+      pending: number;
+      wins: number;
+      losses: number;
+      pushes: number;
+      winRate: number;
+    };
   } {
     const total = this.entries.length;
     const pending = this.entries.filter(e => e.result === 'PENDING').length;
@@ -172,6 +190,22 @@ class HistoryLogService {
       ? this.entries.reduce((sum, e) => sum + e.valueEdge, 0) / total 
       : 0;
 
+    // 让球盘统计
+    const handicapEntries = this.entries.filter(e => e.type === 'HANDICAP');
+    const handicapWins = handicapEntries.filter(e => e.result === 'WIN').length;
+    const handicapLosses = handicapEntries.filter(e => e.result === 'LOSS').length;
+    const handicapPushes = handicapEntries.filter(e => e.result === 'PUSH').length;
+    const handicapPending = handicapEntries.filter(e => e.result === 'PENDING').length;
+    const handicapSettled = handicapWins + handicapLosses;
+
+    // 大小球统计
+    const overUnderEntries = this.entries.filter(e => e.type === 'OVER_UNDER');
+    const overUnderWins = overUnderEntries.filter(e => e.result === 'WIN').length;
+    const overUnderLosses = overUnderEntries.filter(e => e.result === 'LOSS').length;
+    const overUnderPushes = overUnderEntries.filter(e => e.result === 'PUSH').length;
+    const overUnderPending = overUnderEntries.filter(e => e.result === 'PENDING').length;
+    const overUnderSettled = overUnderWins + overUnderLosses;
+
     return {
       total,
       pending,
@@ -181,6 +215,22 @@ class HistoryLogService {
       winRate,
       avgConfidence,
       avgValueEdge,
+      handicap: {
+        total: handicapEntries.length,
+        pending: handicapPending,
+        wins: handicapWins,
+        losses: handicapLosses,
+        pushes: handicapPushes,
+        winRate: handicapSettled > 0 ? handicapWins / handicapSettled : 0,
+      },
+      overUnder: {
+        total: overUnderEntries.length,
+        pending: overUnderPending,
+        wins: overUnderWins,
+        losses: overUnderLosses,
+        pushes: overUnderPushes,
+        winRate: overUnderSettled > 0 ? overUnderWins / overUnderSettled : 0,
+      },
     };
   }
 

@@ -105,6 +105,22 @@ export function HistoryPage() {
     winRate: 0,
     avgConfidence: 0,
     avgValueEdge: 0,
+    handicap: {
+      total: 0,
+      pending: 0,
+      wins: 0,
+      losses: 0,
+      pushes: 0,
+      winRate: 0,
+    },
+    overUnder: {
+      total: 0,
+      pending: 0,
+      wins: 0,
+      losses: 0,
+      pushes: 0,
+      winRate: 0,
+    },
   });
   const [isSettling, setIsSettling] = useState(false);
   const [settleProgress, setSettleProgress] = useState({ current: 0, total: 0 });
@@ -315,8 +331,8 @@ export function HistoryPage() {
           </div>
         )}
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+        {/* 统计卡片 - 总体 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
             <div className="text-gray-400 text-sm">总推荐数</div>
             <div className="text-2xl font-bold text-white">{stats.total}</div>
@@ -334,7 +350,7 @@ export function HistoryPage() {
             <div className="text-2xl font-bold text-red-400">{stats.losses}</div>
           </div>
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">胜率</div>
+            <div className="text-gray-400 text-sm">总胜率</div>
             <div className="text-2xl font-bold text-blue-400">
               {stats.wins + stats.losses > 0 
                 ? `${Math.round(stats.winRate * 100)}%` 
@@ -345,6 +361,75 @@ export function HistoryPage() {
             <div className="text-gray-400 text-sm">平均信心</div>
             <div className="text-2xl font-bold text-purple-400">
               {stats.total > 0 ? `${Math.round(stats.avgConfidence * 100)}%` : '-'}
+            </div>
+          </div>
+        </div>
+
+        {/* 统计卡片 - 让球盘 & 大小球细分 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* 让球盘统计 */}
+          <div className="bg-gray-800 rounded-lg p-4 border border-blue-700">
+            <div className="text-blue-400 text-sm font-semibold mb-3 flex items-center">
+              ⚽ 让球盘统计
+            </div>
+            <div className="grid grid-cols-5 gap-2 text-center">
+              <div>
+                <div className="text-gray-400 text-xs">总数</div>
+                <div className="text-lg font-bold text-white">{stats.handicap.total}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">待定</div>
+                <div className="text-lg font-bold text-yellow-400">{stats.handicap.pending}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">胜</div>
+                <div className="text-lg font-bold text-green-400">{stats.handicap.wins}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">负</div>
+                <div className="text-lg font-bold text-red-400">{stats.handicap.losses}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">胜率</div>
+                <div className="text-lg font-bold text-blue-400">
+                  {stats.handicap.wins + stats.handicap.losses > 0 
+                    ? `${Math.round(stats.handicap.winRate * 100)}%` 
+                    : '-'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 大小球统计 */}
+          <div className="bg-gray-800 rounded-lg p-4 border border-orange-700">
+            <div className="text-orange-400 text-sm font-semibold mb-3 flex items-center">
+              🏀 大小球统计
+            </div>
+            <div className="grid grid-cols-5 gap-2 text-center">
+              <div>
+                <div className="text-gray-400 text-xs">总数</div>
+                <div className="text-lg font-bold text-white">{stats.overUnder.total}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">待定</div>
+                <div className="text-lg font-bold text-yellow-400">{stats.overUnder.pending}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">胜</div>
+                <div className="text-lg font-bold text-green-400">{stats.overUnder.wins}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">负</div>
+                <div className="text-lg font-bold text-red-400">{stats.overUnder.losses}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-xs">胜率</div>
+                <div className="text-lg font-bold text-orange-400">
+                  {stats.overUnder.wins + stats.overUnder.losses > 0 
+                    ? `${Math.round(stats.overUnder.winRate * 100)}%` 
+                    : '-'}
+                </div>
+              </div>
             </div>
           </div>
         </div>
