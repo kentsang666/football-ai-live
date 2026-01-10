@@ -26,6 +26,7 @@ import {
 
 /**
  * 🟢 指挥官指令：极简决策输出
+ * 🟢 v2.2 更新：新增资金管理模块 (Money Management)
  */
 export interface CommanderAdvice {
   action: string;        // 核心指令：例如 "重注 主队 -0.5" 或 "轻注 大 2.5"
@@ -33,6 +34,8 @@ export interface CommanderAdvice {
   index: number;         // 推荐指数 (0-10分)：低于 6 分直接忽略
   reason: string;        // 一句话理由：例如 "动量碾压 + 价值边际 8%"
   isActionable: boolean; // 是否值得出手 (Index >= 6.0)
+  stake: number;         // 🟢 建议投注资金比例 (例如 0.02 代表 2%)
+  stakePlan: string;     // 🟢 资金计划描述 (例如 "轻注试探" 或 "重注出击")
 }
 
 export interface MatchData {
@@ -185,8 +188,8 @@ interface StatsSnapshot {
  * - 自动清理结束比赛的内存
  */
 export class PredictionService {
-  private readonly VERSION = '2.1.3';  // 🟢 版本升级：修复动量计算
-  private readonly ALGORITHM = 'QuantPredict-v2.1.3';
+  private readonly VERSION = '2.2.0';  // 🟢 版本升级：新增资金管理模块
+  private readonly ALGORITHM = 'QuantPredict-v2.2.0';
   
   // 🟢 新增：用来“记住”每场比赛状态的 Map
   private matchStates: Map<string, MatchState> = new Map();
@@ -354,7 +357,8 @@ export class PredictionService {
 
     // 🟢 只在有可操作机会时输出日志
     if (advice.isActionable) {
-      console.log(`🎯 [机会发现] ${match.home_team} vs ${match.away_team} | ${advice.action} | 指数: ${advice.index}`);
+      const stakePercent = (advice.stake * 100).toFixed(1);
+      console.log(`🎯 [机会发现] ${match.home_team} vs ${match.away_team} | ${advice.action} | 指数: ${advice.index} | 💰 建议仓位: ${stakePercent}% (${advice.stakePlan})`);
     }
 
     return {
@@ -466,13 +470,42 @@ export class PredictionService {
     }
 
     // --- 最终修正 ---
+    const finalIndex = parseFloat(Math.min(10, Math.max(0, maxScore)).toFixed(1));
+    
+    // 🟢 资金管理模块 (Money Management)
+    // 根据 Index 评分计算建议投注比例（阶梯式注码）
+    const { stake, stakePlan } = this.calculateStake(finalIndex);
+    
     return {
       action: maxScore >= 6.0 ? bestAction : "观望 (WAIT)", // 6分以下不开枪
       direction: maxScore >= 6.0 ? bestDirection : 'WAIT',
-      index: parseFloat(Math.min(10, Math.max(0, maxScore)).toFixed(1)), // 限制在 0-10
+      index: finalIndex, // 限制在 0-10
       reason: maxScore >= 6.0 ? finalReason : "无高价值机会，建议休息",
-      isActionable: maxScore >= 6.0
+      isActionable: maxScore >= 6.0,
+      stake,
+      stakePlan
     };
+  }
+
+  /**
+   * 🟢 资金管理：根据 Index 评分计算建议投注比例
+   * 
+   * 阶梯式注码规则：
+   * - Index < 6.0: stake = 0 (不投注)
+   * - Index 6.0 - 7.5: stake = 0.01 (1% - 轻注试探)
+   * - Index 7.5 - 9.0: stake = 0.025 (2.5% - 稳健投注)
+   * - Index >= 9.0: stake = 0.05 (5% - 重注/最大口)
+   */
+  private calculateStake(index: number): { stake: number; stakePlan: string } {
+    if (index < 6.0) {
+      return { stake: 0, stakePlan: '不投注' };
+    } else if (index < 7.5) {
+      return { stake: 0.01, stakePlan: '轻注试探' };
+    } else if (index < 9.0) {
+      return { stake: 0.025, stakePlan: '稳健投注' };
+    } else {
+      return { stake: 0.05, stakePlan: '重注出击' };
+    }
   }
 
   /**
