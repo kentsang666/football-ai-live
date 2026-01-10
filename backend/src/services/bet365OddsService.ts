@@ -230,8 +230,10 @@ export class Bet365OddsService {
             };
         }
 
-        // 🔴 解析亚洲让球盘 (Asian Handicap - id: 33)
-        const asianHandicapBet = odds.find((b: any) => b.id === 33 || b.name === 'Asian Handicap');
+        // 🔴 解析亚洲让球盘 (Asian Handicap - id: 2 或 33)
+        const asianHandicapBet = odds.find((b: any) => 
+            b.id === 2 || b.id === 33 || b.name === 'Asian Handicap'
+        );
         if (asianHandicapBet) {
             const parsedAH = this.parseAsianHandicap(asianHandicapBet.values);
             if (parsedAH && parsedAH.length > 0) {
@@ -239,8 +241,10 @@ export class Bet365OddsService {
             }
         }
 
-        // 🔴 解析大小球盘 (Over/Under Line - id: 36)
-        const overUnderBet = odds.find((b: any) => b.id === 36 || b.name === 'Over/Under Line');
+        // 🔴 解析大小球盘 (Over/Under - id: 5 或 36)
+        const overUnderBet = odds.find((b: any) => 
+            b.id === 5 || b.id === 36 || b.name === 'Over/Under' || b.name === 'Over/Under Line' || b.name === 'Goals Over/Under'
+        );
         if (overUnderBet) {
             const parsedOU = this.parseOverUnder(overUnderBet.values);
             if (parsedOU && parsedOU.length > 0) {
@@ -252,46 +256,54 @@ export class Bet365OddsService {
     }
 
     /**
-     * 解析亚洲让球盘数据
+     * 🟢 [修正版] 解析亚洲让球盘数据
+     * 改进点：
+     * 1. 使用数值绝对值匹配，解决 "0" 和 "+0.5" vs "0.5" 的问题
+     * 2. 增强容错性，只要数值加和为 0 即视为一对
      */
     private parseAsianHandicap(values: any[]): NonNullable<Bet365LiveOdds['asianHandicap']> | undefined {
         const asianHandicapOdds: NonNullable<Bet365LiveOdds['asianHandicap']> = [];
         
-        const homeValues = values.filter((v: any) => v.value === 'Home');
-        const awayValues = values.filter((v: any) => v.value === 'Away');
+        // 1. 先把所有选项按主客队分开
+        // 注意：有些 API 可能会返回 '1'/'2' 代表 'Home'/'Away'，这里加了防守性判断
+        const homeValues = values.filter((v: any) => v.value === 'Home' || v.value === '1');
+        const awayValues = values.filter((v: any) => v.value === 'Away' || v.value === '2');
 
         for (const homeVal of homeValues) {
-            const handicap = homeVal.handicap;
-            if (!handicap) continue;
+            // 确保 handicap 存在
+            if (!homeVal.handicap) continue;
 
-            // 找到对应的客队盘口（handicap 符号相反）
-            const awayHandicap = handicap.startsWith('-') 
-                ? handicap.replace('-', '') 
-                : handicap.startsWith('+') 
-                    ? handicap.replace('+', '-')
-                    : '-' + handicap;
+            const homeLine = parseFloat(homeVal.handicap);
             
-            const awayVal = awayValues.find((v: any) => 
-                v.handicap === awayHandicap || 
-                v.handicap === handicap.replace('-', '+') ||
-                v.handicap === handicap.replace('+', '-')
-            );
+            // 2. 寻找匹配的客队盘口
+            // 逻辑：客队盘口应该是主队盘口的相反数 (例如 Home -0.5 vs Away +0.5)
+            // 我们允许微小的浮点数误差 (epsilon)
+            const awayVal = awayValues.find((v: any) => {
+                if (!v.handicap) return false;
+                const awayLine = parseFloat(v.handicap);
+                // 核心逻辑：主队盘口 + 客队盘口 应该等于 0 (或者非常接近 0)
+                return Math.abs(homeLine + awayLine) < 0.001; 
+            });
 
             if (awayVal) {
+                // 3. 统一格式化盘口线字符串 (去掉不必要的 + 号，保留 - 号)
+                // 例如: "+0.5" -> "0.5", "-0.5" -> "-0.5", "0" -> "0"
+                const cleanLine = homeLine === 0 ? "0" : homeVal.handicap.replace('+', '');
+
                 asianHandicapOdds.push({
-                    line: handicap,
+                    line: cleanLine,
                     home: parseFloat(homeVal.odd),
                     away: parseFloat(awayVal.odd),
-                    main: homeVal.main === true,
+                    main: homeVal.main === true, // API-Football 通常会标记 main
                     suspended: homeVal.suspended === true || awayVal.suspended === true
                 });
             }
         }
 
-        // 按盘口线排序
+        // 4. 按盘口值排序，方便后续查找
         asianHandicapOdds.sort((a, b) => parseFloat(a.line) - parseFloat(b.line));
 
-        return asianHandicapOdds.length > 0 ? asianHandicapOdds : undefined;
+        return asianHandicapOdds.length > 0 ? asianHandicapOdds : undefined;       
     }
 
     /**
