@@ -38,19 +38,19 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   
   if (percent >= 90) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-100 text-red-800">
         🔥 {percent}%
       </span>
     );
   } else if (percent >= 80) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-green-100 text-green-800">
         🟢 {percent}%
       </span>
     );
   } else {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-800">
         ⚪ {percent}%
       </span>
     );
@@ -65,26 +65,26 @@ function ResultBadge({ result }: { result: LogEntry['result'] }) {
   switch (result) {
     case 'WIN':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-500 text-white">
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-green-500 text-white">
           ✅ WIN
         </span>
       );
     case 'LOSS':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-500 text-white">
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-500 text-white">
           ❌ LOSS
         </span>
       );
     case 'PUSH':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-500 text-white">
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-yellow-500 text-white">
           ➖ PUSH
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-300 text-gray-700">
-          ⏳ PENDING
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-300 text-gray-700">
+          ⏳ 待定
         </span>
       );
   }
@@ -293,31 +293,31 @@ export function HistoryPage() {
     <div className="min-h-screen bg-gray-900 text-white">
       {/* 导航栏 */}
       <nav className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <Link to="/" className="text-gray-300 hover:text-white transition-colors">
+        <div className="max-w-7xl mx-auto px-3 py-2 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link to="/" className="text-gray-300 hover:text-white transition-colors text-sm">
               ⚽ 实时比赛
             </Link>
-            <span className="text-white font-semibold">
+            <span className="text-white font-semibold text-sm">
               📜 历史记录
             </span>
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-xs text-gray-400">
             QuantPredict AI
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-3 py-4">
         {/* 页面标题 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">📜 AI 历史推荐记录</h1>
-          <p className="text-gray-400 mt-1">追踪 AI 推荐的历史表现，复盘分析准确率</p>
+        <div className="mb-4">
+          <h1 className="text-xl font-bold">📜 AI 历史推荐记录</h1>
+          <p className="text-gray-400 text-xs mt-1">追踪 AI 推荐的历史表现，复盘分析准确率</p>
         </div>
 
         {/* 结算消息提示 */}
         {settleMessage && (
-          <div className={`mb-4 p-3 rounded-lg ${
+          <div className={`mb-3 p-2 rounded-lg text-xs ${
             settleMessage.includes('失败') ? 'bg-red-900 text-red-200' : 
             settleMessage.includes('完成') ? 'bg-green-900 text-green-200' : 
             'bg-blue-900 text-blue-200'
@@ -332,66 +332,64 @@ export function HistoryPage() {
         )}
 
         {/* 统计卡片 - 总体 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">总推荐数</div>
-            <div className="text-2xl font-bold text-white">{stats.total}</div>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-3">
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-gray-700">
+            <div className="text-gray-400 text-[10px]">总推荐</div>
+            <div className="text-lg font-bold text-white">{stats.total}</div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">待定</div>
-            <div className="text-2xl font-bold text-yellow-400">{stats.pending}</div>
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-gray-700">
+            <div className="text-gray-400 text-[10px]">待定</div>
+            <div className="text-lg font-bold text-yellow-400">{stats.pending}</div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">胜</div>
-            <div className="text-2xl font-bold text-green-400">{stats.wins}</div>
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-gray-700">
+            <div className="text-gray-400 text-[10px]">胜</div>
+            <div className="text-lg font-bold text-green-400">{stats.wins}</div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">负</div>
-            <div className="text-2xl font-bold text-red-400">{stats.losses}</div>
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-gray-700">
+            <div className="text-gray-400 text-[10px]">负</div>
+            <div className="text-lg font-bold text-red-400">{stats.losses}</div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">总胜率</div>
-            <div className="text-2xl font-bold text-blue-400">
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-gray-700">
+            <div className="text-gray-400 text-[10px]">总胜率</div>
+            <div className="text-lg font-bold text-blue-400">
               {stats.wins + stats.losses > 0 
                 ? `${Math.round(stats.winRate * 100)}%` 
                 : '-'}
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <div className="text-gray-400 text-sm">平均信心</div>
-            <div className="text-2xl font-bold text-purple-400">
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-gray-700">
+            <div className="text-gray-400 text-[10px]">平均信心</div>
+            <div className="text-lg font-bold text-purple-400">
               {stats.total > 0 ? `${Math.round(stats.avgConfidence * 100)}%` : '-'}
             </div>
           </div>
         </div>
 
         {/* 统计卡片 - 让球盘 & 大小球细分 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           {/* 让球盘统计 */}
-          <div className="bg-gray-800 rounded-lg p-4 border border-blue-700">
-            <div className="text-blue-400 text-sm font-semibold mb-3 flex items-center">
-              ⚽ 让球盘统计
-            </div>
-            <div className="grid grid-cols-5 gap-2 text-center">
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-blue-700/50">
+            <div className="text-blue-400 text-[10px] font-semibold mb-2">⚽ 让球盘</div>
+            <div className="grid grid-cols-5 gap-1 text-center">
               <div>
-                <div className="text-gray-400 text-xs">总数</div>
-                <div className="text-lg font-bold text-white">{stats.handicap.total}</div>
+                <div className="text-gray-500 text-[9px]">总数</div>
+                <div className="text-sm font-bold text-white">{stats.handicap.total}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">待定</div>
-                <div className="text-lg font-bold text-yellow-400">{stats.handicap.pending}</div>
+                <div className="text-gray-500 text-[9px]">待定</div>
+                <div className="text-sm font-bold text-yellow-400">{stats.handicap.pending}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">胜</div>
-                <div className="text-lg font-bold text-green-400">{stats.handicap.wins}</div>
+                <div className="text-gray-500 text-[9px]">胜</div>
+                <div className="text-sm font-bold text-green-400">{stats.handicap.wins}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">负</div>
-                <div className="text-lg font-bold text-red-400">{stats.handicap.losses}</div>
+                <div className="text-gray-500 text-[9px]">负</div>
+                <div className="text-sm font-bold text-red-400">{stats.handicap.losses}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">胜率</div>
-                <div className="text-lg font-bold text-blue-400">
+                <div className="text-gray-500 text-[9px]">胜率</div>
+                <div className="text-sm font-bold text-blue-400">
                   {stats.handicap.wins + stats.handicap.losses > 0 
                     ? `${Math.round(stats.handicap.winRate * 100)}%` 
                     : '-'}
@@ -401,30 +399,28 @@ export function HistoryPage() {
           </div>
 
           {/* 大小球统计 */}
-          <div className="bg-gray-800 rounded-lg p-4 border border-orange-700">
-            <div className="text-orange-400 text-sm font-semibold mb-3 flex items-center">
-              🏀 大小球统计
-            </div>
-            <div className="grid grid-cols-5 gap-2 text-center">
+          <div className="bg-gray-800 rounded-lg p-2.5 border border-orange-700/50">
+            <div className="text-orange-400 text-[10px] font-semibold mb-2">🏀 大小球</div>
+            <div className="grid grid-cols-5 gap-1 text-center">
               <div>
-                <div className="text-gray-400 text-xs">总数</div>
-                <div className="text-lg font-bold text-white">{stats.overUnder.total}</div>
+                <div className="text-gray-500 text-[9px]">总数</div>
+                <div className="text-sm font-bold text-white">{stats.overUnder.total}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">待定</div>
-                <div className="text-lg font-bold text-yellow-400">{stats.overUnder.pending}</div>
+                <div className="text-gray-500 text-[9px]">待定</div>
+                <div className="text-sm font-bold text-yellow-400">{stats.overUnder.pending}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">胜</div>
-                <div className="text-lg font-bold text-green-400">{stats.overUnder.wins}</div>
+                <div className="text-gray-500 text-[9px]">胜</div>
+                <div className="text-sm font-bold text-green-400">{stats.overUnder.wins}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">负</div>
-                <div className="text-lg font-bold text-red-400">{stats.overUnder.losses}</div>
+                <div className="text-gray-500 text-[9px]">负</div>
+                <div className="text-sm font-bold text-red-400">{stats.overUnder.losses}</div>
               </div>
               <div>
-                <div className="text-gray-400 text-xs">胜率</div>
-                <div className="text-lg font-bold text-orange-400">
+                <div className="text-gray-500 text-[9px]">胜率</div>
+                <div className="text-sm font-bold text-orange-400">
                   {stats.overUnder.wins + stats.overUnder.losses > 0 
                     ? `${Math.round(stats.overUnder.winRate * 100)}%` 
                     : '-'}
@@ -435,20 +431,20 @@ export function HistoryPage() {
         </div>
 
         {/* 操作按钮 */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-gray-400 text-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-gray-400 text-xs">
             共 {entries.length} 条记录
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             {/* 🟢 自动结算按钮 */}
             <button
               onClick={handleAutoSettle}
               disabled={isSettling || stats.pending === 0}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors flex items-center"
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-xs font-medium transition-colors flex items-center"
             >
               {isSettling ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -461,29 +457,29 @@ export function HistoryPage() {
             <button
               onClick={handleExportCSV}
               disabled={entries.length === 0}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-xs font-medium transition-colors"
             >
-              📥 导出 CSV
+              📥 导出
             </button>
             <button
               onClick={handleClearAll}
               disabled={entries.length === 0}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-xs font-medium transition-colors"
             >
-              🗑️ 清空记录
+              🗑️ 清空
             </button>
           </div>
         </div>
 
         {/* 数据表格 */}
         {entries.length === 0 ? (
-          <div className="bg-gray-800 rounded-lg p-12 text-center border border-gray-700">
-            <div className="text-6xl mb-4">📭</div>
-            <div className="text-xl font-medium text-gray-300 mb-2">暂无 AI 推荐记录</div>
-            <div className="text-gray-500">请等待比赛触发 AI 推荐</div>
+          <div className="bg-gray-800 rounded-lg p-8 text-center border border-gray-700">
+            <div className="text-4xl mb-3">📭</div>
+            <div className="text-base font-medium text-gray-300 mb-1">暂无 AI 推荐记录</div>
+            <div className="text-gray-500 text-xs">请等待比赛触发 AI 推荐</div>
             <Link 
               to="/" 
-              className="inline-block mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+              className="inline-block mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-xs font-medium transition-colors"
             >
               返回实时比赛
             </Link>
@@ -491,34 +487,34 @@ export function HistoryPage() {
         ) : (
           <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-left text-[10px] font-medium text-gray-300 uppercase">
                       时间
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-left text-[10px] font-medium text-gray-300 uppercase">
                       比赛
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      推荐内容
+                    <th className="px-2 py-2 text-left text-[10px] font-medium text-gray-300 uppercase">
+                      推荐
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-300 uppercase">
                       赔率
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      信心度
+                    <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-300 uppercase">
+                      信心
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-300 uppercase">
                       价值
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-300 uppercase">
                       完场
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-300 uppercase">
                       结果
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-300 uppercase">
                       操作
                     </th>
                   </tr>
@@ -526,80 +522,82 @@ export function HistoryPage() {
                 <tbody className="divide-y divide-gray-700">
                   {entries.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-750">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-white">{formatTime(entry.timestamp)}</div>
-                        <div className="text-xs text-gray-500">{entry.minuteWhenTip}'</div>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <div className="text-[11px] text-white">{formatTime(entry.timestamp)}</div>
+                        <div className="text-[10px] text-gray-500">{entry.minuteWhenTip}'</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-white">{entry.matchName}</div>
-                        <div className="text-xs text-gray-500">
-                          {entry.league} | 推荐时: {entry.scoreWhenTip}
+                      <td className="px-2 py-2">
+                        <div className="text-[11px] font-medium text-white truncate max-w-[140px]" title={entry.matchName}>
+                          {entry.matchName}
+                        </div>
+                        <div className="text-[10px] text-gray-500 truncate max-w-[140px]">
+                          {entry.league} | {entry.scoreWhenTip}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-blue-900 text-blue-200 border border-blue-700">
+                      <td className="px-2 py-2">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900 text-blue-200 border border-blue-700">
                           {entry.selection}
                         </span>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {entry.type === 'HANDICAP' ? '让球盘' : '大小球'}
+                        <div className="text-[9px] text-gray-500 mt-0.5">
+                          {entry.type === 'HANDICAP' ? '让球' : '大小'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-sm font-medium text-yellow-400">
+                      <td className="px-2 py-2 text-center">
+                        <span className="text-[11px] font-medium text-yellow-400">
                           {entry.odds.toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         <ConfidenceBadge confidence={entry.confidence} />
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-sm font-medium ${
+                      <td className="px-2 py-2 text-center">
+                        <span className={`text-[11px] font-medium ${
                           entry.valueEdge >= 0.15 ? 'text-green-400' : 
                           entry.valueEdge >= 0.10 ? 'text-yellow-400' : 'text-gray-400'
                         }`}>
                           +{Math.round(entry.valueEdge * 100)}%
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         {entry.finalScore ? (
-                          <span className="text-sm font-bold text-white bg-gray-700 px-2 py-1 rounded">
+                          <span className="text-[11px] font-bold text-white bg-gray-700 px-1.5 py-0.5 rounded">
                             {entry.finalScore}
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-500">-</span>
+                          <span className="text-[10px] text-gray-500">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         <ResultBadge result={entry.result} />
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         {entry.result === 'PENDING' ? (
-                          <div className="flex items-center justify-center space-x-1">
+                          <div className="flex items-center justify-center space-x-0.5">
                             {/* 🟢 单条结算按钮 */}
                             <button
                               onClick={() => handleSettleSingle(entry)}
-                              className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors"
+                              className="p-1 bg-blue-600 hover:bg-blue-700 rounded text-[10px] transition-colors"
                               title="自动结算"
                             >
                               🔄
                             </button>
                             <button
                               onClick={() => handleMarkResult(entry.id, 'WIN')}
-                              className="p-1.5 bg-green-600 hover:bg-green-700 rounded text-xs transition-colors"
+                              className="p-1 bg-green-600 hover:bg-green-700 rounded text-[10px] transition-colors"
                               title="标记为赢"
                             >
                               ✅
                             </button>
                             <button
                               onClick={() => handleMarkResult(entry.id, 'LOSS')}
-                              className="p-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors"
+                              className="p-1 bg-red-600 hover:bg-red-700 rounded text-[10px] transition-colors"
                               title="标记为输"
                             >
                               ❌
                             </button>
                             <button
                               onClick={() => handleMarkResult(entry.id, 'PUSH')}
-                              className="p-1.5 bg-yellow-600 hover:bg-yellow-700 rounded text-xs transition-colors"
+                              className="p-1 bg-yellow-600 hover:bg-yellow-700 rounded text-[10px] transition-colors"
                               title="标记为走盘"
                             >
                               ➖
@@ -608,7 +606,7 @@ export function HistoryPage() {
                         ) : (
                           <button
                             onClick={() => handleDelete(entry.id)}
-                            className="p-1.5 bg-gray-600 hover:bg-gray-500 rounded text-xs transition-colors"
+                            className="p-1 bg-gray-600 hover:bg-gray-500 rounded text-[10px] transition-colors"
                             title="删除记录"
                           >
                             🗑️
@@ -624,8 +622,8 @@ export function HistoryPage() {
         )}
 
         {/* 底部说明 */}
-        <div className="mt-6 text-center text-gray-500 text-sm">
-          <p>💡 提示：点击 🔄 自动获取完场比分并结算，或手动点击 ✅ ❌ ➖ 标记结果</p>
+        <div className="mt-4 text-center text-gray-500 text-[10px]">
+          <p>💡 点击 🔄 自动获取完场比分并结算，或手动点击 ✅ ❌ ➖ 标记结果</p>
         </div>
       </div>
     </div>
