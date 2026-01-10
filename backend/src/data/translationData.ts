@@ -105,6 +105,10 @@ export const LEAGUE_TRANSLATIONS: Record<number, string> = {
     7: '亚洲杯',          // AFC Asian Cup
     9: '美洲杯',          // Copa America
     
+    // ========== 大洋洲 ==========
+    188: '澳超',          // A-League
+    189: '澳乙',          // A-League 2
+    
     // ========== 其他 ==========
     667: '友谊赛',        // Club Friendlies
     10: '友谊赛',         // International Friendlies
@@ -233,6 +237,20 @@ export const TEAM_TRANSLATIONS: Record<number, string> = {
     2937: '达马克',       // Damac FC
     10270: '阿尔库鲁德', // Al Kholood
     10269: '阿尔卡迪西亚', // Al Qadsiah
+    
+    // 澳超
+    939: '墨尔本胜利',   // Melbourne Victory
+    941: '西悉尼流浪者', // Western Sydney Wanderers
+    940: '墨尔本城',     // Melbourne City
+    942: '悉尼 FC',        // Sydney FC
+    944: '布里斯班狮吼', // Brisbane Roar
+    943: '阿德莱德联', // Adelaide United
+    945: '珀斯光荣',     // Perth Glory
+    946: '惠灵顿凤凰', // Wellington Phoenix
+    15036: '奥克兰城',   // Auckland FC
+    2027: '中央海岸水手', // Central Coast Mariners
+    10272: '西部联',       // Western United
+    2028: '马卡纳公牛', // Macarthur FC
 };
 
 // ===========================================
@@ -475,6 +493,31 @@ export const TEAM_ALIASES: Record<string, string> = {
     'South Korea': '韩国',
     'China': '中国',
     'Saudi Arabia': '沙特阿拉伯',
+    
+    // 澳超
+    'Melbourne Victory': '墨尔本胜利',
+    'Western Sydney Wanderers': '西悉尼流浪者',
+    'Western Sydney': '西悉尼流浪者',
+    'WS Wanderers': '西悉尼流浪者',
+    'Melbourne City': '墨尔本城',
+    'Sydney FC': '悉尼 FC',
+    'Sydney': '悉尼 FC',
+    'Brisbane Roar': '布里斯班狮吼',
+    'Brisbane': '布里斯班狮吼',
+    'Adelaide United': '阿德莱德联',
+    'Adelaide': '阿德莱德联',
+    'Perth Glory': '珀斯光荣',
+    'Perth': '珀斯光荣',
+    'Wellington Phoenix': '惠灵顿凤凰',
+    'Wellington': '惠灵顿凤凰',
+    'Auckland FC': '奥克兰城',
+    'Auckland': '奥克兰城',
+    'Central Coast Mariners': '中央海岸水手',
+    'Central Coast': '中央海岸水手',
+    'CC Mariners': '中央海岸水手',
+    'Western United': '西部联',
+    'Macarthur FC': '马卡纳公牛',
+    'Macarthur': '马卡纳公牛',
 };
 
 // ===========================================
@@ -505,6 +548,9 @@ export const LEAGUE_ALIASES: Record<string, string> = {
     'Turkish 1. Lig': '土甲',
     'Algerian Ligue 1': '阿尔甲',
     'Scottish Championship': '苏冠',
+    'A-League': '澳超',
+    'A-League Men': '澳超',
+    'Australian A-League': '澳超',
 };
 
 export default {
