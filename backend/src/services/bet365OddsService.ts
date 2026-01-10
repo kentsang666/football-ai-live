@@ -234,6 +234,12 @@ export class Bet365OddsService {
         const asianHandicapBet = odds.find((b: any) => 
             b.id === 2 || b.id === 33 || b.name === 'Asian Handicap'
         );
+        
+        // 调试日志：输出所有盘口类型
+        console.log(`[Bet365 Raw] 所有盘口类型: ${odds.map((b: any) => `{id:${b.id}, name:"${b.name}"}`).join(', ')}`);
+        if (asianHandicapBet) {
+            console.log(`[Bet365 Raw] 亚盘原始数据 (id=${asianHandicapBet.id}, name=${asianHandicapBet.name}): ${JSON.stringify(asianHandicapBet.values.slice(0, 6))}`);
+        }
         if (asianHandicapBet) {
             const parsedAH = this.parseAsianHandicap(asianHandicapBet.values);
             if (parsedAH && parsedAH.length > 0) {
