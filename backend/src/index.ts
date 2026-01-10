@@ -98,6 +98,61 @@ const io = new Server(httpServer, {
     pingInterval: 25000
 });
 
+// ===========================================
+// 🔴 Socket.IO 连接管理和心跳检测
+// ===========================================
+let connectedClients = 0;
+
+io.on('connection', (socket) => {
+    connectedClients++;
+    const clientInfo = {
+        id: socket.id,
+        ip: socket.handshake.address,
+        userAgent: socket.handshake.headers['user-agent']?.substring(0, 50) || 'unknown',
+    };
+    
+    console.log(`🔌 [Socket] 客户端连接: ${socket.id} (当前: ${connectedClients}个)`);
+    console.log(`   IP: ${clientInfo.ip}`);
+    
+    // 发送欢迎消息
+    socket.emit('welcome', {
+        message: 'Connected to Football Prediction Server',
+        serverTime: Date.now(),
+        clientId: socket.id,
+    });
+    
+    // 🔴 心跳响应
+    socket.on('heartbeat', (data: { timestamp: number }) => {
+        socket.emit('heartbeat_ack', {
+            timestamp: data.timestamp,
+            serverTime: Date.now(),
+        });
+    });
+    
+    // 断开连接
+    socket.on('disconnect', (reason) => {
+        connectedClients--;
+        console.log(`🔌 [Socket] 客户端断开: ${socket.id} (原因: ${reason}, 剩余: ${connectedClients}个)`);
+    });
+    
+    // 错误处理
+    socket.on('error', (error) => {
+        console.error(`🔌 [Socket] 客户端错误: ${socket.id}`, error);
+    });
+});
+
+// 定期广播服务器状态
+setInterval(() => {
+    if (connectedClients > 0) {
+        const matchCount = footballService?.getLiveMatches().length || 0;
+        io.emit('server_status', {
+            matches: matchCount,
+            clients: connectedClients,
+            serverTime: Date.now(),
+        });
+    }
+}, 60000); // 每分钟广播一次
+
 // Redis 客户端配置
 const getRedisConfig = (): any => {
     // 云端 Redis 可能需要 TLS (rediss:// 协议)
