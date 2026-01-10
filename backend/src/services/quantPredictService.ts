@@ -964,7 +964,8 @@ export class GoalPredictor {
     // 解析盘口线（例如 "-0.5", "+0.75", "-1"）
     const handicapLine = parseFloat(mainHandicap.line);
     
-    // 🟢 调试日志：输出盘口数据
+    // 🟢 调试日志：输出所有盘口数据
+    console.log(`[Handicap Debug] 所有盘口: ${JSON.stringify(liveAsianHandicap.map(h => ({ line: h.line, main: h.main, home: h.home, away: h.away })))}`);
     console.log(`[Handicap Debug] mainHandicap.line: "${mainHandicap.line}", parsed: ${handicapLine}, homeScore: ${stats.homeScore}, awayScore: ${stats.awayScore}`);
     
     if (isNaN(handicapLine)) {
