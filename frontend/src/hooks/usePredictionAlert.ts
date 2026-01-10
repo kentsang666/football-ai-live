@@ -261,6 +261,54 @@ class BrowserNotificationManager {
 export const browserNotificationManager = new BrowserNotificationManager();
 
 // ===========================================
+// 本地存储工具函数
+// ===========================================
+
+const NOTIFIED_SET_KEY = 'quantpredict_notified_alerts';
+const NOTIFIED_SET_EXPIRY_KEY = 'quantpredict_notified_alerts_expiry';
+const NOTIFIED_SET_TTL = 24 * 60 * 60 * 1000; // 24小时过期
+
+function loadNotifiedSet(): Set<string> {
+  try {
+    const expiry = localStorage.getItem(NOTIFIED_SET_EXPIRY_KEY);
+    const now = Date.now();
+    
+    // 检查是否过期
+    if (expiry && now > parseInt(expiry, 10)) {
+      localStorage.removeItem(NOTIFIED_SET_KEY);
+      localStorage.removeItem(NOTIFIED_SET_EXPIRY_KEY);
+      return new Set();
+    }
+    
+    const data = localStorage.getItem(NOTIFIED_SET_KEY);
+    if (data) {
+      const arr = JSON.parse(data);
+      return new Set(arr);
+    }
+  } catch (e) {
+    console.warn('⚠️ 加载已通知记录失败:', e);
+  }
+  return new Set();
+}
+
+function saveNotifiedSet(set: Set<string>): void {
+  try {
+    const arr = Array.from(set);
+    // 只保留最近 500 条记录，防止 localStorage 过大
+    const trimmed = arr.slice(-500);
+    localStorage.setItem(NOTIFIED_SET_KEY, JSON.stringify(trimmed));
+    
+    // 设置过期时间
+    const expiry = localStorage.getItem(NOTIFIED_SET_EXPIRY_KEY);
+    if (!expiry) {
+      localStorage.setItem(NOTIFIED_SET_EXPIRY_KEY, String(Date.now() + NOTIFIED_SET_TTL));
+    }
+  } catch (e) {
+    console.warn('⚠️ 保存已通知记录失败:', e);
+  }
+}
+
+// ===========================================
 // 主 Hook: usePredictionAlert
 // ===========================================
 
@@ -270,8 +318,8 @@ export function usePredictionAlert(
 ) {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   
-  // 已通知的推荐集合：格式为 "matchId_type_direction"
-  const notifiedSet = useRef<Set<string>>(new Set());
+  // 🟢 已通知的推荐集合：从 localStorage 加载，防止刷新后重复通知
+  const notifiedSet = useRef<Set<string>>(loadNotifiedSet());
   
   // 当前活跃的 Toast 列表
   const [activeToasts, setActiveToasts] = useState<AlertData[]>([]);
@@ -403,6 +451,7 @@ export function usePredictionAlert(
 
             triggerAlert(alert);
             notifiedSet.current.add(key);
+            saveNotifiedSet(notifiedSet.current); // 🟢 持久化到 localStorage
 
             // 保存到历史记录
             historyLogService.addEntry({
@@ -445,6 +494,7 @@ export function usePredictionAlert(
 
             triggerAlert(alert);
             notifiedSet.current.add(key);
+            saveNotifiedSet(notifiedSet.current); // 🟢 持久化到 localStorage
 
             // 保存到历史记录
             historyLogService.addEntry({
