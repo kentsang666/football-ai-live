@@ -24,6 +24,17 @@ import {
   LiveAsianHandicap,  // 🟢 新增：实时亚洲盘口类型
 } from './quantPredictService';
 
+/**
+ * 🟢 指挥官指令：极简决策输出
+ */
+export interface CommanderAdvice {
+  action: string;        // 核心指令：例如 "重注 主队 -0.5" 或 "轻注 大 2.5"
+  direction: 'HOME' | 'AWAY' | 'OVER' | 'UNDER' | 'WAIT';
+  index: number;         // 推荐指数 (0-10分)：低于 6 分直接忽略
+  reason: string;        // 一句话理由：例如 "动量碾压 + 价值边际 8%"
+  isActionable: boolean; // 是否值得出手 (Index >= 6.0)
+}
+
 export interface MatchData {
   match_id: string;
   home_team: string;
@@ -76,6 +87,7 @@ export interface Prediction {
   };
   asianHandicap?: AsianHandicapOdds[];
   goalBettingTips?: GoalBettingTips;  // 🟢 新增：进球投注建议
+  advice?: CommanderAdvice;  // 🟢 新增：指挥官指令
 }
 
 /**
@@ -337,6 +349,14 @@ export class PredictionService {
     const goalPredictor = new GoalPredictor(liveProbEngine);
     const goalBettingTips = goalPredictor.generateGoalBettingTips(stats, match.liveAsianHandicap);
 
+    // 🟢 [新增] 生成指挥官建议
+    const advice = this.generateCommanderAdvice(prediction, goalBettingTips, stats);
+
+    // 🟢 只在有可操作机会时输出日志
+    if (advice.isActionable) {
+      console.log(`🎯 [机会发现] ${match.home_team} vs ${match.away_team} | ${advice.action} | 指数: ${advice.index}`);
+    }
+
     return {
       match_id: match.match_id,
       home_team: match.home_team,
@@ -361,6 +381,97 @@ export class PredictionService {
       pressureAnalysis: prediction.pressureAnalysis,
       asianHandicap,
       goalBettingTips,  // 🟢 新增：进球投注建议
+      advice,  // 🟢 新增：指挥官指令
+    };
+  }
+
+  /**
+   * 🟢 指挥官模式：生成极简决策建议
+   * 逻辑：从 让球推荐、大小球推荐、动量信号 中选出最强的一个
+   */
+  private generateCommanderAdvice(
+    prediction: PredictionResult, 
+    tips: GoalBettingTips,
+    stats: MatchStats
+  ): CommanderAdvice {
+    let bestAction = "观望 (WAIT)";
+    let bestDirection: CommanderAdvice['direction'] = 'WAIT';
+    let maxScore = 0; // 0-10 分制
+    let finalReason = "局势不明朗，建议等待";
+
+    // --- 1. 动量基础分 (0-3分) ---
+    // 动量决定了"顺风局"还是"逆风局"
+    const momentumDiff = prediction.homeMomentum - prediction.awayMomentum;
+    const dominantSide = momentumDiff > 0.1 ? 'HOME' : momentumDiff < -0.1 ? 'AWAY' : 'NONE';
+    const momentumScore = Math.min(3, Math.abs(momentumDiff) * 2.5); // 动量差 1.0 即可拿满3分
+
+    // --- 2. 评估让球盘机会 (权重最高) ---
+    if (tips.handicapRecommendation) {
+      const rec = tips.handicapRecommendation;
+      // 基础分：赢盘率 (50% -> 0分, 60% -> 2分, 80% -> 6分)
+      let score = (rec.winProbability - 0.5) * 20; 
+      
+      // 加分项：动量共振 (如果我们买的方向和动量一致，+2分)
+      if (rec.recommendedSide === dominantSide) {
+        score += 2.0; 
+      } else if (dominantSide !== 'NONE') {
+        score -= 2.0; // 逆势操作扣分
+      }
+      
+      // 加分项：价值边际 (Edge > 5% 再 +1分)
+      if (rec.valueEdge > 0.05) score += 1.0;
+
+      // 只有分数够高才采纳
+      if (score > maxScore) {
+        maxScore = score;
+        bestDirection = rec.recommendedSide;
+        bestAction = `买入 ${rec.recommendedSide === 'HOME' ? '主队' : '客队'} (${rec.recommendedLine})`;
+        finalReason = `盘口优势 ${rec.recommendedLine} | 动量${dominantSide === rec.recommendedSide ? '共振' : '背离'} | 赢率 ${(rec.winProbability * 100).toFixed(0)}%`;
+      }
+    }
+
+    // --- 3. 评估大小球机会 (仅当没有好的让球机会时) ---
+    if (tips.highConfidenceTip && (tips.highConfidenceTip.type === 'OVER' || tips.highConfidenceTip.type === 'UNDER')) {
+      const tip = tips.highConfidenceTip;
+      // 大小球基础分
+      let score = (tip.probability - 0.5) * 18; // 稍微比让球盘权重低一点
+      
+      // 动量修正：如果是大球，双方动量都高最好；小球则反之
+      const totalMomentum = prediction.homeMomentum + prediction.awayMomentum;
+      if (tip.type === 'OVER' && totalMomentum > 2.0) score += 1.5;
+      if (tip.type === 'UNDER' && totalMomentum < 1.5) score += 1.5;
+
+      if (score > maxScore) {
+        maxScore = score;
+        bestDirection = tip.type as 'OVER' | 'UNDER';
+        bestAction = `买入 ${tip.type === 'OVER' ? '大球' : '小球'} (${tip.line})`;
+        finalReason = `概率极高 ${(tip.probability * 100).toFixed(0)}% | 场面${totalMomentum > 2 ? '火爆' : '沉闷'} | 置信度 ${(tip.confidence * 10).toFixed(1)}`;
+      }
+    }
+
+    // --- 4. 绝杀特例 (80分钟后) ---
+    if (stats.minute >= 80 && maxScore < 6) {
+      // 如果这时候某队动量爆表 (>1.3) 且平局，提示绝杀
+      if (momentumDiff > 0.3 && stats.homeScore === stats.awayScore) {
+         maxScore = 7.5;
+         bestDirection = 'HOME';
+         bestAction = "博全场绝杀 (主队)";
+         finalReason = "比赛末段主队动量碾压，进球概率激增";
+      } else if (momentumDiff < -0.3 && stats.homeScore === stats.awayScore) {
+         maxScore = 7.5;
+         bestDirection = 'AWAY';
+         bestAction = "博全场绝杀 (客队)";
+         finalReason = "比赛末段客队动量碾压，进球概率激增";
+      }
+    }
+
+    // --- 最终修正 ---
+    return {
+      action: maxScore >= 6.0 ? bestAction : "观望 (WAIT)", // 6分以下不开枪
+      direction: maxScore >= 6.0 ? bestDirection : 'WAIT',
+      index: parseFloat(Math.min(10, Math.max(0, maxScore)).toFixed(1)), // 限制在 0-10
+      reason: maxScore >= 6.0 ? finalReason : "无高价值机会，建议休息",
+      isActionable: maxScore >= 6.0
     };
   }
 
