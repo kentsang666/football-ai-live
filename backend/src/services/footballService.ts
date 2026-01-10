@@ -3,6 +3,7 @@ import axios, { AxiosInstance } from 'axios';
 import { Server } from 'socket.io';
 import { getTeamChineseName as getTeamChineseNameLegacy } from '../data/teamNames';
 import { getTeamChineseNameSmart, getLeagueChineseNameSmart, formatLeagueDisplayName } from '../utils/nameResolver';
+import { Bet365OddsService, Bet365LiveOdds } from './bet365OddsService';
 
 // ===========================================
 // 类型定义
@@ -336,6 +337,9 @@ export class FootballService {
     
     // 联赛白名单
     private allowedLeagues: number[] = [];
+    
+    // 🔴 Bet365 亚洲滚球盘口服务
+    private bet365Service: Bet365OddsService;
 
     constructor(
         apiKey: string,
@@ -361,6 +365,10 @@ export class FootballService {
         this.io = io;
         this.pollInterval = pollInterval * 1000; // 转换为毫秒
         this.allowedLeagues = allowedLeagues;
+        
+        // 🔴 初始化 Bet365 亚洲滚球盘口服务
+        this.bet365Service = new Bet365OddsService(apiKey, apiUrl);
+        console.log('🎰 Bet365 亚洲滚球盘口服务已初始化');
         
         // 启动时打印联赛白名单配置
         this.logLeagueFilterConfig();
@@ -534,16 +542,18 @@ export class FootballService {
         // 1. 转换为我们的内部格式
         const matchData = this.mapExternalData(fixture);
         
-        // 🟢 2. 获取实时赔率数据
+        // 🔴 2. 获取 Bet365 亚洲滚球盘口数据
         let liveOdds: any = null;
         try {
-            liveOdds = await this.fetchLiveOdds(fixture.fixture.id);
-            if (liveOdds) {
+            const bet365Odds = await this.bet365Service.getLiveOdds(fixture.fixture.id);
+            if (bet365Odds) {
+                // 转换为系统内部格式
+                liveOdds = this.convertBet365ToLiveOdds(bet365Odds);
                 matchData.liveOdds = liveOdds;
             }
         } catch (error) {
             // 赔率获取失败不影响主流程
-            console.warn(`⚠️ 获取赔率失败 [${matchData.match_id}]:`, error);
+            console.warn(`⚠️ 获取 Bet365 盘口失败 [${matchData.match_id}]:`, error);
         }
         
         // 🟢 2.5. 获取比赛统计数据
@@ -1268,6 +1278,57 @@ export class FootballService {
     
     public getAllowedLeagues(): number[] {
         return [...this.allowedLeagues];
+    }
+
+    // ===========================================
+    // 🔴 转换 Bet365 盘口数据为系统内部格式
+    // ===========================================
+
+    private convertBet365ToLiveOdds(bet365Odds: Bet365LiveOdds): LiveOdds {
+        const liveOdds: LiveOdds = {
+            bookmaker: 'Bet365',
+            updateTime: bet365Odds.updateTime
+        };
+
+        // 转换比赛状态
+        if (bet365Odds.status) {
+            liveOdds.status = {
+                elapsed: bet365Odds.status.elapsed,
+                seconds: bet365Odds.status.seconds
+            };
+        }
+
+        // 🔴 转换亚洲让球盘
+        if (bet365Odds.asianHandicap && bet365Odds.asianHandicap.length > 0) {
+            liveOdds.asianHandicap = bet365Odds.asianHandicap.map(ah => ({
+                line: ah.line,
+                home: ah.home,
+                away: ah.away,
+                main: ah.main,
+                suspended: ah.suspended
+            }));
+        }
+
+        // 🔴 转换大小球盘
+        if (bet365Odds.overUnder && bet365Odds.overUnder.length > 0) {
+            liveOdds.overUnder = bet365Odds.overUnder.map(ou => ({
+                line: ou.line,
+                over: ou.over,
+                under: ou.under,
+                main: ou.main,
+                suspended: ou.suspended
+            }));
+        }
+
+        // 🔴 转换赛前原始盘口
+        if (bet365Odds.preMatchAsianHandicap) {
+            liveOdds.preMatchAsianHandicap = bet365Odds.preMatchAsianHandicap;
+        }
+        if (bet365Odds.preMatchOverUnder) {
+            liveOdds.preMatchOverUnder = bet365Odds.preMatchOverUnder;
+        }
+
+        return liveOdds;
     }
 }
 
