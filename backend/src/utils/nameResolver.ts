@@ -16,6 +16,10 @@ import {
     TEAM_ALIASES,
     LEAGUE_ALIASES,
 } from '../data/translationData';
+import { getTranslation } from './translator';
+
+// 记录缺失翻译的名称，防止重复打印日志
+const missingTranslationLog = new Set<string>();
 
 // 类型定义
 type NameType = 'team' | 'league';
@@ -93,7 +97,22 @@ export function getChineseName(
         return normalizedName;
     }
     
-    // ========== 优先级 4：返回原始名称 ==========
+    // ========== 优先级 4：尝试实时动态翻译 ==========
+    // 如果本地字典没有，尝试从动态缓存获取，或触发后台翻译
+    // 注意：这将返回缓存的中文，或者原文（如果翻译尚未完成）
+    const translatedName = getTranslation(normalizedName);
+    if (containsChinese(translatedName)) {
+        return translatedName;
+    }
+
+    // ========== 优先级 5：记录缺失并返回原始名称 ==========
+    // 只有非中文的名称才记录缺失
+    const logKey = `${type}:${id || 'noid'}:${normalizedName}`;
+    if (!missingTranslationLog.has(logKey)) {
+        console.warn(`[汉化缺失] ${type === 'team' ? '球队' : '联赛'} ID: ${id} | Name: "${originalName}" (已加入翻译队列)`);
+        missingTranslationLog.add(logKey);
+    }
+
     return normalizedName;
 }
 

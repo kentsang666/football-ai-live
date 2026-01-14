@@ -140,6 +140,7 @@ export interface HighConfidenceTip {
   probability: number;
   confidence: number;
   description: string;
+  kellyStake?: number;
 }
 
 /**
@@ -158,6 +159,8 @@ export interface HandicapRecommendation {
   winProbability: number;
   /** 置信度 */
   confidence: number;
+  /** 凯利资金管理建议 (0-5%) */
+  kellyStake?: number;
   /** 推荐理由 */
   reason: string;
   /** 推荐方向的市场赔率 */
@@ -166,6 +169,7 @@ export interface HandicapRecommendation {
   fairOdds: number;
   /** 价值边际（市场赔率/公平赔率 - 1） */
   valueEdge: number;
+  kellyStake?: number;
 }
 
 /**

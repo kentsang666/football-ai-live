@@ -1,0 +1,60 @@
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, BigInteger
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+
+Base = declarative_base()
+
+class Match(Base):
+    __tablename__ = 'matches'
+
+    # --- 1. 基础信息 ---
+    id = Column(BigInteger, primary_key=True)  # API 的 Match ID
+    league_id = Column(Integer)
+    league_name = Column(String(100))
+    home_team = Column(String(100))
+    away_team = Column(String(100))
+    start_time = Column(DateTime)
+    status = Column(String(20), default='NS') # NS, LIVE, FT
+
+    # --- 2. 赛前模型数据 (中午存入) ---
+    pre_match_home_lambda = Column(Float) # 核心参数
+    pre_match_away_lambda = Column(Float) # 核心参数
+    
+    pre_home_win_prob = Column(Float)
+    pre_draw_prob = Column(Float)
+    pre_away_win_prob = Column(Float)
+
+    # --- 3. 滚球实时数据 (实时更新) ---
+    current_minute = Column(Integer, default=0)
+    home_score = Column(Integer, default=0)
+    away_score = Column(Integer, default=0)
+    red_cards_home = Column(Integer, default=0)
+    red_cards_away = Column(Integer, default=0)
+
+    # --- 4. 实时预测结果 (给前端看) ---
+    live_home_win_prob = Column(Float)
+    live_draw_prob = Column(Float)
+    live_away_win_prob = Column(Float)
+    
+    # 新增: 大小球预测
+    live_over_25_prob = Column(Float, default=0.0)
+    live_under_25_prob = Column(Float, default=0.0)
+
+    # --- 5. 更新时间 ---
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+# --- 数据库连接配置 ---
+# 使用 SQLite
+DATABASE_URL = "sqlite:///football_prediction_v2.db"
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# 创建表
+def init_db():
+    Base.metadata.create_all(bind=engine)
+    print("✅ 数据库表结构已创建成功！")
+
+if __name__ == "__main__":
+    init_db()

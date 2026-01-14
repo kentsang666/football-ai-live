@@ -1,0 +1,210 @@
+import schedule
+import time
+import datetime
+import requests
+from sqlalchemy.orm import Session
+from prediction_engine import FootballPredictionSystem
+from database_models import SessionLocal, Match, init_db
+from model_utils import get_team_rating
+
+# API Config
+API_KEY = "8b86ae86981996818bbdcafafa10717f"
+API_URL = "https://v3.football.api-sports.io/fixtures"
+
+# --- 数据库操作函数 ---
+def save_daily_matches_to_db(fixtures):
+    """
+    将计算好的赛前数据存入数据库。
+    如果比赛已存在则更新，不存在则插入 (Upsert逻辑)。
+    """
+    session = SessionLocal()
+    try:
+        print(f"💾 正在保存 {len(fixtures)} 场比赛数据到数据库...")
+        
+        for match_data in fixtures:
+            # 1. 尝试在数据库中查找这场比赛
+            existing_match = session.query(Match).filter(Match.id == match_data['id']).first()
+            
+            if existing_match:
+                # 更新：如果比赛已存在，更新赛前数据
+                existing_match.pre_match_home_lambda = match_data['pre_match_home_lambda']
+                existing_match.pre_match_away_lambda = match_data['pre_match_away_lambda']
+                existing_match.pre_home_win_prob = match_data['pre_home_win_prob']
+                existing_match.pre_draw_prob = match_data['pre_draw_prob']
+                existing_match.pre_away_win_prob = match_data['pre_away_win_prob']
+                existing_match.status = match_data['status']
+                
+                # 只有当这些字段存在时才更新（防止覆盖为空）
+                if match_data.get('league_id'): existing_match.league_id = match_data['league_id']
+                if match_data.get('league_name'): existing_match.league_name = match_data['league_name']
+                if match_data.get('start_time'): existing_match.start_time = match_data['start_time']
+                
+                print(f"  Start update match: {match_data['id']}")
+            else:
+                # 插入：如果比赛不存在，创建新记录
+                new_match = Match(
+                    id=match_data['id'],
+                    league_id=match_data.get('league_id'),
+                    league_name=match_data.get('league_name'),
+                    home_team=match_data['home_team'],
+                    away_team=match_data['away_team'],
+                    start_time=match_data.get('start_time'),
+                    status=match_data['status'],
+                    
+                    # 核心赛前数据
+                    pre_match_home_lambda=match_data['pre_match_home_lambda'],
+                    pre_match_away_lambda=match_data['pre_match_away_lambda'],
+                    pre_home_win_prob=match_data['pre_home_win_prob'],
+                    pre_draw_prob=match_data['pre_draw_prob'],
+                    pre_away_win_prob=match_data['pre_away_win_prob']
+                )
+                session.add(new_match)
+                print(f"  New match added: {match_data['id']}")
+        
+        session.commit()
+        print("✅ 所有赛前数据入库成功！")
+        
+    except Exception as e:
+        session.rollback()
+        print(f"❌ 数据库写入错误: {e}")
+    finally:
+        session.close()
+
+# --- 真实 API 获取函数 ---
+def get_todays_fixtures():
+    print("📡 正在连接 API 获取今日比赛列表...")
+    
+    headers = {
+        'x-apisports-key': API_KEY,
+        'x-rapidapi-host': "v3.football.api-sports.io"
+    }
+    
+    # 获取今日日期 YYYY-MM-DD
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    try:
+        response = requests.get(f"{API_URL}?date={today}", headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            print(f"❌ API 请求失败: {response.status_code}")
+            return []
+            
+        data = response.json()
+        raw_fixtures = data.get('response', [])
+        
+        parsed_fixtures = []
+        for item in raw_fixtures:
+            fixture_id = item['fixture']['id']
+            # 获取用户要求的额外字段
+            league_id = item['league']['id']
+            league_name = item['league']['name']
+            
+            # API 返回的时间是 ISO8601 (2025-05-20T14:30:00+00:00)
+            start_time_str = item['fixture']['date']
+            try:
+                # 尝试解析 ISO 格式
+                start_time = datetime.datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                # 转为 naive datetime (去掉时区信息，与数据库保持一致)
+                start_time = start_time.replace(tzinfo=None)
+            except:
+                start_time = datetime.datetime.now()
+
+            status = item['fixture']['status']['short']
+            
+            # --- Status Normalization Fix ---
+            # If the API says it's in play, normalize to 'LIVE' to match live_monitor and api_server expectations
+            if status in ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'INT']:
+                status = 'LIVE'
+            # --------------------------------
+
+            home_team_name = item['teams']['home']['name']
+            away_team_name = item['teams']['away']['name']
+            
+            # 使用 model_utils 获取（或估算）能力值
+            home_stats = get_team_rating(home_team_name)
+            away_stats = get_team_rating(away_team_name)
+            
+            parsed_fixtures.append({
+                'id': fixture_id,
+                'league_id': league_id,
+                'league_name': league_name,
+                'start_time': start_time,
+                'status': status,
+                'home_team': home_team_name,
+                'away_team': away_team_name,
+                'home_stats': home_stats,
+                'away_stats': away_stats
+            })
+            
+        print(f"📥 获取到 {len(parsed_fixtures)} 场今日比赛")
+        return parsed_fixtures
+        
+    except Exception as e:
+        print(f"❌ API 请求异常: {e}")
+        return []
+
+# --- 主逻辑：获取 -> 计算 -> 存库 ---
+def fetch_and_calculate_today():
+    print(f"\n⏰ 任务触发: {datetime.datetime.now()}")
+    
+    # 1. 初始化预测引擎
+    predictor = FootballPredictionSystem()
+    
+    # 2. 调用真实的 API 获取数据
+    fixtures_list = get_todays_fixtures()
+    
+    processed_data = []
+    
+    # 3. 计算每场比赛的 Lambda 值
+    for match in fixtures_list:
+        h_exp, a_exp = predictor.calculate_prematch_lambda(match['home_stats'], match['away_stats'])
+        probs = predictor.get_match_probabilities(h_exp, a_exp)
+        
+        # 整理要存入数据库的字典
+        match_record = {
+            'id': match['id'],
+            'league_id': match['league_id'],
+            'league_name': match['league_name'],
+            'home_team': match['home_team'],
+            'away_team': match['away_team'],
+            'start_time': match['start_time'],
+            'status': match['status'],
+            
+            # 计算结果
+            'pre_match_home_lambda': h_exp,
+            'pre_match_away_lambda': a_exp,
+            'pre_home_win_prob': probs[0] * 100,
+            'pre_draw_prob': probs[1] * 100,
+            'pre_away_win_prob': probs[2] * 100
+        }
+        processed_data.append(match_record)
+    
+    # 4. 存入数据库
+    if processed_data:
+        save_daily_matches_to_db(processed_data)
+    else:
+        print("⚠️ 今日没有获取到比赛数据")
+
+# --- 调度器设置 ---
+def run_scheduler():
+    # 确保数据库表已存在
+    init_db()
+    
+    # 设定每天 12:00 运行
+    schedule.every().day.at("12:00").do(fetch_and_calculate_today)
+    
+    # 为了测试，这里设置为每 10 秒运行一次
+    # 如果您想恢复成每天运行，请注释掉下面这行
+    schedule.every(10).seconds.do(fetch_and_calculate_today)
+    
+    print("🚀 赛前数据调度器已启动 (测试模式: 每10秒运行)...")
+    
+    # 手动触发一次以便立即查看效果
+    fetch_and_calculate_today()
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+if __name__ == "__main__":
+    run_scheduler()

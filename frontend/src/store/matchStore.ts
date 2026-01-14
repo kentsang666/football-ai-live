@@ -34,6 +34,7 @@ export interface MatchData {
   minute: number;
   status: 'live' | 'halftime' | 'finished' | 'not_started';
   league: string;
+  league_id?: number; // 🟢 新增：联赛ID
   timestamp: string;
   // 🟢 新增：红牌数据
   home_red_cards?: number;
@@ -242,6 +243,7 @@ export class MatchStore {
           minute: match.minute,
           status: match.status,
           league: match.league,
+          league_id: (match as any).league_id, // 🟢 映射 league_id
           timestamp: match.timestamp,
           events: [],
           // 🟢 保存实时赔率数据

@@ -22,6 +22,7 @@ import {
   GoalPrediction,
   NextGoalPrediction,
   LiveAsianHandicap,  // 🟢 新增：实时亚洲盘口类型
+  LiveOverUnder,      // 🟢 新增：实时大小球盘口类型
 } from './quantPredictService';
 
 /**
@@ -61,6 +62,7 @@ export interface MatchData {
   away_dangerous_attacks?: number | undefined;
   stats?: any; // 原始统计数据对象
   liveAsianHandicap?: LiveAsianHandicap[] | undefined;  // 🟢 新增：实时亚洲盘口数据
+  liveOverUnder?: LiveOverUnder[] | undefined;          // 🟢 新增：实时大小球盘口数据
 }
 
 export interface Prediction {
@@ -319,7 +321,7 @@ export class PredictionService {
       console.log(`[时间滑窗] ${matchId}: 历史快照=${history.length}, 基准时间=${timeDiff}s前, 射正增量=${recentStats.recentHomeShotsOnTarget}-${recentStats.recentAwayShotsOnTarget}`);
     }
     
-    return recentStats;
+    return recentStats; 
   }
 
   /**
@@ -350,7 +352,14 @@ export class PredictionService {
     // 🟢 [v2.1.1] 修复：注入同一个 LiveProbability 实例到 GoalPredictor
     // 这样可以共享动量历史状态，避免重复创建
     const goalPredictor = new GoalPredictor(liveProbEngine);
-    const goalBettingTips = goalPredictor.generateGoalBettingTips(stats, match.liveAsianHandicap);
+    
+    // 🟢 [Safe Access] 兼容不同的 MatchData 结构
+    // 优先使用扁平化属性，如果不存在则尝试从 liveOdds 中获取
+    const liveAsianHandicap = match.liveAsianHandicap || (match as any).liveOdds?.asianHandicap;
+    const liveOverUnder = match.liveOverUnder || (match as any).liveOdds?.overUnder;
+
+    // 🟢 [v2.9.2] 修复：传递实时盘口数据
+    const goalBettingTips = goalPredictor.generateGoalBettingTips(stats, liveAsianHandicap, liveOverUnder);
 
     // 🟢 [新增] 生成指挥官建议
     const advice = this.generateCommanderAdvice(prediction, goalBettingTips, stats);
@@ -453,6 +462,39 @@ export class PredictionService {
       }
     }
 
+    // --- [v2.7 新增] 动量背离猎手 (Momentum Divergence Hunter) ---
+    // 专门捕捉：比分落后但场面碾压的“剧本局”
+    // 条件：落后1球 + 动量差 > 0.8 (显著碾压) + 时间 > 30分钟
+    const scoreDiff = stats.homeScore - stats.awayScore;
+    const DIVERGENCE_THRESHOLD = 0.8;
+    
+    if (stats.minute > 30) {
+        let divergenceFound = false;
+        let divReason = "";
+        
+        // 主队落后，但完全压制
+        if (scoreDiff < 0 && momentumDiff > DIVERGENCE_THRESHOLD) {
+            maxScore = Math.max(maxScore, 8.5); // 直接给高分
+            bestAction = "主队落后但动量碾压 - 博主胜/平";
+            bestDirection = "HOME";
+            divReason = `比分${stats.homeScore}-${stats.awayScore}但动量+${momentumDiff.toFixed(2)} (背离)`;
+            divergenceFound = true;
+        }
+        // 客队落后，但完全压制
+        else if (scoreDiff > 0 && momentumDiff < -DIVERGENCE_THRESHOLD) {
+            maxScore = Math.max(maxScore, 8.5);
+            bestAction = "客队落后但动量碾压 - 博客胜/平";
+            bestDirection = "AWAY";
+            divReason = `比分${stats.homeScore}-${stats.awayScore}但动量${momentumDiff.toFixed(2)} (背离)`;
+            divergenceFound = true;
+        }
+
+        if (divergenceFound) {
+            finalReason = divReason;
+            console.log(`[Divergence Detected] ${stats.homeScore}-${stats.awayScore} | Mom: ${momentumDiff.toFixed(2)}`);
+        }
+    }
+
     // --- 4. 绝杀特例 (80分钟后) ---
     if (stats.minute >= 80 && maxScore < 6) {
       // 如果这时候某队动量爆表 (>1.3) 且平局，提示绝杀
@@ -467,6 +509,16 @@ export class PredictionService {
          bestAction = "博全场绝杀 (客队)";
          finalReason = "比赛末段客队动量碾压，进球概率激增";
       }
+    }
+
+    // --- [v2.7] 最终安全过滤器 (Safety Filter Layer) ---
+    // 1. 红牌冷冻 (Red Card Freeze)
+    if (((stats.homeRedCards || 0) > 0 || (stats.awayRedCards || 0) > 0) && stats.minute < 88) {
+        // 红牌局，若非最后时刻，强制降分或观望
+        if (maxScore > 7.0) {
+            maxScore = 5.5; // 降级到观望
+            finalReason += " [红牌风险已冻结交易]";
+        }
     }
 
     // --- 最终修正 ---

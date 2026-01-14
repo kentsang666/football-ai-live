@@ -1,0 +1,179 @@
+from flask import Flask, jsonify, request, render_template
+from flask_cors import CORS
+from sqlalchemy.orm import Session
+from database_models import SessionLocal, Match
+import datetime
+import logging
+import os
+
+# Configure logging
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+logging.basicConfig(filename=os.path.join(log_dir, 'api.log'), level=logging.ERROR, 
+                    format='%(asctime)s %(levelname)s: %(message)s')
+
+app = Flask(__name__)
+# 启用 CORS，允许前端(如 Vue/React/HTML)跨域访问
+CORS(app) 
+
+# ===========================
+# 页面路由
+# ===========================
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+# ===========================
+# 数据库辅助函数
+# ===========================
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ===========================
+# 接口 1: 获取所有正在进行的比赛 (滚球列表)
+# ===========================
+@app.route('/api/live', methods=['GET'])
+def get_live_matches_compat():
+    """兼容旧版前端请求 /api/live"""
+    return get_live_matches()
+
+@app.route('/api/live-matches', methods=['GET'])
+def get_live_matches():
+    session = SessionLocal()
+    try:
+        # 查询所有状态为 'LIVE' 或相关状态的比赛
+        live_statuses = ['LIVE', '1H', '2H', 'HT', 'ET', 'BT', 'P', 'INT']
+        live_matches = session.query(Match).filter(Match.status.in_(live_statuses)).order_by(Match.league_id).all()
+        
+        results = []
+        for match in live_matches:
+            # 1. AI 预测文案 (增加 None 值保护)
+            h_prob = match.live_home_win_prob or 0
+            a_prob = match.live_away_win_prob or 0
+            d_prob = match.live_draw_prob or 0
+            
+            prediction_text = "BALANCED"
+            if h_prob > 60: prediction_text = "HOME STRONG"
+            elif a_prob > 60: prediction_text = "AWAY STRONG"
+            # 注意: 如果胜+平概率很高，可能是主不败
+            elif h_prob + d_prob > 80: prediction_text = "HOME 1X"
+            
+            # 2. 构造前端需要的 odds_ou (大小球)
+            # 增加 None 值保护
+            over_prob = match.live_over_25_prob or 0
+            under_prob = match.live_under_25_prob or 0
+            
+            ou_line = "2.5" 
+            over_val = f"{over_prob}%"
+            under_val = f"{under_prob}%"
+            
+            # 3. 构造前端结构
+            results.append({
+                "id": match.id,
+                "league": match.league_name,
+                "display_time": str(match.current_minute) + "'",
+                "home_team": match.home_team,
+                "away_team": match.away_team,
+                "home_score": match.home_score,
+                "away_score": match.away_score,
+                "home_red_cards": match.red_cards_home,
+                "away_red_cards": match.red_cards_away,
+                
+                "ai_analysis": {
+                    "home_prob": int(h_prob),
+                    "draw_prob": int(d_prob),
+                    "away_prob": int(a_prob),
+                    "ai_prediction": prediction_text
+                },
+                
+                "odds_ou": {
+                    "line": ou_line,
+                    "o": over_val,
+                    "u": under_val
+                },
+                
+                # 暂时 Mock 亚盘数据，防止前端报错
+                "odds_ah": {
+                    "val": "0.0",
+                    "h": "-",
+                    "a": "-"
+                },
+                
+                # 暂时 Mock 进阶数据
+                "advanced_analytics": {
+                    "momentum": { "home": 50, "away": 50 },
+                    "signal": None
+                }
+            })
+            
+        return jsonify({
+            "count": len(results),
+            "matches": results,
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"API Error: {e}")
+        logging.error(f"API Error in /api/live-matches: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+# ===========================
+# 接口 2: 获取今日所有比赛 (包括未开始的)
+# ===========================
+@app.route('/api/today-matches', methods=['GET'])
+def get_today_matches():
+    session = SessionLocal()
+    try:
+        # 获取所有非完场的比赛
+        matches = session.query(Match).filter(Match.status != 'FT').all()
+        
+        results = []
+        for match in matches:
+            results.append({
+                "id": match.id,
+                "teams": f"{match.home_team} vs {match.away_team}",
+                "status": match.status,
+                "start_time": match.start_time.strftime('%H:%M') if match.start_time else "TBD",
+                "pre_win_prob": match.pre_home_win_prob # 赛前胜率
+            })
+            
+        return jsonify({"matches": results})
+    finally:
+        session.close()
+
+
+# ===========================
+# 接口 3: 获取系统日志
+# ===========================
+@app.route('/api/logs', methods=['GET'])
+def get_logs():
+    log_file = 'logs/main.log'
+    logs = []
+    try:
+        # 尝试读取日志文件的最后 20 行
+        import os
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                # 简单读取所有行然后切片 (生产环境建议用别的库 seek)
+                lines = f.readlines()
+                logs = [l.strip() for l in lines[-20:]]
+    except Exception as e:
+        logs = [f"Error reading logs: {str(e)}"]
+        
+    return jsonify({"logs": logs})
+
+# ===========================
+# 启动服务器
+# ===========================
+if __name__ == '__main__':
+    print("🚀 API 服务器已启动: http://localhost:5000")
+    # debug=True 方便调试，报错会显示详细信息
+    # host='0.0.0.0' 允许局域网内其他电脑/手机访问
+    app.run(debug=True, host='0.0.0.0', port=5000)

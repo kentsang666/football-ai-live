@@ -96,6 +96,10 @@ function ResultBadge({ result }: { result: LogEntry['result'] }) {
 
 export function HistoryPage() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -287,6 +291,26 @@ export function HistoryPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  // 分页逻辑
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentEntries = entries.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(entries.length / itemsPerPage);
+
+  // 确保当前页码有效
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [entries.length, currentPage, totalPages]);
+
+  // 页码跳转
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   return (
@@ -520,23 +544,38 @@ export function HistoryPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {entries.map((entry) => (
+                  {currentEntries.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-750">
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div className="text-[11px] text-white">{formatTime(entry.timestamp)}</div>
                         <div className="text-[10px] text-gray-500">{entry.minuteWhenTip}'</div>
                       </td>
                       <td className="px-2 py-2">
-                        <div className="text-[11px] font-medium text-white truncate max-w-[140px]" title={entry.matchName}>
-                          {entry.matchName}
+                        <div className="text-[11px] font-medium text-white truncate max-w-[140px]" title={historyLogService.translate(entry.matchName)}>
+                          {historyLogService.translate(entry.matchName.split(' vs ')[0])} vs {historyLogService.translate(entry.matchName.split(' vs ')[1])}
                         </div>
                         <div className="text-[10px] text-gray-500 truncate max-w-[140px]">
-                          {entry.league} | {entry.scoreWhenTip}
+                          {historyLogService.translate(entry.league)} | {entry.scoreWhenTip}
                         </div>
                       </td>
                       <td className="px-2 py-2">
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900 text-blue-200 border border-blue-700">
-                          {entry.selection}
+                           {
+                              // 尝试分离 "TeamName -0.5" 这种格式并翻译队名部分
+                              (() => {
+                                const parts = entry.selection.split(' ');
+                                // 简单的启发式：假设最后一部分是盘口/比分，前面是队名
+                                if (parts.length > 1) {
+                                    const lastPart = parts[parts.length - 1];
+                                    // 如果最后一部分看起来像数字或盘口
+                                    if (/^[-+]?\d/.test(lastPart) || /^[<>]/.test(lastPart) || lastPart.includes('.')) {
+                                        const teamPart = parts.slice(0, -1).join(' ');
+                                        return `${historyLogService.translate(teamPart)} ${lastPart}`;
+                                    }
+                                }
+                                return historyLogService.translate(entry.selection);
+                              })()
+                            }
                         </span>
                         <div className="text-[9px] text-gray-500 mt-0.5">
                           {entry.type === 'HANDICAP' ? '让球' : '大小'}
@@ -618,6 +657,75 @@ export function HistoryPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* 分页控制 */}
+            {entries.length > 0 && (
+              <div className="bg-gray-800 px-4 py-3 border-t border-gray-700 flex items-center justify-between sm:px-6">
+                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">
+                      显示 <span className="font-medium">{indexOfFirstItem + 1}</span> 到 <span className="font-medium">{Math.min(indexOfLastItem, entries.length)}</span> 条，共 <span className="font-medium">{entries.length}</span> 条
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={() => handlePageChange(1)}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center px-2 py-1 rounded-l-md border border-gray-600 bg-gray-700 text-xs font-medium text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                       ⏮️ 首页
+                      </button>
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center px-2 py-1 border border-gray-600 bg-gray-700 text-xs font-medium text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ◀️ 上一页
+                      </button>
+                      <span className="relative inline-flex items-center px-3 py-1 border border-gray-600 bg-gray-800 text-xs font-medium text-gray-300">
+                        {currentPage} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center px-2 py-1 border border-gray-600 bg-gray-700 text-xs font-medium text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        下一页 ▶️
+                      </button>
+                      <button
+                        onClick={() => handlePageChange(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center px-2 py-1 rounded-r-md border border-gray-600 bg-gray-700 text-xs font-medium text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        末页 ⏭️
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+                 {/* 移动端 */}
+                 <div className="flex items-center justify-between sm:hidden w-full">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center px-2 py-1 rounded border border-gray-600 bg-gray-700 text-xs font-medium text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                    >
+                        ◀️
+                    </button>
+                    <span className="text-xs text-gray-300">
+                        {currentPage} / {totalPages}
+                    </span>
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center px-2 py-1 rounded border border-gray-600 bg-gray-700 text-xs font-medium text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                    >
+                        ▶️
+                    </button>
+                 </div>
+              </div>
+            )}
+            
           </div>
         )}
 

@@ -1,0 +1,26 @@
+from database_models import SessionLocal, Match
+import sys
+
+try:
+    session = SessionLocal()
+    print("Database connection opened.")
+    
+    # Check match count
+    count = session.query(Match).count()
+    print(f"Total matches in DB: {count}")
+    
+    # Check for live matches
+    live_statuses = ['LIVE', '1H', '2H', 'HT', 'ET', 'BT', 'P', 'INT']
+    live_matches = session.query(Match).filter(Match.status.in_(live_statuses)).all()
+    print(f"Live matches found: {len(live_matches)}")
+    
+    for match in live_matches:
+        print(f"ID: {match.id}, {match.home_team} vs {match.away_team}, Status: {match.status}")
+        # Access properties accessed in api_server.py
+        h = match.live_home_win_prob
+        print(f"  Home Prob: {h}")
+
+    session.close()
+    print("Database connection closed.")
+except Exception as e:
+    print(f"Error accessing DB: {e}")

@@ -48,11 +48,15 @@ const CONFIG = {
   MOMENTUM_SMOOTHING: 0.3,
   DEFAULT_HOME_XG: 1.45,
   DEFAULT_AWAY_XG: 1.15,
-  RED_CARD_LAMBDA_FACTOR: 0.65,  // 红牌对预期进球的直接削减系数 (少一人约降低35%攻击力)
-  NON_LINEAR_TIME_BOOST: 1.1,    // 比赛末段进球概率提升系数
+  // [v2.7] 调整红牌衰减系数：少一人降低 45% 攻击力 (0.55)
+  RED_CARD_LAMBDA_FACTOR: 0.55,  
+  NON_LINEAR_TIME_BOOST: 1.1,    
   VALUE_THRESHOLD: 0.05,
   MIN_ODDS: 1.10,
   MAX_ODDS: 20.0,
+  // 过滤器配置
+  FILTER_MIN_ODDS: 1.50,
+  FILTER_MAX_ODDS: 4.00,
 };
 
 // 兼容旧版本的常量引用
@@ -125,6 +129,8 @@ export interface TradingSignal {
   marketOdds: number;
   edge: number;
   confidence: number;
+  reason?: string;
+  kellyStake?: number;
 }
 
 // =============================================================================
@@ -362,29 +368,89 @@ export class LiveProbability {
     homeLambda *= homeMomentum;
     awayLambda *= awayMomentum;
 
-    // 3. [v2.1] 结构性红牌修正 (Permanent Damage)
-    if ((stats.homeRedCards || 0) > 0) {
-      // 每张红牌指数级衰减
-      homeLambda *= Math.pow(CONFIG.RED_CARD_LAMBDA_FACTOR, stats.homeRedCards || 1);
-    }
-    if ((stats.awayRedCards || 0) > 0) {
-      awayLambda *= Math.pow(CONFIG.RED_CARD_LAMBDA_FACTOR, stats.awayRedCards || 1);
-    }
-
-    // 4. [v2.1] 比分战术修正 (Game State) - 任何领先/落后都调整
-    const scoreDiff = stats.homeScore - stats.awayScore;
-    if (scoreDiff > 0) {
-      // 主队领先：主队偏防守(XG降)，客队偏进攻(XG升)
-      homeLambda *= 0.85;
-      awayLambda *= 1.15;
-    } else if (scoreDiff < 0) {
-      homeLambda *= 1.15;
-      awayLambda *= 0.85;
-    }
+    // 3. [v2.7] 心理修正系数 (Psychological Adjustment Factor)
+    // 替代并统一了原有的：红牌修正、Desperation Mode、Parking Bus 等零散逻辑
+    const [finalHomeLambda, finalAwayLambda] = this.applyPsychologicalFactor(homeLambda, awayLambda, stats);
 
     return [
-      Math.max(0.001, homeLambda),
-      Math.max(0.001, awayLambda)
+      Math.max(0.001, finalHomeLambda),
+      Math.max(0.001, finalAwayLambda)
+    ];
+  }
+
+  /**
+   * [v2.7] 心理修正系数 (Psychological Adjustment Factor)
+   * 模拟 "领先者保守" vs "落后者拼命" 的动态心态，以及红牌的双向影响
+   */
+  private applyPsychologicalFactor(
+    homeLambda: number, 
+    awayLambda: number, 
+    stats: MatchStats
+  ): [number, number] {
+    const minute = stats.minute;
+    // 时间压力因子：0 -> 0.0, 90 -> 1.0 (修正力度随时间增强)
+    const timeFactor = Math.min(minute / 90.0, 1.0);
+    
+    let hMultiplier = 1.0;
+    let aMultiplier = 1.0;
+    
+    const scoreDiff = stats.homeScore - stats.awayScore;
+    
+    // --- A. 比分情境修正 ---
+    if (scoreDiff === 0) {
+        // [平局]
+        if (minute > 80) {
+            // 比赛末段平局 -> 趋向保守 (降 15%)
+            const cautionFactor = 0.15 * timeFactor;
+            hMultiplier -= cautionFactor;
+            aMultiplier -= cautionFactor;
+        } else {
+            // 早期平局 -> 正常进攻 (略微提升 5%)
+            hMultiplier += 0.05;
+            aMultiplier += 0.05;
+        }
+    } else if (scoreDiff > 0) {
+        // [主队领先]
+        if (scoreDiff === 1) {
+            // 1球差距：主队苟 (Max -35%)，客队拼 (Max +40%)
+            hMultiplier -= (0.35 * timeFactor);
+            aMultiplier += (0.40 * timeFactor);
+        } else {
+            // 2球+：垃圾时间，双方均懈怠
+            hMultiplier -= 0.2;
+            aMultiplier -= 0.1;
+        }
+    } else {
+        // [客队领先]
+        const absDiff = Math.abs(scoreDiff);
+        if (absDiff === 1) {
+            // 1球差距：客队苟 (Max -35%)，主队拼 (Max +45% 主场加成)
+            aMultiplier -= (0.35 * timeFactor);
+            hMultiplier += (0.45 * timeFactor); 
+        } else {
+            // 2球+
+            aMultiplier -= 0.2;
+            hMultiplier -= 0.1;
+        }
+    }
+
+    // --- B. 红牌修正 (双向) ---
+    const homeRed = stats.homeRedCards || 0;
+    const awayRed = stats.awayRedCards || 0;
+    
+    if (homeRed > 0) {
+        hMultiplier *= Math.pow(0.6, homeRed); // 少一人大损
+        aMultiplier *= Math.pow(1.2, homeRed); // 对手获利
+    }
+    if (awayRed > 0) {
+        aMultiplier *= Math.pow(0.6, awayRed);
+        hMultiplier *= Math.pow(1.2, awayRed);
+    }
+
+    // --- C. 应用并防止负值 ---
+    return [
+       homeLambda * Math.max(hMultiplier, 0.1), // 至少保留10%攻击力
+       awayLambda * Math.max(aMultiplier, 0.1)
     ];
   }
 
@@ -675,6 +741,15 @@ export interface LiveAsianHandicap {
   suspended?: boolean;
 }
 
+// 实时大小球盘口数据接口
+export interface LiveOverUnder {
+  line: number;      // 盘口线: 0.5, 1.5, 2.5...
+  over: number;      // 大球赔率
+  under: number;     // 小球赔率
+  main?: boolean;    // 是否主盘
+  suspended?: boolean;
+}
+
 // 让球盘推荐接口
 export interface HandicapRecommendation {
   recommendedLine: string;         // 实时主盘口（如 "-1", "+0.5"）
@@ -683,6 +758,7 @@ export interface HandicapRecommendation {
   edgeValue: number;               // 优势值
   winProbability: number;          // 赢盘概率
   confidence: number;              // 置信度
+  kellyStake?: number;             // 凯利资金管理建议 (0-5%)
   reason: string;                  // 推荐理由
   marketOdds: number;              // 推荐方向的市场赔率
   fairOdds: number;                // AI 计算的公平赔率
@@ -701,12 +777,46 @@ export interface GoalBettingTips {
     probability: number;
     confidence: number;
     description: string;
+    kellyStake?: number;
   } | null;
 }
 
 export class GoalPredictor {
   private liveProbability: LiveProbability;
   private maxGoals: number;
+
+  /**
+   * 计算凯利公式投注比例
+   * @param probability 真实胜率 (0-1)
+   * @param marketOdds 市场赔率 (Decimal Odds)
+   * @returns 推荐投注比例 (0-5, 单位%)
+   */
+  private calculateKellyStake(probability: number, marketOdds: number): number {
+    if (probability <= 0 || marketOdds <= 1) return 0;
+    
+    // b = 赔率 - 1 (净赔率)
+    const b = marketOdds - 1;
+    const p = probability;
+    const q = 1 - p;
+    
+    // 基础凯利公式 f = (bp - q) / b
+    const f = (b * p - q) / b;
+    
+    // 如果没有优势，f 会小于等于 0
+    if (f <= 0) return 0;
+    
+    // 保守凯利：只投满仓的 30%
+    const conservative = f * 0.3;
+    
+    // 最大单注限制：5%
+    const maxStake = 0.05;
+    
+    // 取最小值
+    let stake = Math.min(conservative, maxStake);
+    
+    // 转换为百分比数值 (例如 0.025 -> 2.50)
+    return Math.round(stake * 10000) / 100;
+  }
 
   /**
    * [v2.1.1] 修改构造函数，接收注入的 LiveProbability 实例
@@ -719,8 +829,9 @@ export class GoalPredictor {
 
   /**
    * 计算大小球概率
+   * [v2.5] 支持实时赔率输入，计算 EV
    */
-  calculateOverUnder(stats: MatchStats, line: number): GoalPrediction {
+  calculateOverUnder(stats: MatchStats, line: number, marketOdds?: { over: number; under: number }): GoalPrediction {
     const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
     const probMatrix = this.liveProbability.calculateScoreProbabilities(homeLambda, awayLambda);
     
@@ -751,16 +862,44 @@ export class GoalPredictor {
       underProb /= total;
     }
     
-    // 计算赔率
+    // 计算赔率 (这是 AI 认为的公平赔率，Fair Odds)
     const overOdds = overProb > 0 ? Math.min(MAX_ODDS, Math.max(MIN_ODDS, 1 / overProb)) : MAX_ODDS;
     const underOdds = underProb > 0 ? Math.min(MAX_ODDS, Math.max(MIN_ODDS, 1 / underProb)) : MAX_ODDS;
     
     // 确定推荐
     let recommendation: 'OVER' | 'UNDER' | 'NEUTRAL' = 'NEUTRAL';
     const probDiff = Math.abs(overProb - underProb);
-    if (probDiff > 0.15) {
-      recommendation = overProb > underProb ? 'OVER' : 'UNDER';
+    
+    // [v2.4] 优化：引入 EV 概念与赔率盲区过滤
+    // 1. 如果有市场赔率，优先使用 EV (期望值) 过滤
+    // 2. 如果没有市场赔率，使用概率盲区过滤 (57.5% - 85%)
+
+    const MIN_PROB_THRESHOLD = 0.575; // 对应 diff > 15%
+    const MAX_PROB_THRESHOLD = 0.85;  // 胜率盲区上限 (防止赔率过低)
+    const MIN_EV = 0.05;              // 最小 EV 5%
+
+    if (marketOdds) {
+      // 🟢 策略 A: 基于 EV 的推荐 (更精准)
+      const evOver = overProb * marketOdds.over - 1;
+      const evUnder = underProb * marketOdds.under - 1;
+
+      if (evOver > MIN_EV && overProb > 0.55) {
+        recommendation = 'OVER';
+      } else if (evUnder > MIN_EV && underProb > 0.55) {
+        recommendation = 'UNDER';
+      }
+    } else {
+      // 🟡 策略 B: 基于概率区间的盲推 (无赔率时的保护)
+      if (overProb > MIN_PROB_THRESHOLD && overProb <= MAX_PROB_THRESHOLD) {
+          recommendation = 'OVER';
+      } else if (underProb > MIN_PROB_THRESHOLD && underProb <= MAX_PROB_THRESHOLD) {
+          recommendation = 'UNDER';
+      }
     }
+    
+    // [v2.4] EV (Expected Value) 备注：
+    // 理想情况下应为：if (prob * marketOdds - 1 > 0.05) ...
+    // 但由于缺乏实时市场 O/U 赔率，我们使用 MaxProb 85% 作为启发式过滤器
     
     // 计算置信度
     const confidence = 0.5 + probDiff * 0.5;
@@ -814,10 +953,21 @@ export class GoalPredictor {
     // 确定推荐
     let recommendation: 'HOME' | 'AWAY' | 'NO_GOAL' | 'NEUTRAL' = 'NEUTRAL';
     const maxProb = Math.max(homeProb, awayProb, noGoalProb);
-    if (maxProb > 0.45) {
-      if (homeProb === maxProb) recommendation = 'HOME';
-      else if (awayProb === maxProb) recommendation = 'AWAY';
-      else recommendation = 'NO_GOAL';
+    
+    // [v2.5.1] 优化下一球推荐逻辑：防止忽视 "No Goal" 的风险
+    // 逻辑：必须显著高于对手，且高于 "不进球" 的概率
+    
+    // 1. 检查主队进下球
+    if (homeProb > 0.45 && homeProb > awayProb * 1.5 && homeProb > noGoalProb) {
+      recommendation = 'HOME';
+    } 
+    // 2. 检查客队进下球
+    else if (awayProb > 0.45 && awayProb > homeProb * 1.5 && awayProb > noGoalProb) {
+      recommendation = 'AWAY';
+    }
+    // 3. 检查不进球 (需要更高的置信度，因为很难预测)
+    else if (noGoalProb > 0.60) {
+      recommendation = 'NO_GOAL';
     }
     
     // 预计下一球时间
@@ -839,14 +989,21 @@ export class GoalPredictor {
    * 生成完整的进球投注建议
    * @param stats 比赛统计数据
    * @param liveAsianHandicap 实时亚洲盘口数据（可选）
+   * @param liveOverUnder 实时大小球盘口数据（可选）[v2.5]
    */
-  generateGoalBettingTips(stats: MatchStats, liveAsianHandicap?: LiveAsianHandicap[]): GoalBettingTips {
+  generateGoalBettingTips(stats: MatchStats, liveAsianHandicap?: LiveAsianHandicap[], liveOverUnder?: LiveOverUnder[]): GoalBettingTips {
     const [homeLambda, awayLambda] = this.liveProbability.calculateCurrentLambda(stats);
     const currentGoals = stats.homeScore + stats.awayScore;
     
     // 计算各个大小球盘口
     const lines = [0.5, 1.5, 2.5, 3.5, 4.5];
-    const overUnder = lines.map(line => this.calculateOverUnder(stats, line));
+    
+    const overUnder = lines.map(line => {
+      // [v2.5] 查找对应的实时赔率，传入 calculateOverUnder 进行 EV 计算
+      const marketOddsData = liveOverUnder?.find(ou => Math.abs(ou.line - line) < 0.1);
+      const marketOdds = marketOddsData ? { over: marketOddsData.over, under: marketOddsData.under } : undefined;
+      return this.calculateOverUnder(stats, line, marketOdds);
+    });
     
     // 计算下一球预测
     const nextGoal = this.calculateNextGoal(stats);
@@ -861,6 +1018,16 @@ export class GoalPredictor {
     
     // 检查大小球推荐
     for (const ou of overUnder) {
+      // 🟢 [v2.9.1] 严格过滤：只推荐实时主盘口 (Main Level)
+      // 用户要求：必须跟实时主盘口一致才推荐
+      if (liveOverUnder && liveOverUnder.length > 0) {
+        const marketLine = liveOverUnder.find(lo => Math.abs(lo.line - ou.line) < 0.1);
+        // 如果找不到对应盘口，或该盘口不是主盘口，直接排除
+        if (!marketLine || !marketLine.main) {
+          continue;
+        }
+      }
+
       // 🟢 跳过已经确定的盘口（当前进球数已经超过盘口线）
       if (currentGoals > ou.line) {
         continue; // 这个盘口已经确定为大球，不需要推荐
@@ -883,6 +1050,7 @@ export class GoalPredictor {
             description: ou.recommendation === 'OVER' 
               ? `大${ou.line}球 (概率 ${(prob * 100).toFixed(1)}%)`
               : `小${ou.line}球 (概率 ${(prob * 100).toFixed(1)}%)`,
+            kellyStake: this.calculateKellyStake(prob, ou.recommendation === 'OVER' ? ou.overOdds : ou.underOdds),
           };
         }
       }
@@ -1025,6 +1193,7 @@ export class GoalPredictor {
           marketOdds: mainHandicap.home,
           fairOdds: Math.round(homeFairOdds * 100) / 100,
           valueEdge: Math.round(homeValueEdge * 10000) / 10000,
+          kellyStake: this.calculateKellyStake(homeWinProb, mainHandicap.home),
         };
       }
     }
@@ -1051,6 +1220,7 @@ export class GoalPredictor {
           marketOdds: mainHandicap.away,
           fairOdds: Math.round(awayFairOdds * 100) / 100,
           valueEdge: Math.round(awayValueEdge * 10000) / 10000,
+          kellyStake: this.calculateKellyStake(awayWinProb, mainHandicap.away),
         };
       }
     }
@@ -1324,6 +1494,39 @@ export class TradingSignalGenerator {
   }
 
   /**
+   * 计算凯利公式投注比例
+   * @param probability 真实胜率 (0-1)
+   * @param marketOdds 市场赔率 (Decimal Odds)
+   * @returns 推荐投注比例 (0-5, 单位%)
+   */
+  private calculateKellyStake(probability: number, marketOdds: number): number {
+    if (probability <= 0 || marketOdds <= 1) return 0;
+    
+    // b = 赔率 - 1 (净赔率)
+    const b = marketOdds - 1;
+    const p = probability;
+    const q = 1 - p;
+    
+    // 基础凯利公式 f = (bp - q) / b
+    const f = (b * p - q) / b;
+    
+    // 如果没有优势，f 会小于等于 0
+    if (f <= 0) return 0;
+    
+    // 保守凯利：只投满仓的 30%
+    const conservative = f * 0.3;
+    
+    // 最大单注限制：5%
+    const maxStake = 0.05;
+    
+    // 取最小值
+    let stake = Math.min(conservative, maxStake);
+    
+    // 转换为百分比数值 (例如 0.025 -> 2.50)
+    return Math.round(stake * 10000) / 100;
+  }
+
+  /**
    * 计算价值空间
    */
   calculateEdge(fairOdds: number, marketOdds: number): number {
@@ -1332,11 +1535,53 @@ export class TradingSignalGenerator {
   }
 
   /**
+   * [v2.8] 赔率异动监控 (Market Steam/Drift Filter)
+   * 检查 AI 推荐是否与市场资金流向背离 (Smart Money Check)
+   */
+  checkMarketTrend(
+    selection: 'HOME' | 'AWAY' | 'DRAW',
+    currentOdds: number,
+    openingOdds?: number
+  ): { isSafe: boolean; note: string; steamMove: boolean } {
+    if (!openingOdds || openingOdds <= 0) {
+      return { isSafe: true, note: '', steamMove: false };
+    }
+
+    // 计算赔率变化幅度
+    // 负数代表赔率下降 (资金看好)，正数代表赔率上升 (资金看衰)
+    const dropRate = (currentOdds - openingOdds) / openingOdds;
+    const DRIFT_THRESHOLD = 0.05; // 赔率上升 5% 视为阻力
+    const STEAM_THRESHOLD = -0.10; // 赔率下降 10% 视为阻击
+
+    // 1. 诱盘/散户盘 (Drift): 赔率显著上升 -> 风险信号
+    if (dropRate > DRIFT_THRESHOLD) {
+      // 如果 AI 推荐此项，但赔率在升，说明这是逆势操作
+      return { 
+          isSafe: false, 
+          note: `Market Drift (+${(dropRate*100).toFixed(1)}%) - Smart Money Exiting`,
+          steamMove: false
+      };
+    }
+
+    // 2. 阻击盘 (Steam Move): 赔率显著下降 -> 确认信号
+    if (dropRate < STEAM_THRESHOLD) {
+       return { 
+           isSafe: true, 
+           note: `Steam Move (${(dropRate*100).toFixed(1)}%) - Smart Money Inflow`,
+           steamMove: true
+       };
+    }
+
+    return { isSafe: true, note: '', steamMove: false };
+  }
+
+  /**
    * 生成 1X2 信号
    */
   generate1X2Signals(
     stats: MatchStats,
-    marketOdds: { home: number; draw: number; away: number }
+    marketOdds: { home: number; draw: number; away: number },
+    openingOdds?: { home: number; draw: number; away: number } // [v2.8] 新增初盘赔率参数
   ): TradingSignal[] {
     const prediction = this.liveProbability.predict(stats);
     const signals: TradingSignal[] = [];
@@ -1355,17 +1600,93 @@ export class TradingSignalGenerator {
 
     for (const { name, key } of selections) {
       const edge = this.calculateEdge(fairOdds[key], marketOdds[key]);
+      const currentOdds = marketOdds[key];
+      const initialOdds = openingOdds ? openingOdds[key] : undefined;
 
       let signalType: 'VALUE_BET' | 'NO_VALUE' | 'AVOID';
-      if (edge >= this.valueThreshold) {
-        signalType = 'VALUE_BET';
-      } else if (edge < -0.1) {
-        signalType = 'AVOID';
-      } else {
+      let note = '';
+
+      // [v2.7] 过滤器层 (Filter Layer)
+      // 硬性过滤：赔率范围 & 红牌风险
+      const isRedCardMatch = (stats.homeRedCards || 0) > 0 || (stats.awayRedCards || 0) > 0;
+      const isOddsOutOfRange = currentOdds < CONFIG.FILTER_MIN_ODDS || currentOdds > CONFIG.FILTER_MAX_ODDS;
+      
+      // [v2.7] 动量背离检测 (Momentum Divergence)
+      // 寻找 "比分落后但动量碾压" 的情况
+      const scoreDiff = stats.homeScore - stats.awayScore;
+      const momentumDiff = prediction.homeMomentum - prediction.awayMomentum; 
+      const MOMENTUM_DIV = 0.6; // 背离阈值
+
+      let divergenceStatus = 'neutral'; 
+      if (scoreDiff < 0 && momentumDiff > MOMENTUM_DIV) divergenceStatus = 'home_fighting_back'; // 主队落后但压制
+      if (scoreDiff > 0 && momentumDiff < -MOMENTUM_DIV) divergenceStatus = 'away_fighting_back'; // 客队落后但压制
+
+      // [v2.8] 市场异动检测 (Market Trend)
+      // 如果初盘数据存在，进行趋势验证
+      const trendAnalysis = this.checkMarketTrend(
+          name as 'HOME' | 'AWAY' | 'DRAW', 
+          currentOdds, 
+          initialOdds
+      );
+
+      // 信号判定逻辑
+      const oneXTwoThreshold = 0.08; 
+
+      if (isOddsOutOfRange) {
         signalType = 'NO_VALUE';
+        note = 'Odds out of filter range';
+      } else if (isRedCardMatch && stats.minute < 85) {
+        if (edge > 0.15) {
+            signalType = 'VALUE_BET';
+            note = 'Red Card Risk (High Edge)';
+        } else {
+            signalType = 'AVOID';
+            note = 'Red Card Freeze';
+        }
+      } else {
+        // 正常逻辑
+        if (edge >= oneXTwoThreshold) {
+            signalType = 'VALUE_BET';
+            
+            // 市场趋势验证
+            if (!trendAnalysis.isSafe) {
+                signalType = 'AVOID'; // 逆势操作，被市场否决
+                note = trendAnalysis.note;
+            } else if (trendAnalysis.steamMove) {
+                note = trendAnalysis.note; // 顺势操作，添加标记
+            }
+
+            // 动量背离验证：如果推荐方向与动量背离方向一致，加注
+            if (key === 'home' && divergenceStatus === 'home_fighting_back') note = note ? `${note} | Mom Div (Buy)` : 'Momentum Divergence (Strong Buy)';
+            if (key === 'away' && divergenceStatus === 'away_fighting_back') note = note ? `${note} | Mom Div (Buy)` : 'Momentum Divergence (Strong Buy)';
+            
+            // 反向验证：如果推荐主胜，但客队正在疯狂反扑 -> 撤销信号
+            if (key === 'home' && divergenceStatus === 'away_fighting_back') {
+                signalType = 'AVOID';
+                note = 'Momentum Mismatch';
+            }
+            if (key === 'away' && divergenceStatus === 'home_fighting_back') {
+                signalType = 'AVOID';
+                note = 'Momentum Mismatch';
+            }
+
+        } else if (edge < -0.1) {
+            signalType = 'AVOID';
+        } else {
+            signalType = 'NO_VALUE';
+        }
       }
 
-      signals.push({
+      // 计算 Kelly Stake (仅当 VALUE_BET 时)
+      let kellyStake: number | undefined;
+      if (signalType === 'VALUE_BET') {
+        const prob = key === 'home' ? prediction.homeWinProb : 
+                     key === 'away' ? prediction.awayWinProb : 
+                     prediction.drawProb;
+        kellyStake = this.calculateKellyStake(prob, marketOdds[key]);
+      }
+
+      const signalData: TradingSignal = {
         signalType,
         market: '1X2',
         selection: name,
@@ -1373,7 +1694,14 @@ export class TradingSignalGenerator {
         marketOdds: marketOdds[key],
         edge: Math.round(edge * 10000) / 10000,
         confidence: prediction.confidence,
-      });
+        reason: note
+      };
+
+      if (kellyStake !== undefined) {
+        signalData.kellyStake = kellyStake;
+      }
+
+      signals.push(signalData);
     }
 
     return signals;
@@ -1384,6 +1712,7 @@ export class TradingSignalGenerator {
    */
   generateFullAnalysis(stats: MatchStats, marketData?: {
     '1x2'?: { home: number; draw: number; away: number };
+    '1x2_opening'?: { home: number; draw: number; away: number };
     asianHandicap?: Record<string, { home: number; away: number }>;
   }) {
     const prediction = this.liveProbability.predict(stats);
@@ -1413,7 +1742,7 @@ export class TradingSignalGenerator {
 
     // 如果提供了市场数据，生成交易信号
     if (marketData?.['1x2']) {
-      const signals1X2 = this.generate1X2Signals(stats, marketData['1x2']);
+      const signals1X2 = this.generate1X2Signals(stats, marketData['1x2'], marketData['1x2_opening']);
       result.signals.push(...signals1X2);
       result.valueBets.push(...signals1X2.filter((s) => s.signalType === 'VALUE_BET'));
     }

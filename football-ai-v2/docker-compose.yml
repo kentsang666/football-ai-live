@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  football-ai:
+    build: .
+    container_name: football-ai-server
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      # 挂载日志目录，保存运行日志
+      - ./logs:/app/logs
+      # 挂载数据库文件，保证数据持久化
+      - ./football_prediction_v2.db:/app/football_prediction_v2.db
+      # 挂载自动翻译字典，保存学习到的翻译
+      - ./auto_translations.json:/app/auto_translations.json
+    environment:
+      - TZ=Asia/Shanghai

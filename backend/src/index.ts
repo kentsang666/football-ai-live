@@ -11,8 +11,17 @@ import { createFootballService, FootballService } from './services/footballServi
 import { predictionService, MatchData, Prediction } from './services/predictionService';
 // 导入数据库服务
 import { databaseService, PredictionSnapshot } from './services/databaseService';
+import { getAllDynamicTranslations } from './utils/translator';
+import { TEAM_NAMES } from './data/teamNames.legacy';
+import { LEAGUE_ALIASES, LEAGUE_TRANSLATIONS, TEAM_ALIASES, TEAM_TRANSLATIONS } from './data/translationData';
+
 // 导入结算服务
 import { settlementService } from './services/settlementService';
+// 导入翻译服务
+import { initTranslator } from './utils/translator';
+
+// 初始化翻译服务
+initTranslator();
 
 // ===========================================
 // 云端部署配置
@@ -29,7 +38,7 @@ console.log('  - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 console.log('  - Using Redis URL:', REDIS_URL.replace(/\/\/.*@/, '//***@'));
 
 // 数据模式
-const DATA_MODE = process.env.DATA_MODE || 'mock';
+const DATA_MODE = 'live';//process.env.DATA_MODE || 'mock';
 
 // CORS 配置：从环境变量读取前端 URL
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -152,6 +161,26 @@ setInterval(() => {
         });
     }
 }, 60000); // 每分钟广播一次
+
+// 🟢 获取全量翻译字典 (供前端实时汉化历史记录)
+app.get('/api/translations', (req, res) => {
+    // 合并所有字典源
+    const dictionary: Record<string, string> = { ...TEAM_NAMES };
+    
+    // 1. 本地命名映射
+    Object.assign(dictionary, TEAM_ALIASES);
+    Object.assign(dictionary, LEAGUE_ALIASES);
+    
+    // 2. 动态翻译字典
+    const dynamic = getAllDynamicTranslations();
+    Object.assign(dictionary, dynamic);
+    
+    // 3. 静态翻译字典 (仅 ID 映射，这里我们能做的是尽力而为)
+    // 注意：LEAGUE_TRANSLATIONS 和 TEAM_TRANSLATIONS 是 number -> string
+    // 这里我们无法直接合并，因为前端历史记录中的 key 是名称字符串
+    
+    res.json(dictionary);
+});
 
 // Redis 客户端配置
 const getRedisConfig = (): any => {
@@ -338,6 +367,7 @@ async function startServer() {
 
         // 3. 启动 Web 服务 - 绑定到 0.0.0.0
         httpServer.listen(PORT, '0.0.0.0', () => {
+            console.log('===========================================');
             console.log(`🚀 Backend running on http://0.0.0.0:${PORT}`);
             console.log(`📡 数据模式: ${DATA_MODE.toUpperCase()}`);
             console.log(`🤖 AI 预测服务: QuantPredict-v${predictionService.getVersion()}`);
@@ -345,11 +375,11 @@ async function startServer() {
             console.log(`🌐 CORS 允许来源: ${FRONTEND_URL}`);
             console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
             
-            if (DATA_MODE === 'live') {
+            //if (DATA_MODE === 'live') {
                 startLiveDataService();
-            } else {
-                startMatchSimulation();
-            }
+           // } else {
+           //     startMatchSimulation();
+           // }
         });
 
     } catch (error) {
@@ -436,6 +466,8 @@ async function updateAllPredictions() {
             away_red_cards: (match as any).away_red_cards,
             // 🟢 传递实时亚洲盘口数据
             liveAsianHandicap: (match as any).liveOdds?.asianHandicap,
+            // 🟢 传递实时大小球盘口数据
+            liveOverUnder: (match as any).liveOdds?.overUnder,
         };
         
         const prediction = predictionService.calculatePrediction(matchData);
@@ -593,7 +625,9 @@ app.get('/api/matches/live', (req, res) => {
                     home_red_cards: match.home_red_cards,
                     away_red_cards: match.away_red_cards,
                     // 🟢 传递实时亚洲盘口数据
-                    liveAsianHandicap: match.liveOdds?.asianHandicap
+                    liveAsianHandicap: match.liveOdds?.asianHandicap,
+                    // 🟢 传递实时大小球盘口数据
+                    liveOverUnder: match.liveOdds?.overUnder
                 };
                 prediction = predictionService.calculatePrediction(matchData);
                 predictionCache.set(match.match_id, prediction);
@@ -689,7 +723,9 @@ app.get('/api/predictions/:matchId', (req, res) => {
                     home_red_cards: match.home_red_cards,
                     away_red_cards: match.away_red_cards,
                     // 🟢 传递实时亚洲盘口数据
-                    liveAsianHandicap: match.liveOdds?.asianHandicap
+                    liveAsianHandicap: match.liveOdds?.asianHandicap,
+                    // 🟢 传递实时大小球盘口数据
+                    liveOverUnder: match.liveOdds?.overUnder
                 };
                 prediction = predictionService.calculatePrediction(matchData);
                 predictionCache.set(matchId, prediction);
@@ -715,6 +751,7 @@ app.get('/api/predictions/:matchId', (req, res) => {
 });
 
 // 🟢 获取比赛历史预测记录（用于画趋势图）
+/*
 app.get('/api/predictions/:matchId/history', async (req, res) => {
     const { matchId } = req.params;
     
@@ -769,6 +806,7 @@ app.get('/api/predictions/:matchId/history', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+*/
 
 // 🟢 获取预测性能统计
 app.get('/api/stats/performance', async (req, res) => {

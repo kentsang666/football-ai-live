@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroBall AI | 足球滚球智能分析系统</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'cyber-black': '#050a14',
+                        'cyber-dark': '#0a1020',
+                        'cyber-gray': '#1c2538',
+                        'cyber-cyan': '#00f0ff',
+                        'cyber-green': '#00ff41',
+                        'neon-purple': '#b026ff',
+                        'alert-red': '#ff2a6d',
+                    },
+                    fontFamily: {
+                        'mono': ['"JetBrains Mono"', 'monospace'],
+                        'headings': ['"Rajdhani"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f1f5f9; /* Slate 100 - Bright Background */
+            color: #0f172a; /* Slate 900 - Dark Text */
+            font-family: 'Rajdhani', sans-serif;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(6, 182, 212, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 100% 0%, rgba(192, 38, 211, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85); /* White Glass */
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(203, 213, 225, 0.6); /* Slate 300 */
+            box-shadow: 0 8px 32px 0 rgba(148, 163, 184, 0.15); /* Soft Shadow */
+            position: relative;
+            overflow: hidden;
+            color: #1e293b;
+        }
+        
+        /* Scanline effect - Subtler for Light Mode */
+        .glass-panel::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.02) 51%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            opacity: 0.5;
+            z-index: 0;
+        }
+
+        .signal-card {
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            backdrop-filter: blur(8px);
+        }
+        
+        .signal-card:hover {
+            border-color: #06b6d4; /* Cyan 500 */
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.2); 
+        }
+
+        /* Adjust Neon Text for Light Background */
+        .neon-text { 
+            color: #0891b2; /* Cyan 600 */
+            text-shadow: none; 
+            font-weight: 700;
+        }
+        .neon-red { 
+            color: #dc2626; /* Red 600 */
+            text-shadow: none; 
+            font-weight: 700;
+        }
+        .neon-purple { 
+            color: #9333ea; /* Purple 600 */
+            text-shadow: none; 
+            font-weight: 700;
+        }
+        
+        /* Tech Grid Background Animation */
+        .tech-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: 
+                linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: -1;
+            perspective: 500px;
+            transform-style: preserve-3d;
+            animation: move-grid 20s linear infinite;
+        }
+        
+        @keyframes move-grid {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(40px); }
+        }
+
+        .animate-blink { animation: blink 1s steps(2, start) infinite; }
+        @keyframes blink { to { visibility: hidden; } }
+
+        /* Goal Animation */
+        @keyframes goal-slide-in {
+            0% { transform: translateY(-100%); opacity: 0; }
+            20% { transform: translateY(0); opacity: 1; }
+            80% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-100%); opacity: 0; }
+        }
+        .goal-banner {
+            position: absolute;
+            top: 20%;
+            left: 0;
+            right: 0;
+            background: rgba(0, 255, 65, 0.9);
+            color: black;
+            font-weight: 900;
+            text-align: center;
+            padding: 1rem;
+            transform: skewY(-3deg);
+            z-index: 50;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+            animation: goal-slide-in 4s ease-in-out forwards;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .goal-scanned {
+            border: 2px solid #00ff41;
+            animation: pulse-green 1s infinite;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 65, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative bg-slate-900 text-gray-200">
+    <!-- Animated Background Grid -->
+    <div class="tech-bg"></div>
+    <div class="fixed top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-transparent to-slate-900/80 pointer-events-none z-[-1]"></div>
+
+    <!-- Navbar -->
+    <header class="h-16 border-b border-white/5 glass-panel sticky top-0 z-50">
+        <div class="max-w-[1600px] mx-auto px-4 h-full flex items-center justify-between relative z-10">
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <i class="fa-solid fa-microchip text-cyber-cyan text-xl neon-text"></i>
+                    <div class="absolute -top-1 -right-1 w-2 h-2 bg-cyber-cyan rounded-full animate-ping opacity-50"></div>
+                </div>
+                <h1 class="text-2xl font-bold tracking-wider font-headings text-white">NEURO<span class="text-cyber-cyan neon-text">BALL</span> <span class="text-[10px] bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan px-1.5 py-0.5 rounded ml-1 tracking-widest font-mono">V.2.0</span></h1>
+            </div>
+            
+            <div class="flex items-center gap-6 text-sm font-mono text-gray-400">
+                <button id="sound-toggle" onclick="toggleSound()" class="flex items-center gap-2 hover:text-white transition cursor-pointer" title="Toggle Goal Alerts">
+                    <i id="sound-icon" class="fa-solid fa-volume-xmark text-gray-500"></i>
+                    <span id="sound-status" class="hidden md:inline text-xs">MUTED</span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span>SYSTEM: ONLINE</span>
+                </div>
+                <div class="flex items-center gap-2 hidden md:flex">
+                    <i class="fa-solid fa-database"></i>
+                    <span>ODDS SOURCE: API-V3</span>
+                </div>
+                <div class="text-cyber-cyan">
+                    <i class="fa-regular fa-clock mr-1"></i> <span id="clock">00:00:00</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="flex-1 max-w-[1600px] w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Sidebar (Navigation/Filter) -->
+        <aside class="hidden lg:block lg:col-span-2 space-y-4">
+            <div class="glass-panel p-4 rounded-lg">
+                <div class="text-xs font-mono text-gray-500 mb-4 uppercase tracking-widest">Dashboards</div>
+                <nav class="space-y-1">
+                    <a href="#" id="nav-live" onclick="switchMode('live'); return false;" class="block px-3 py-2 rounded bg-cyber-cyan/10 text-cyber-cyan border-l-2 border-cyber-cyan font-medium transition-all"><i class="fa-solid fa-bolt mr-2"></i>滚球监控</a>
+                    
+                    <button onclick="openLeagueModal()" class="w-full text-left px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent transition-all flex justify-between items-center group mt-1">
+                        <span><i class="fa-solid fa-filter mr-2 group-hover:text-cyber-cyan transition-colors"></i>联赛筛选</span>
+                        <span id="league-count-badge" class="text-[10px] bg-gray-800 text-gray-500 px-1.5 rounded group-hover:bg-cyber-cyan group-hover:text-black transition-colors">ALL</span>
+                    </button>
+                    <!-- Shielded Schedule Functionality -->
+                    <!-- <a href="#" id="nav-schedule" onclick="switchMode('schedule'); return false;" class="block px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent transition-all"><i class="fa-solid fa-calendar mr-2"></i>今日赛程</a> -->
+                    <!-- Shielded Historical Test Functionality -->
+                    <!-- <a href="#" class="block px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent transition-all"><i class="fa-solid fa-chart-line mr-2"></i>历史回测</a> -->
+                </nav>
+            </div>
+
+            <div class="glass-panel p-4 rounded-lg">
+                <div class="text-xs font-mono text-gray-500 mb-4 uppercase tracking-widest">Live Filters</div>
+                <div class="space-y-2">
+                    <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" checked class="form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600">
+                        <span>只看一级联赛</span>
+                    </label>
+                    <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" checked class="form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600">
+                        <span>AI信心 > 60%</span>
+                    </label>
+                    <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" class="form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600">
+                        <span>进球提醒</span>
+                    </label>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Content (Live Feed) -->
+        <main class="lg:col-span-7 space-y-6">
+            
+            <!-- Alpha Signal (Top Recommendation) -->
+            {% if hero and hero.home_team %}
+            <div class="relative rounded-xl overflow-hidden border border-cyber-cyan/30 shadow-[0_0_20px_-5px_rgba(0,240,255,0.15)] group">
+                <div class="absolute inset-0 bg-gradient-to-r from-cyber-black via-cyber-gray to-cyber-black opacity-90"></div>
+                <!-- Grid pattern overlay -->
+                <div class="absolute inset-0 grid-bg opacity-20"></div>
+                
+                <div class="relative p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/30 tracking-wider">
+                            <i class="fa-solid fa-bullseye mr-1"></i> FOCUS MATCH
+                        </span>
+                        <div class="text-right">
+                             <div class="text-3xl font-bold font-headings text-white">{{ hero.home_prob|default(0) }}<span class="text-lg text-gray-500">%</span></div>
+                             <div class="text-[10px] uppercase text-gray-500 tracking-wider">Win Probability</div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between gap-4 mb-6">
+                        <div class="flex-1 text-center">
+                            <div class="text-xl md:text-2xl font-bold text-white mb-1">{{ hero.home_team }}</div>
+                            <div class="h-1 w-12 mx-auto bg-cyber-cyan rounded-full"></div>
+                        </div>
+                        <div class="text-gray-500 font-headings text-xl italic">VS</div>
+                        <div class="flex-1 text-center">
+                            <div class="text-xl md:text-2xl font-bold text-gray-200 mb-1">{{ hero.away_team }}</div>
+                            <div class="h-1 w-8 mx-auto bg-gray-700 rounded-full"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-black/40 rounded-lg p-2 flex justify-between items-center border border-white/5 backdrop-blur-sm">
+                        <div class="text-xs md:text-sm text-gray-300">
+                            <i class="fa-solid fa-microchip mr-2 text-cyber-cyan"></i><span class="text-gray-500">STRATEGY:</span> <span class="{{ hero.highlight_color }} font-bold ml-1 tracking-wide">{{ hero.ai_prediction }}</span>
+                        </div>
+                        
+                        <!-- Data Display Area (Replaces Analyze Button) -->
+                        <div class="flex items-center gap-3 text-xs">
+                             <div class="text-right hidden md:block">
+                                <div class="text-[9px] text-gray-600 uppercase tracking-widest">EXP. GOALS (xG)</div>
+                                <div class="font-mono font-bold text-cyber-cyan text-sm">{{ hero.home_xg }} : {{ hero.away_xg }}</div>
+                             </div>
+                             <div class="w-px h-5 bg-white/10 hidden md:block"></div>
+                             <div class="text-right">
+                                <div class="text-[9px] text-gray-600 uppercase tracking-widest">CONFIDENCE</div>
+                                <div class="font-mono font-bold text-neon-purple text-sm">HIGH 85%</div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Live Matches Header -->
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+                <h2 id="main-header" class="text-lg font-bold text-white flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-alert-red animate-blink"></span>
+                    LIVE IN-PLAY <span class="text-xs text-gray-500 font-mono ml-2">(Auto-Refresh: ON)</span>
+                </h2>
+                <div class="text-xs font-mono text-gray-500">
+                    SCAN_INTERVAL: 05s
+                </div>
+            </div>
+
+            <!-- Live Matches Container -->
+            <div id="live-matches-grid" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <!-- Matches will be injected here by JS -->
+                <div class="text-center py-12 text-gray-500 font-mono text-sm border border-dashed border-gray-800 rounded col-span-full">
+                    <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Connecting to Live Feed...
+                </div>
+            </div>
+
+
+        </main>
+
+        <!-- Right Sidebar (Terminal & Logs) -->
+        <aside class="lg:col-span-3 space-y-6">
+            <!-- Terminal -->
+            <div class="glass-panel rounded-lg overflow-hidden flex flex-col h-[300px]">
+                <div class="bg-black/50 px-3 py-2 border-b border-white/5 flex items-center justify-between">
+                    <span class="text-xs font-mono text-gray-500">TERMINAL</span>
+                    <i class="fa-solid fa-terminal text-gray-600 text-xs"></i>
+                </div>
+                <div id="terminal-content" class="flex-1 p-3 font-mono text-xs overflow-y-auto space-y-1.5 text-gray-400 scrollbar-hide">
+                    <!-- Logs go here -->
+                </div>
+            </div>
+
+            <!-- Stats/Market Info -->
+            <div class="glass-panel p-4 rounded-lg">
+                <h3 class="text-sm font-bold text-white mb-3 border-l-2 border-neon-purple pl-2">MARKET TRENDS</h3>
+                <div class="space-y-3">
+                     <div class="flex justify-between items-center text-xs">
+                         <span class="text-gray-400">Home Win Vol.</span>
+                         <span class="text-cyber-cyan">High</span>
+                     </div>
+                     <div class="w-full bg-gray-800 h-1 rounded-full">
+                         <div class="bg-cyber-cyan h-1 rounded-full" style="width: 75%"></div>
+                     </div>
+                     
+                     <div class="flex justify-between items-center text-xs mt-2">
+                         <span class="text-gray-400">Over 2.5 Goals</span>
+                         <span class="text-neon-purple">Modernate</span>
+                     </div>
+                     <div class="w-full bg-gray-800 h-1 rounded-full">
+                         <div class="bg-neon-purple h-1 rounded-full" style="width: 45%"></div>
+                     </div>
+                </div>
+            </div>
+            
+        </aside>
+
+    </div>
+
+    <!-- League Filter Modal -->
+    <div id="league-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeLeagueModal()"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-cyber-cyan/30 rounded-lg shadow-[0_0_50px_rgba(0,240,255,0.1)] overflow-hidden flex flex-col max-h-[80vh] animate-fade-in-up">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <h3 class="font-bold text-white flex items-center gap-2 font-headings text-lg"><i class="fa-solid fa-list-ul text-cyber-cyan"></i> 联赛筛选</h3>
+                <button onclick="closeLeagueModal()" class="text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-2 border-b border-white/5 flex gap-2 bg-black/20">
+                <button onclick="toggleAllLeagues(true)" class="flex-1 py-1.5 text-xs font-mono font-bold bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20 border border-cyber-green/30 rounded transition-all">SELECT ALL</button>
+                <button onclick="toggleAllLeagues(false)" class="flex-1 py-1.5 text-xs font-mono font-bold bg-alert-red/10 text-alert-red hover:bg-alert-red/20 border border-alert-red/30 rounded transition-all">DESELECT ALL</button>
+            </div>
+
+            <div id="league-list-container" class="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                <!-- Checkboxes injected here -->
+            </div>
+
+            <div class="p-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+                <button onclick="closeLeagueModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                <button onclick="applyLeagueFilter()" class="px-6 py-2 text-sm font-bold bg-cyber-cyan text-black rounded hover:bg-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all transform hover:scale-105">APPLY FILTER</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Script -->
+    <script>
+        // Clock
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('en-GB');
+        }, 1000);
+
+        // --- League Filter Logic ---
+        let allAvailableLeagues = new Set();
+        let blockedLeagues = new Set(); // Track backend-blocked leagues
+        let isFilterActive = false;
+        
+        function openLeagueModal() {
+            renderLeagueList();
+            document.getElementById('league-modal').classList.remove('hidden');
+            // 每次打开时强制刷新一次数据，确保列表最新
+            fetchLiveMatches(true);
+        }
+
+        function closeLeagueModal() {
+            document.getElementById('league-modal').classList.add('hidden');
+        }
+
+        function renderLeagueList() {
+            const container = document.getElementById('league-list-container');
+            container.innerHTML = '';
+            
+            if (allAvailableLeagues.size === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-4 text-sm font-mono"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Waiting for live data...</div>';
+                return;
+            }
+
+            const sortedLeagues = Array.from(allAvailableLeagues).sort();
+            
+            sortedLeagues.forEach(league => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center space-x-3 p-2 rounded hover:bg-white/5 cursor-pointer transition-colors';
+                
+                // If the league is NOT in blockedLeagues, it is checked.
+                const isChecked = !blockedLeagues.has(league);
+                
+                label.innerHTML = `
+                    <input type="checkbox" value="${league}" ${isChecked ? 'checked' : ''} class="league-checkbox form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600 focus:ring-0 focus:ring-offset-0 w-4 h-4">
+                    <span class="text-sm text-gray-300 font-mono truncate">${league}</span>
+                `;
+                container.appendChild(label);
+            });
+        }
+
+        function toggleAllLeagues(select) {
+            const checkboxes = document.querySelectorAll('.league-checkbox');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        async function applyLeagueFilter() {
+            const checkboxes = document.querySelectorAll('.league-checkbox');
+            blockedLeagues.clear();
+            
+            const blockedList = [];
+
+            checkboxes.forEach(cb => {
+                if (!cb.checked) {
+                    blockedLeagues.add(cb.value);
+                    blockedList.push(cb.value);
+                }
+            });
+
+            // Send blocked list to backend
+            try {
+                await fetch('/api/set-league-filter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ blocked: blockedList })
+                });
+            } catch (e) {
+                console.error("Failed to sync filter with backend", e);
+            }
+
+            // Update UI State
+            if (blockedLeagues.size === 0) {
+                 isFilterActive = false;
+                 updateFilterBadge('ALL');
+            } else {
+                 isFilterActive = true;
+                 // Assuming allAvailableLeagues is accurate
+                 let activeCount = allAvailableLeagues.size - blockedLeagues.size;
+                 updateFilterBadge(activeCount > 0 ? activeCount : '0'); 
+            }
+
+            closeLeagueModal();
+            fetchLiveMatches(true);
+        }
+        
+        function updateFilterBadge(text) {
+             const badge = document.getElementById('league-count-badge');
+             badge.innerText = text;
+             if (text === 'ALL') {
+                 badge.className = "text-[10px] bg-gray-800 text-gray-500 px-1.5 rounded group-hover:bg-cyber-cyan group-hover:text-black transition-colors";
+             } else {
+                 badge.className = "text-[10px] bg-cyber-cyan text-black px-1.5 rounded font-bold shadow-[0_0_10px_rgba(0,240,255,0.5)]";
+             }
+        }
+
+        // --- Sound Logic ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = false;
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('sound-toggle');
+            const icon = document.getElementById('sound-icon');
+            const status = document.getElementById('sound-status');
+            
+            if (soundEnabled) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                icon.className = "fa-solid fa-volume-high text-cyber-cyan";
+                status.innerText = "SOUND ON";
+                status.className = "hidden md:inline text-xs text-cyber-cyan";
+                // Test sound
+                playGoalSound(true);
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-gray-500";
+                status.innerText = "MUTED";
+                status.className = "hidden md:inline text-xs";
+            }
+        }
+
+        function playGoalSound(isTest = false) {
+            if (!soundEnabled) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            // Goal Alert Sound Effect (Siren-like)
+            osc.type = 'sawtooth';
+            
+            const now = audioCtx.currentTime;
+            
+            if (isTest) {
+                // Short blip
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.exponentialRampToValueAtTime(440, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else {
+                // Full Goal Siren
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.2);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.4);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.6);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.2, now + 0.6);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+                
+                osc.start(now);
+                osc.stop(now + 1.0);
+            }
+        }
+
+        // Terminal Logs (自动拉取后端算法日志)
+        const terminal = document.getElementById('terminal-content');
+
+        function renderAlgoLogs(logArr) {
+            terminal.innerHTML = '';
+            logArr.forEach(line => {
+                const div = document.createElement('div');
+                div.className = 'text-gray-400 break-all';
+                div.innerText = line;
+                terminal.appendChild(div);
+            });
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function fetchAlgoLogs() {
+            try {
+                const res = await fetch('/api/logs');
+                const data = await res.json();
+                if (data.logs) renderAlgoLogs(data.logs);
+            } catch (e) {
+                // 可选：显示错误
+            }
+        }
+
+        // 首次拉取
+        fetchAlgoLogs();
+        // 每3秒自动刷新
+        setInterval(fetchAlgoLogs, 3000);
+
+        function addLogLine(text, color = 'text-gray-400') {
+            const div = document.createElement('div');
+            const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            div.className = `${color} break-all`;
+            div.innerHTML = `<span class="text-gray-600 mr-2">[${time}]</span>${text}`;
+            terminal.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+            
+             if (terminal.children.length > 50) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        // --- Live Matches Logic ---
+        let lastScores = {}; // Store previous scores to detect changes
+        let currentMode = 'live'; // 'live' or 'schedule'
+        
+        // Remove setInterval variables since we run them continuously
+        // let scheduleInterval = null;
+        // let liveInterval = null;
+
+        function switchMode(mode) {
+             // Forcing Live Mode Always - other modes disabled
+             mode = 'live';
+             currentMode = mode;
+             
+             /* 
+             // Disabled Mode Switching UI logic
+            const grid = document.getElementById('live-matches-grid');
+            const header = document.getElementById('main-header');
+            const btnLive = document.getElementById('nav-live');
+            const btnSchedule = document.getElementById('nav-schedule');
+            
+            // UI Toggle
+            if (mode === 'live') {
+                btnLive.classList.add('bg-cyber-cyan/10', 'text-cyber-cyan', 'border-cyber-cyan');
+                btnLive.classList.remove('text-gray-400', 'border-transparent');
+                
+                if (btnSchedule) {
+                    btnSchedule.classList.remove('bg-cyber-cyan/10', 'text-cyber-cyan', 'border-cyber-cyan');
+                    btnSchedule.classList.add('text-gray-400', 'border-transparent');
+                }
+                
+                header.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-alert-red animate-blink"></span>
+                    LIVE IN-PLAY <span class="text-xs text-gray-500 font-mono ml-2">(Auto-Refresh: ON)</span>
+                `;
+                
+                // Immediate render call
+                grid.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500"><i class="fa-solid fa-circle-notch fa-spin"></i> Switching to Live Feed...</div>';
+                fetchLiveMatches(true);
+
+            } else {
+                 // ... Schedule logic hidden ...
+            }
+            */
+            
+            // Simplified Live Mode Enforcement
+            const header = document.getElementById('main-header');
+            const grid = document.getElementById('live-matches-grid');
+            
+            header.innerHTML = `
+                <span class="w-2 h-2 rounded-full bg-alert-red animate-blink"></span>
+                LIVE IN-PLAY <span class="text-xs text-gray-500 font-mono ml-2">(Auto-Refresh: ON)</span>
+            `;
+            
+            // Trigger fetch immediately
+            fetchLiveMatches(true);
+        }
+
+        async function fetchScheduledMatches(forceRender = false) {
+             // Function Disabled: User requested to block today's schedule functionality
+             return; 
+        }
+
+        async function fetchLiveMatches(forceRender = false) {
+            try {
+                const response = await fetch('/api/live');
+                const data = await response.json();
+                
+                // Determine if we should render to DOM
+                const shouldRender = (currentMode === 'live' || forceRender);
+                const grid = document.getElementById('live-matches-grid');
+                
+                if (shouldRender) {
+                    // Only clear if we are going to populate it
+                    grid.innerHTML = ''; 
+                }
+
+                if (data.count > 0 || (data.leagues && data.leagues.length > 0)) {
+                    // 1. 优先使用后端返回的全量联赛列表（包含被屏蔽的）
+                    if (data.leagues && data.leagues.length > 0) {
+                        allAvailableLeagues = new Set(data.leagues);
+                    }
+                    
+                    // 2. 双重保障：如果上述为空（异常情况）或者为了确保可见比赛的联赛一定在列表中
+                    // 将当前所有 match.league 也加入集合
+                    if (data.matches && data.matches.length > 0) {
+                        data.matches.forEach(m => {
+                            if (m.league) allAvailableLeagues.add(m.league);
+                        });
+                    }
+
+                    // Sync Blocked Leagues from backend if needed (optional, or rely on local)
+                    if (data.blocked_leagues) {
+                         blockedLeagues = new Set(data.blocked_leagues);
+                         
+                         // Update Badge Init
+                         if (blockedLeagues.size > 0 && allAvailableLeagues.size > 0) {
+                             isFilterActive = true;
+                             let activeCount = allAvailableLeagues.size - blockedLeagues.size;
+                             updateFilterBadge(activeCount > 0 ? activeCount : '0');
+                         } else {
+                             isFilterActive = false;
+                             updateFilterBadge('ALL');
+                         }
+                    }
+
+                    // Dynamically refresh league list if modal is open AND list is seemingly empty (waiting state)
+                    // If the list is already populated, DO NOT re-render to avoid overwriting user's temporary checkbox states
+                    const modal = document.getElementById('league-modal');
+                    const listContainer = document.getElementById('league-list-container');
+                    
+                    if (modal && !modal.classList.contains('hidden')) {
+                        const isEmptyOrWaiting = listContainer.children.length === 0 || listContainer.innerText.includes('Waiting');
+                        if (isEmptyOrWaiting) {
+                            renderLeagueList();
+                        }
+                    }
+
+                    data.matches.forEach(match => {
+                        // Apply League Filter (Front-end double check, though backend filters it too)
+                        if (blockedLeagues.has(match.league)) return;
+
+                        const h_prob = match.ai_analysis.home_prob;
+                        const d_prob = match.ai_analysis.draw_prob;
+                        const a_prob = match.ai_analysis.away_prob;
+                        
+                        let ai_text = "-";
+                         // Frontend simplified logic for display color, backend does heavy lifting
+                        let badgeColor = "bg-gray-800 text-gray-400 border border-gray-600";
+                        if (h_prob >= 60) badgeColor = "bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan shadow-[0_0_15px_rgba(0,240,255,0.3)]";
+                        else if (a_prob >= 50) badgeColor = "bg-neon-purple/10 text-neon-purple border border-neon-purple shadow-[0_0_15px_rgba(176,38,255,0.3)]";
+                        else if (match.home_score + match.away_score > 2) badgeColor = "bg-cyber-green/10 text-cyber-green border border-cyber-green shadow-[0_0_15px_rgba(0,255,65,0.3)]";
+
+                        // Goal Detection
+                        let showGoal = false;
+                        let goalText = "";
+                        const prev = lastScores[match.id];
+                        
+                        // Check if score increased
+                        if (prev) {
+                            if (match.home_score > prev.h) {
+                                showGoal = true;
+                                goalText = "HOME GOAL!";
+                                addLogLine(`GOAL detected: ${match.home_team} scored!`, "text-cyber-green font-bold");
+                                playGoalSound();
+                            } else if (match.away_score > prev.a) {
+                                showGoal = true;
+                                goalText = "AWAY GOAL!";
+                                addLogLine(`GOAL detected: ${match.away_team} scored!`, "text-neon-purple font-bold");
+                                playGoalSound();
+                            }
+                        }
+                        
+                        // Update tracking
+                        lastScores[match.id] = { h: match.home_score, a: match.away_score };
+
+                        // Only generate HTML if we are rendering
+                        if (shouldRender) {
+                            // --- Advanced Analytics Preparation ---
+                            const analytics = match.advanced_analytics;
+                            let momentumHtml = '';
+                            let valueBetHtml = '';
+
+                            if (analytics) {
+                                // Momentum
+                                const h_mom = analytics.momentum.home;
+                                const a_mom = analytics.momentum.away;
+                                
+                                momentumHtml = `
+                                    <div class="mb-1 pt-1 border-t border-white/5">
+                                        <div class="flex justify-between text-[10px] text-gray-500 font-mono uppercase mb-0.5">
+                                            <span class="scale-90 origin-left"><i class="fa-solid fa-gauge-high mr-1"></i>Pressure</span>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-[10px] font-mono">
+                                            <div class="w-4 text-right text-gray-400 leading-none">${Math.round(h_mom)}</div>
+                                            <div class="flex-1 h-1 bg-gray-900 rounded-full overflow-hidden flex relative">
+                                                <div class="h-full bg-cyber-cyan transition-all duration-500" style="width: ${Math.min(h_mom, 100)}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-[10px] font-mono mt-0.5">
+                                            <div class="w-4 text-right text-gray-400 leading-none">${Math.round(a_mom)}</div>
+                                            <div class="flex-1 h-1 bg-gray-900 rounded-full overflow-hidden flex relative">
+                                                <div class="h-full bg-neon-purple transition-all duration-500" style="width: ${Math.min(a_mom, 100)}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+
+                                // Value Bet Signal
+                                if (analytics.signal) {
+                                    valueBetHtml = `
+                                        <div class="absolute -top-1 -right-1 z-20 pointer-events-none">
+                                            <span class="relative flex h-2 w-2">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-green opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2 w-2 bg-cyber-green"></span>
+                                            </span>
+                                        </div>
+                                        <div class="absolute bottom-0 left-0 right-0 bg-cyber-green text-black text-[10px] font-bold text-center py-0.5 transform translate-y-full group-hover/odds:translate-y-0 transition-transform z-10 leading-none">
+                                            EV +${analytics.signal.ev}%
+                                        </div>
+                                    `;
+                                }
+                            }
+
+
+                            // Create Card HTML
+                            const html = `
+                            <div class="signal-card p-2 rounded relative overflow-hidden group ${showGoal ? 'goal-scanned' : ''}">
+                            <!-- Tech Corner Decoration -->
+                            <div class="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-cyber-cyan/30 rounded-tl"></div>
+                            <div class="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-cyber-cyan/30 rounded-tr"></div>
+                            <div class="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-cyber-cyan/30 rounded-bl"></div>
+                            <div class="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-cyber-cyan/30 rounded-br"></div>
+
+                            <!-- Goal Overlay Animation -->
+                            ${showGoal ? `
+                                <div class="goal-banner">
+                                    <div class="text-2xl uppercase tracking-tighter italic">GOAL!</div>
+                                    <div class="text-xs font-mono">${goalText}</div>
+                                </div>
+                            ` : ''}
+
+                            <div class="absolute right-0 top-0 p-1.5 opacity-30 text-[9px] font-mono text-gray-500">
+                                #${match.id}
+                            </div>
+                            
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="animate-pulse w-1.5 h-1.5 bg-alert-red rounded-full"></span>
+                                    <span class="text-alert-red font-bold text-xs tracking-widest">${match.display_time}</span>
+                                    <span class="text-sm font-bold text-cyber-cyan/80 px-2 border-l border-gray-700 font-headings uppercase tracking-wider">${match.league}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex-1">
+                                    <div class="text-sm font-bold text-white leading-tight flex items-center gap-1">
+                                        ${match.home_team}
+                                        ${match.home_red_cards > 0 ? `<span class="text-alert-red text-[10px] animate-pulse" title="Red Card"><i class="fa-solid fa-square"></i> ${match.home_red_cards > 1 ? match.home_red_cards : ''}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="px-1 text-center">
+                                    <div class="text-lg font-mono font-bold text-cyber-cyan tracking-widest bg-black/40 px-2 py-0 rounded border border-white/10 shadow-inner">
+                                        ${match.home_score}-${match.away_score}
+                                    </div>
+                                </div>
+                                <div class="flex-1 text-right">
+                                    <div class="text-sm font-bold text-white leading-tight flex items-center justify-end gap-1">
+                                        ${match.away_red_cards > 0 ? `<span class="text-alert-red text-[10px] animate-pulse" title="Red Card">${match.away_red_cards > 1 ? match.away_red_cards : ''} <i class="fa-solid fa-square"></i></span>` : ''}
+                                        ${match.away_team}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Bar -->
+                            <div class="space-y-0.5 mb-2">
+                                <div class="flex justify-between text-[9px] text-gray-500 font-mono uppercase">
+                                    <span>H ${h_prob}%</span>
+                                    <span>A ${a_prob}%</span>
+                                </div>
+                                <div class="flex h-1 w-full bg-gray-800 rounded-full overflow-hidden opacity-80">
+                                        <div class="bg-gray-300" style="width: ${h_prob}%"></div>
+                                        <div class="bg-gray-600" style="width: ${d_prob}%"></div>
+                                        <div class="bg-gray-500" style="width: ${a_prob}%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Momentum Pressure Bar -->
+                            ${momentumHtml}
+
+                            <!-- Odds Section -->
+                            <div class="grid grid-cols-2 gap-1.5 mb-1">
+                                    <!-- Asian Handicap -->
+                                    <div class="bg-gradient-to-br from-gray-900 to-black rounded border border-white/5 p-1.5 shadow relative overflow-hidden group/odds hover:border-cyber-cyan/20 transition-colors">
+                                        ${valueBetHtml}
+                                        <div class="flex justify-between items-start mb-0.5">
+                                            <span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest">HDP</span>
+                                            <span class="text-sm font-bold text-gray-200 font-mono tracking-wider">${match.odds_ah.val}</span>
+                                        </div>
+                                        
+                                        <div class="flex justify-between items-end font-mono">
+                                            <div class="flex flex-col">
+                                                <span class="text-cyber-cyan font-bold text-xs leading-none">${match.odds_ah.h}</span>
+                                            </div>
+                                            <div class="h-4 w-px bg-white/5 mx-0.5"></div>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-neon-purple font-bold text-xs leading-none">${match.odds_ah.a}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Over/Under -->
+                                    <div class="bg-gradient-to-br from-gray-900 to-black rounded border border-white/5 p-1.5 shadow relative overflow-hidden group/odds hover:border-cyber-green/20 transition-colors">
+                                        
+                                        <div class="flex justify-between items-start mb-0.5">
+                                            <span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest">O/U</span>
+                                            <span class="text-sm font-bold text-gray-200 font-mono tracking-wider">${match.odds_ou.line}</span>
+                                        </div>
+                                        
+                                        <div class="flex justify-between items-end font-mono">
+                                            <div class="flex flex-col">
+                                                <span class="text-cyber-green font-bold text-xs leading-none">${match.odds_ou.o}</span>
+                                            </div>
+                                            <div class="h-4 w-px bg-white/5 mx-0.5"></div>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-alert-red font-bold text-xs leading-none">${match.odds_ou.u}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                            </div>
+
+                            <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                    <div class="text-[10px] text-gray-500">
+                                        AI Model: Poisson v2.1
+                                    </div>
+                                    <div class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">
+                                        ${match.ai_analysis.ai_prediction || 'Analyzing...'}
+                                    </div>
+                            </div>
+
+                            </div>
+                            `;
+                            grid.innerHTML += html;
+                        }
+                    });
+                     // addLogLine(`Polled ${data.count} live matches.`, "text-cyber-cyan");
+                } else if (shouldRender) {
+                    grid.innerHTML = `
+                    <div class="text-center py-8 text-gray-500 border border-dashed border-gray-800 rounded bg-black/20">
+                        <i class="fa-solid fa-moon text-2xl mb-2 opacity-50"></i>
+                        <p class="text-sm">Currently no matches in play.</p>
+                        <p class="text-xs mt-1">Waiting for kick-off signals...</p>
+                    </div>
+                    `;
+                }
+            } catch (e) {
+                console.error(e);
+                addLogLine("Error fetching live data", "text-alert-red");
+            }
+        }
+
+        // Init - Poll Together
+        fetchLiveMatches();
+        fetchScheduledMatches();
+        setInterval(fetchLiveMatches, 15000); // Live Data every 15s
+        setInterval(fetchScheduledMatches, 60000); // Schedule Data every 60s
+    </script>
+</body>
+</html>

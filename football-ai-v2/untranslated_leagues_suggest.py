@@ -1,0 +1,22 @@
+# 建议补充到 translation_utils.py 的 LEAGUE_MAP：
+LEAGUE_MAP.update({
+    "AFC U23 Asian Cup": "请填写中文",
+    "Coupe Nationale": "请填写中文",
+    "Coupe de France": "请填写中文",
+    "Cup": "请填写中文",
+    "Division One League": "请填写中文",
+    "FA Cup": "请填写中文",
+    "Friendlies Clubs": "请填写中文",
+    "GFA League": "请填写中文",
+    "Girabola": "请填写中文",
+    "Iraqi League": "请填写中文",
+    "Irish Cup": "请填写中文",
+    "Liga MX U21": "请填写中文",
+    "Liga Revelação U23": "请填写中文",
+    "Premier League International Cup": "请填写中文",
+    "Primera División Femenina": "请填写中文",
+    "Pro League": "请填写中文",
+    "Professional Development League": "请填写中文",
+    "Super League": "请填写中文",
+    "São Paulo Youth Cup": "请填写中文",
+})

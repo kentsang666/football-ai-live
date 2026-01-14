@@ -114,6 +114,7 @@ class TradingSignal:
     market_odds: float
     edge: float  # 价值空间
     confidence: float
+    kelly_stake: float = 0.0
 
 
 # =============================================================================
@@ -335,7 +336,7 @@ class LiveProbability:
         """
         计算当前的 Lambda 值（预期进球率）
         
-        Lambda = Initial_XG * Time_Decay * Momentum_Factor
+        Lambda = Initial_XG * Time_Decay * Momentum_Factor * Game_State_Adjustment
         
         Args:
             stats: 比赛统计数据
@@ -350,27 +351,92 @@ class LiveProbability:
         # 2. 动量系数
         home_momentum, away_momentum = self.pressure_index.calculate_momentum_factor(stats)
         
-        # 3. 比分影响调整
-        # 如果一方大比分领先，落后方可能更积极进攻
-        score_diff = stats.home_score - stats.away_score
-        if abs(score_diff) >= 2:
-            if score_diff > 0:  # 主队领先
-                # 客队更积极，主队可能保守
-                away_momentum *= 1.1
-                home_momentum *= 0.95
-            else:  # 客队领先
-                home_momentum *= 1.1
-                away_momentum *= 0.95
-        
-        # 4. 计算最终 Lambda
+        # 3. 基础 Lambda 计算 (含动量)
         home_lambda = self.initial_home_xg * time_decay * home_momentum
         away_lambda = self.initial_away_xg * time_decay * away_momentum
+
+        # 4. [v2.7] 心理修正系数 (Psychological Adjustment Factor)
+        # 替代原有简单的比分修正，引入更复杂的赛况心态模型
+        final_home_lambda, final_away_lambda = self._apply_psychological_factor(
+            home_lambda, away_lambda, stats
+        )
         
-        # 确保 Lambda 在合理范围内
-        home_lambda = max(0.01, min(5.0, home_lambda))
-        away_lambda = max(0.01, min(5.0, away_lambda))
+        # 确保 Lambda 在合理范围内 (0.001 - 5.0)
+        final_home_lambda = max(0.001, min(5.0, final_home_lambda))
+        final_away_lambda = max(0.001, min(5.0, final_away_lambda))
         
-        return home_lambda, away_lambda
+        return final_home_lambda, final_away_lambda
+
+    def _apply_psychological_factor(self, home_lambda, away_lambda, stats: MatchStats) -> Tuple[float, float]:
+        """
+        [v2.7] 心理修正系数 (Psychological Adjustment Factor)
+        负责根据比赛实时状况（比分、时间、红卡）修正球队的攻击力
+        
+        逻辑包括：
+        1. 时间压力因子
+        2. 比分情境修正 (如领先方"摆大巴"，落后方"狂攻")
+        3. 红牌双向影响
+        """
+        minute = stats.minute
+        # 时间压力因子：0 -> 0.0, 90 -> 1.0 (修正力度随时间增强)
+        time_factor = min(minute / 90.0, 1.0)
+        
+        h_multiplier = 1.0
+        a_multiplier = 1.0
+        
+        score_diff = stats.home_score - stats.away_score
+        
+        # --- A. 比分情境修正 ---
+        if score_diff == 0:
+            # [平局]
+            if minute > 80:
+                # 比赛末段平局 -> 趋向保守 (降 15%)
+                caution_factor = 0.15 * time_factor
+                h_multiplier -= caution_factor
+                a_multiplier -= caution_factor
+            else:
+                # 早期平局 -> 正常进攻 (略微提升 5%)
+                h_multiplier += 0.05
+                a_multiplier += 0.05
+                
+        elif score_diff > 0:
+            # [主队领先]
+            if score_diff == 1:
+                # 1球差距：主队苟 (Max -35%)，客队拼 (Max +40%)
+                h_multiplier -= (0.35 * time_factor)
+                a_multiplier += (0.40 * time_factor)
+            elif score_diff >= 2:
+                # 2球+：垃圾时间，双方均懈怠
+                h_multiplier -= 0.2
+                a_multiplier -= 0.1
+                
+        else: # score_diff < 0
+            # [客队领先]
+            abs_diff = abs(score_diff)
+            if abs_diff == 1:
+                # 1球差距：客队苟 (Max -35%)，主队拼 (Max +45% 主场加成)
+                a_multiplier -= (0.35 * time_factor)
+                h_multiplier += (0.45 * time_factor)
+            elif abs_diff >= 2:
+                # 2球+
+                a_multiplier -= 0.2
+                h_multiplier -= 0.1
+
+        # --- B. 红牌修正 (双向) ---
+        if stats.home_red_cards > 0:
+            h_multiplier *= (0.6 ** stats.home_red_cards) # 少一人大损
+            a_multiplier *= (1.2 ** stats.home_red_cards) # 对手获利
+            
+        if stats.away_red_cards > 0:
+            a_multiplier *= (0.6 ** stats.away_red_cards)
+            h_multiplier *= (1.2 ** stats.away_red_cards)
+
+        # --- C. 应用并防止负值 ---
+        # 至少保留10%攻击力
+        adj_home_lambda = home_lambda * max(h_multiplier, 0.1)
+        adj_away_lambda = away_lambda * max(a_multiplier, 0.1)
+
+        return adj_home_lambda, adj_away_lambda
     
     def calculate_score_probabilities(self,
                                       home_lambda: float,
@@ -709,18 +775,70 @@ class TradingSignalGenerator:
             return 0
         return (market_odds / fair_odds) - 1
     
-    def generate_1x2_signals(self,
-                             stats: MatchStats,
-                             market_odds: Dict[str, float]) -> List[TradingSignal]:
+    def calculate_kelly_stake(self, probability: float, market_odds: float) -> float:
         """
-        生成 1X2（胜平负）市场的交易信号
+        计算凯利公式投注比例
         
         Args:
-            stats: 比赛统计数据
-            market_odds: 市场赔率 {'home': x, 'draw': x, 'away': x}
+            probability: 获胜概率 (0-1)
+            market_odds: 市场赔率
             
         Returns:
-            交易信号列表
+            推荐投注比例 (百分比 0-100)
+        """
+        if market_odds <= 1:
+            return 0.0
+            
+        b = market_odds - 1
+        p = probability
+        q = 1 - p
+        
+        # Kelly Formula: f = (bp - q) / b
+        f = (b * p - q) / b
+        
+        if f <= 0:
+            return 0.0
+            
+        # 30% Half-Kelly (Fractional Kelly) for risk management
+        conservative_f = f * 0.3
+        
+        # Max stake cap (5%)
+        max_stake = 0.05
+        
+        final_stake = min(conservative_f, max_stake)
+        
+        return round(final_stake * 100, 2)
+
+    def validate_with_market_trend(self,
+                                   selection: str,
+                                   current_odds: float,
+                                   opening_odds: float) -> Tuple[bool, str, bool]:
+        """
+        [v2.8] 赔率异动监控
+        """
+        if not opening_odds or opening_odds <= 0:
+            return True, "", False
+            
+        drop_rate = (current_odds - opening_odds) / opening_odds
+        DRIFT_THRESHOLD = 0.05
+        STEAM_THRESHOLD = -0.10
+        
+        # 1. Drift
+        if drop_rate > DRIFT_THRESHOLD:
+            return False, f"Market Drift (+{drop_rate*100:.1f}%)", False
+            
+        # 2. Steam
+        if drop_rate < STEAM_THRESHOLD:
+            return True, f"Steam Move ({drop_rate*100:.1f}%)", True
+            
+        return True, "", False
+
+    def generate_1x2_signals(self,
+                             stats: MatchStats,
+                             market_odds: Dict[str, float],
+                             opening_odds: Dict[str, float] = None) -> List[TradingSignal]:
+        """
+        生成 1X2（胜平负）市场的交易信号
         """
         prediction = self.live_probability.predict(stats)
         signals = []
@@ -744,13 +862,33 @@ class TradingSignalGenerator:
                 
             edge = self.calculate_edge(fair_odds[key], market_odds[key])
             
+            # [v2.8] 趋势验证
+            is_safe = True
+            note = ""
+            is_steam = False
+            
+            if opening_odds and key in opening_odds:
+                is_safe, note, is_steam = self.validate_with_market_trend(
+                    key.upper(), market_odds[key], opening_odds[key]
+                )
+            
             if edge >= self.value_threshold:
-                signal_type = SignalType.VALUE_BET
+                if not is_safe:
+                    signal_type = SignalType.AVOID # 逆势
+                else:
+                    signal_type = SignalType.VALUE_BET
             elif edge < -0.1:  # 市场赔率明显低于公平赔率
                 signal_type = SignalType.AVOID
             else:
                 signal_type = SignalType.NO_VALUE
             
+            # 若不是 Value Bet 但有 Steam Move，可以考虑提示（此处简化为只在 Value Bet 时附加信息）
+            # 或者将其存入 reason 字段（TradingSignal 需要扩展字段，这里暂不改动结构，打印日志或忽略）
+            
+            kelly_stake = 0.0
+            if signal_type == SignalType.VALUE_BET:
+                kelly_stake = self.calculate_kelly_stake(prob, market_odds[key])
+
             signals.append(TradingSignal(
                 signal_type=signal_type,
                 market="1X2",
@@ -758,7 +896,8 @@ class TradingSignalGenerator:
                 fair_odds=round(fair_odds[key], 3),
                 market_odds=market_odds[key],
                 edge=round(edge, 4),
-                confidence=prediction.confidence
+                confidence=prediction.confidence,
+                kelly_stake=kelly_stake
             ))
         
         return signals
@@ -797,6 +936,11 @@ class TradingSignalGenerator:
             else:
                 signal_type = SignalType.NO_VALUE
             
+            kelly_stake = 0.0
+            if signal_type == SignalType.VALUE_BET:
+                prob = 1.0 / ah_odds[fair_key] if ah_odds[fair_key] > 0 else 0
+                kelly_stake = self.calculate_kelly_stake(prob, market_odds[key])
+
             signals.append(TradingSignal(
                 signal_type=signal_type,
                 market=f"AH{handicap:+.2f}",
@@ -804,7 +948,8 @@ class TradingSignalGenerator:
                 fair_odds=ah_odds[fair_key],
                 market_odds=market_odds[key],
                 edge=round(edge, 4),
-                confidence=prediction.confidence
+                confidence=prediction.confidence,
+                kelly_stake=kelly_stake
             ))
         
         return signals
@@ -852,7 +997,8 @@ class TradingSignalGenerator:
         
         # 1X2 信号
         if '1x2' in market_data:
-            signals_1x2 = self.generate_1x2_signals(stats, market_data['1x2'])
+            opening_odds = market_data.get('1x2_opening')
+            signals_1x2 = self.generate_1x2_signals(stats, market_data['1x2'], opening_odds)
             all_signals['signals'].extend([
                 {
                     'market': s.market,
@@ -861,7 +1007,8 @@ class TradingSignalGenerator:
                     'fair_odds': s.fair_odds,
                     'market_odds': s.market_odds,
                     'edge': s.edge,
-                    'confidence': s.confidence
+                    'confidence': s.confidence,
+                    'kelly_stake': s.kelly_stake
                 }
                 for s in signals_1x2
             ])
@@ -884,7 +1031,8 @@ class TradingSignalGenerator:
                         'fair_odds': s.fair_odds,
                         'market_odds': s.market_odds,
                         'edge': s.edge,
-                        'confidence': s.confidence
+                        'confidence': s.confidence,
+                        'kelly_stake': s.kelly_stake
                     }
                     for s in signals_ah
                 ])
@@ -901,7 +1049,8 @@ class TradingSignalGenerator:
                 'fair_odds': s.fair_odds,
                 'market_odds': s.market_odds,
                 'edge': s.edge,
-                'confidence': s.confidence
+                'confidence': s.confidence,
+                'kelly_stake': s.kelly_stake
             }
             for s in all_signals['value_bets']
         ]

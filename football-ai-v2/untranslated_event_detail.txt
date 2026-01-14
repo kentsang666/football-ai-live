@@ -1,0 +1,14 @@
+Yellow Card
+Normal Goal
+Substitution 1
+Substitution 2
+Penalty
+Substitution 3
+Substitution 4
+Substitution 5
+Goal Disallowed - Foul
+Red Card
+Goal Disallowed
+Missed Penalty
+Own Goal
+Goal Under Review - offside

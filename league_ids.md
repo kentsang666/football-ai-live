@@ -23,6 +23,15 @@
 | 荷甲 (Eredivisie) | 88 | Netherlands |
 | 葡超 (Primeira Liga) | 94 | Portugal |
 | 土超 (Süper Lig) | 203 | Turkey |
+| 土甲 (1. Lig) | 204 | Turkey |
+| 塞浦甲 (First Division) | 318 | Cyprus |
+| 以超 (Ligat Ha'Al) | 383 | Israel |
+| 以甲 (Liga Leumit) | 384 | Israel |
+| 俄超 (Premier League) | 235 | Russia |
+| 苏超 (Premiership) | 179 | Scotland |
+| 希腊超 (Super League 1) | 197 | Greece |
+| 瑞士超 (Super League) | 207 | Switzerland |
+| 奥甲 (Bundesliga) | 218 | Austria |
 
 ## 美洲联赛
 | 联赛 | ID | 国家 |
@@ -45,4 +54,4 @@
 | 亚洲杯 (Asian Cup) | 7 | World |
 
 ## 完整 ID 列表
-39,140,135,78,61,2,3,5,4,88,94,203,71,253,169,98,292,307,1,7
+39,140,135,78,61,2,3,5,4,88,94,203,204,318,383,384,235,179,197,207,218,71,253,169,98,292,307,1,7

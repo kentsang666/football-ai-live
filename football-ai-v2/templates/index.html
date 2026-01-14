@@ -1,0 +1,1545 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroBall AI | 足球滚球智能分析系统</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'cyber-black': '#000000',
+                        'cyber-dark': '#050505',
+                        'cyber-gray': '#121212',
+                        'cyber-cyan': '#ff2a2a',
+                        'cyber-green': '#00ff9f',
+                        'neon-purple': '#bc13fe',
+                        'alert-red': '#ff003c',
+                    },
+                    fontFamily: {
+                        'mono': ['"JetBrains Mono"', 'monospace'],
+                        'headings': ['"Rajdhani"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #030303;
+            color: #e2e8f0;
+            font-family: 'Rajdhani', sans-serif;
+            background-image: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #000000 80%);
+            min-height: 100vh;
+        }
+        
+        .glass-panel {
+            background: rgba(5, 5, 5, 0.82);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Scanline effect for glass panels - REDUCED OPACITY */
+        .glass-panel::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.3) 51%);
+            background-size: 100% 3px;
+            pointer-events: none;
+            opacity: 0.15;
+            z-index: 0;
+        }
+
+        .signal-card {
+            background: #000000;
+            border: 1px solid #1f1f1f;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 0 1px rgba(0,0,0,1);
+        }
+        
+        .signal-card:hover {
+            border-color: rgba(255, 42, 42, 0.8);
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px rgba(255, 42, 42, 0.1);
+        }
+
+        .neon-text { text-shadow: 0 0 5px rgba(255, 42, 42, 0.5); }
+        .neon-red { text-shadow: 0 0 5px rgba(255, 0, 60, 0.5); }
+        .neon-purple { text-shadow: 0 0 5px rgba(188, 19, 254, 0.5); }
+        
+        /* Tech Grid Background Animation - SUBTLE */
+        .tech-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 80%);
+            -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 80%);
+        }
+        
+        @keyframes move-grid {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(40px); }
+        }
+
+        .animate-blink { animation: blink 1s steps(2, start) infinite; }
+        @keyframes blink { to { visibility: hidden; } }
+
+        /* Goal Animation */
+        @keyframes goal-slide-in {
+            0% { transform: translateY(-100%); opacity: 0; }
+            20% { transform: translateY(0); opacity: 1; }
+            80% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-100%); opacity: 0; }
+        }
+        .goal-banner {
+            position: absolute;
+            top: 20%;
+            left: 0;
+            right: 0;
+            background: rgba(255, 42, 109, 0.9); /* alert-red */
+            color: white;
+            font-weight: 900;
+            text-align: center;
+            padding: 1rem;
+            transform: skewY(-3deg);
+            z-index: 50;
+            box-shadow: 0 0 30px rgba(255, 42, 109, 0.5);
+            animation: goal-slide-in 4s ease-in-out forwards;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .goal-scanned {
+            border: 2px solid #ff2a6d; /* alert-red */
+            animation: pulse-red 1s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 42, 109, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 42, 109, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 42, 109, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative bg-slate-900 text-gray-200">
+    <!-- Animated Background Grid -->
+    <div class="tech-bg"></div>
+    <div class="fixed top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-transparent to-black pointer-events-none z-[-1]"></div>
+
+    <!-- Navbar -->
+    <header class="h-16 border-b border-white/5 glass-panel sticky top-0 z-50">
+        <div class="max-w-[1600px] mx-auto px-4 h-full flex items-center justify-between relative z-10">
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <i class="fa-solid fa-microchip text-cyber-cyan text-xl neon-text"></i>
+                    <div class="absolute -top-1 -right-1 w-2 h-2 bg-cyber-cyan rounded-full animate-ping opacity-50"></div>
+                </div>
+                <h1 class="text-2xl font-bold tracking-wider font-headings text-white">NEURO<span class="text-cyber-cyan neon-text">BALL</span> <span class="text-[10px] bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan px-1.5 py-0.5 rounded ml-1 tracking-widest font-mono">V.2.1-Fix</span></h1>
+            </div>
+            
+            <div class="flex items-center gap-6 text-sm font-mono text-gray-400">
+                <button id="sound-toggle" onclick="toggleSound()" class="flex items-center gap-2 hover:text-white transition cursor-pointer" title="Toggle Goal Alerts">
+                    <i id="sound-icon" class="fa-solid fa-volume-xmark text-gray-500"></i>
+                    <span id="sound-status" class="hidden md:inline text-xs">MUTED</span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span>SYSTEM: ONLINE</span>
+                </div>
+                <div class="flex items-center gap-2 hidden md:flex">
+                    <i class="fa-solid fa-database"></i>
+                    <span>ODDS SOURCE: API-V3</span>
+                </div>
+                <div class="text-cyber-cyan">
+                    <i class="fa-regular fa-clock mr-1"></i> <span id="clock">00:00:00</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="flex-1 max-w-[1600px] w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Sidebar (Navigation/Filter) -->
+        <aside class="hidden lg:block lg:col-span-2 space-y-4">
+            <div class="glass-panel p-4 rounded-lg">
+                <div class="text-xs font-mono text-gray-500 mb-4 uppercase tracking-widest">Dashboards</div>
+                <nav class="space-y-1">
+                    <a href="#" id="nav-live" onclick="switchMode('live'); return false;" class="block px-3 py-2 rounded bg-cyber-cyan/10 text-cyber-cyan border-l-2 border-cyber-cyan font-medium transition-all"><i class="fa-solid fa-bolt mr-2"></i>滚球监控</a>
+                    
+                    <button onclick="openLeagueModal()" class="w-full text-left px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-slate-900/5 border-l-2 border-transparent transition-all flex justify-between items-center group mt-1">
+                        <span><i class="fa-solid fa-filter mr-2 group-hover:text-cyber-cyan transition-colors"></i>联赛筛选</span>
+                        <span id="league-count-badge" class="text-[10px] bg-gray-800 text-gray-500 px-1.5 rounded group-hover:bg-cyber-cyan group-hover:text-black transition-colors">ALL</span>
+                    </button>
+                    
+                    <button onclick="openHistoryModal()" class="w-full text-left px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-slate-900/5 border-l-2 border-transparent transition-all mt-1">
+                         <i class="fa-solid fa-clock-rotate-left mr-2"></i>推荐历史
+                    </button>
+                    
+                    <!-- Shielded Schedule Functionality -->
+                    <!-- <a href="#" id="nav-schedule" onclick="switchMode('schedule'); return false;" class="block px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-slate-900/5 border-l-2 border-transparent transition-all"><i class="fa-solid fa-calendar mr-2"></i>今日赛程</a> -->
+                    <!-- Shielded Historical Test Functionality -->
+                    <!-- <a href="#" class="block px-3 py-2 rounded text-gray-400 hover:text-white hover:bg-slate-900/5 border-l-2 border-transparent transition-all"><i class="fa-solid fa-chart-line mr-2"></i>历史回测</a> -->
+                </nav>
+            </div>
+
+            <div class="glass-panel p-4 rounded-lg">
+                <div class="text-xs font-mono text-gray-500 mb-4 uppercase tracking-widest">Live Filters</div>
+                <div class="space-y-2">
+                    <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" checked class="form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600">
+                        <span>只看一级联赛</span>
+                    </label>
+                    <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" checked class="form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600">
+                        <span>AI信心 > 60%</span>
+                    </label>
+                    <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" class="form-checkbox text-cyber-cyan rounded bg-gray-800 border-gray-600">
+                        <span>进球提醒</span>
+                    </label>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Content (Live Feed) -->
+        <main class="lg:col-span-7 space-y-6">
+            
+            <!-- Smart Money Alert Banner (Hidden by default) -->
+            <div id="smart-money-banner" class="hidden mb-4 bg-gradient-to-r from-yellow-900/40 to-black border-l-4 border-yellow-500 p-4 rounded-r shadow-[0_0_20px_rgba(234,179,8,0.2)] animate-fade-in-up relative overflow-hidden">
+                 <div class="absolute top-0 right-0 p-2 opacity-20"><i class="fa-solid fa-sack-dollar text-6xl text-yellow-500"></i></div>
+                 <div class="flex items-start gap-4 relative z-10">
+                     <div class="bg-yellow-500/20 p-2 rounded-full border border-yellow-500/50 animate-pulse">
+                         <i class="fa-solid fa-magnifying-glass-chart text-yellow-400 text-xl"></i>
+                     </div>
+                     <div>
+                         <h3 class="text-yellow-400 font-bold font-headings tracking-wider text-sm flex items-center gap-2">
+                             SMART MONEY DETECTED <span class="bg-yellow-500 text-black text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">SHARP</span>
+                         </h3>
+                         <div id="smart-money-content" class="text-gray-300 text-xs mt-1 font-mono">
+                             <!-- Injected via JS -->
+                         </div>
+                     </div>
+                 </div>
+            </div>
+
+            <!-- Alpha Signal (Top Recommendation) -->
+            {% if hero and hero.home_team %}
+            <div class="relative rounded-xl overflow-hidden border border-cyber-cyan/30 shadow-[0_0_20px_-5px_rgba(255,42,42,0.15)] group">
+                <div class="absolute inset-0 bg-gradient-to-r from-cyber-black via-cyber-gray to-cyber-black opacity-90"></div>
+                <!-- Grid pattern overlay -->
+                <div class="absolute inset-0 grid-bg opacity-20"></div>
+                
+                <div class="relative p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/30 tracking-wider">
+                            <i class="fa-solid fa-bullseye mr-1"></i> FOCUS MATCH
+                        </span>
+                        <div class="text-right">
+                             <div class="text-3xl font-bold font-headings text-white">{{ hero.home_prob|default(0) }}<span class="text-lg text-gray-500">%</span></div>
+                             <div class="text-[10px] uppercase text-gray-500 tracking-wider">Win Probability</div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between gap-4 mb-6">
+                        <div class="flex-1 text-center">
+                            <div class="text-xl md:text-2xl font-bold text-white mb-1">{{ hero.home_team }}</div>
+                            <div class="h-1 w-12 mx-auto bg-cyber-cyan rounded-full"></div>
+                        </div>
+                        <div class="text-gray-500 font-headings text-xl italic">VS</div>
+                        <div class="flex-1 text-center">
+                            <div class="text-xl md:text-2xl font-bold text-gray-200 mb-1">{{ hero.away_team }}</div>
+                            <div class="h-1 w-8 mx-auto bg-gray-700 rounded-full"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-black/40 rounded-lg p-2 flex justify-between items-center border border-white/5 backdrop-blur-sm">
+                        <div class="text-xs md:text-sm text-gray-300">
+                            <i class="fa-solid fa-microchip mr-2 text-cyber-cyan"></i><span class="text-gray-500">STRATEGY:</span> <span class="{{ hero.highlight_color }} font-bold ml-1 tracking-wide">{{ hero.ai_prediction }}</span>
+                        </div>
+                        
+                        <!-- Data Display Area (Replaces Analyze Button) -->
+                        <div class="flex items-center gap-3 text-xs">
+                             <div class="text-right hidden md:block">
+                                <div class="text-[9px] text-gray-600 uppercase tracking-widest">EXP. GOALS (xG)</div>
+                                <div class="font-mono font-bold text-cyber-cyan text-sm">{{ hero.home_xg }} : {{ hero.away_xg }}</div>
+                             </div>
+                             <div class="w-px h-5 bg-slate-900/10 hidden md:block"></div>
+                             <div class="text-right">
+                                <div class="text-[9px] text-gray-600 uppercase tracking-widest">CONFIDENCE</div>
+                                <div class="font-mono font-bold text-neon-purple text-sm">HIGH 85%</div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Live Matches Header -->
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+                <h2 id="main-header" class="text-lg font-bold text-white flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-alert-red animate-blink"></span>
+                    LIVE IN-PLAY <span class="text-xs text-gray-500 font-mono ml-2">(Auto-Refresh: ON)</span>
+                </h2>
+                <div class="text-xs font-mono text-gray-500">
+                    SCAN_INTERVAL: 05s
+                </div>
+            </div>
+
+            <!-- Live Matches Container -->
+            <div id="live-matches-grid" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <!-- Matches will be injected here by JS -->
+                <div class="text-center py-12 text-gray-500 font-mono text-sm border border-dashed border-gray-800 rounded col-span-full">
+                    <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Connecting to Live Feed...
+                </div>
+            </div>
+
+
+        </main>
+
+        <!-- Right Sidebar (Terminal & Logs) -->
+        <aside class="lg:col-span-3 space-y-6">
+            <!-- System Analytics (Momentum & Odds) -->
+            <div class="glass-panel rounded-lg overflow-hidden flex flex-col h-[300px] border border-cyber-cyan/20 relative group">
+                <div class="absolute inset-0 bg-[url('https://assets.codepen.io/13471/sparkle.png')] opacity-10 animate-pulse"></div>
+                
+                <div class="bg-black/40 px-3 py-2 border-b border-white/5 flex items-center justify-between backdrop-blur-sm z-10">
+                    <span class="text-xs font-mono text-cyber-cyan font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line"></i> MOMENTUM ANALYTICS
+                    </span>
+                    <div class="flex items-center gap-2">
+                         <span class="flex h-1.5 w-1.5 relative">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-green opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyber-green"></span>
+                         </span>
+                         <span class="text-[9px] text-gray-500 font-mono">PROCESSING</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 p-4 relative z-10 flex flex-col gap-4">
+                    
+                    <!-- Momentum Graph Simulation -->
+                    <div class="flex-1 flex items-end space-x-1 border-b border-l border-white/10 pb-1 pl-1 relative">
+                        <!-- Grid lines -->
+                        <div class="absolute inset-0 grid grid-rows-4 grid-cols-4 gap-4 pointer-events-none opacity-10">
+                            <div class="border-t border-white"></div><div class="border-t border-white"></div>
+                            <div class="border-t border-white"></div><div class="border-t border-white"></div>
+                        </div>
+
+                        <!-- Animated Bars -->
+                        <div class="w-full h-full flex items-end justify-between px-2 gap-1">
+                             <div class="w-1/12 bg-cyber-cyan/20 animate-[pulse_1s_ease-in-out_infinite]" style="height: 30%"></div>
+                             <div class="w-1/12 bg-cyber-cyan/30 animate-[pulse_1.5s_ease-in-out_infinite]" style="height: 50%"></div>
+                             <div class="w-1/12 bg-cyber-cyan/40 animate-[pulse_1.2s_ease-in-out_infinite]" style="height: 70%"></div>
+                             <div class="w-1/12 bg-cyber-cyan/60 animate-[pulse_2s_ease-in-out_infinite]" style="height: 40%"></div>
+                             <div class="w-1/12 bg-cyber-cyan/50 animate-[pulse_1.8s_ease-in-out_infinite]" style="height: 60%"></div>
+                             <div class="w-1/12 bg-cyber-cyan/80 animate-[pulse_0.8s_ease-in-out_infinite]" style="height: 90%"></div>
+                             <div class="w-1/12 bg-cyber-cyan animate-[pulse_1.1s_ease-in-out_infinite]" style="height: 75%"></div>
+                             <div class="w-1/12 bg-cyber-cyan/90 animate-[pulse_1.3s_ease-in-out_infinite]" style="height: 50%"></div>
+                        </div>
+                        
+                        <!-- Moving Line (SVG Overlay) -->
+                        <svg class="absolute inset-0 w-full h-full pointer-events-none drop-shadow-[0_0_5px_rgba(14,255,255,0.5)]" preserveAspectRatio="none">
+                            <path d="M0,100 C20,80 40,90 60,50 S100,20 150,40 S200,80 250,50 S300,10 350,30" fill="none" stroke="#0effff" stroke-width="2" class="animate-[dash_3s_linear_infinite]" stroke-dasharray="300" stroke-dashoffset="300" />
+                        </svg>
+                    </div>
+
+                    <!-- Odds Alpha Calculation View -->
+                    <div class="h-20 bg-black/30 rounded border border-white/5 p-2 flex items-center justify-between gap-2 font-mono text-[10px]">
+                        <div class="text-center">
+                            <div class="text-gray-500 mb-1">RAW PROB</div>
+                            <div class="text-white text-xs font-bold">52.4%</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-gray-600 text-[8px]"></i>
+                        <div class="text-center group">
+                            <div class="text-neon-purple mb-1 animate-pulse">V2.0 CONTEXT</div>
+                            <div class="text-white text-xs font-bold border border-neon-purple/30 rounded px-1 bg-neon-purple/10">+4.2%</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-gray-600 text-[8px]"></i>
+                        <div class="text-center">
+                            <div class="text-cyber-green mb-1">ALPHA</div>
+                            <div class="text-cyber-green text-xs font-bold text-shadow-green">56.6%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Terminal Output (Miniaturized) -->
+                <div id="terminal-content" class="h-16 border-t border-white/5 bg-black/60 p-2 font-mono text-[9px] text-gray-500 overflow-hidden relative">
+                    <div class="absolute top-0 right-0 p-1 opacity-50"><i class="fa-solid fa-terminal"></i></div>
+                    <div class="animate-[slide-up_10s_linear_infinite]">
+                        > Initializing V2.0 Context Engine...<br>
+                        > Loading Poisson Distribution Models...<br>
+                        > Connecting to API-Football V3 Stream...<br>
+                        > LIVE: 42 matches monitoring...<br>
+                        > Scanning for EV > 5% opportunities...
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Scrolling Ticker Card -->
+            <div id="ticker-card" class="glass-panel p-3 rounded-lg border-l-2 border-cyber-cyan relative overflow-hidden hidden group hover:shadow-[0_0_20px_rgba(14,255,255,0.2)] transition-shadow">
+                 <div class="absolute top-0 right-0 p-1">
+                    <i class="fa-solid fa-bolt text-yellow-400 animate-pulse"></i>
+                 </div>
+                 <div class="flex items-center gap-2 mb-2">
+                     <span class="w-1.5 h-1.5 rounded-full bg-alert-red animate-ping"></span>
+                     <div class="text-[10px] text-gray-500 font-mono uppercase tracking-wider">LIVE SIGNAL FEED</div>
+                 </div>
+                 
+                 <!-- Carousel Viewport -->
+                 <div class="overflow-hidden h-14 relative">
+                     <div id="ticker-content" class="absolute w-full transition-transform duration-500 flex flex-col gap-2">
+                         <!-- Ticker Items injected via JS -->
+                     </div>
+                 </div>
+            </div>
+
+            <!-- Stats/Market Info -->
+            <div class="glass-panel p-4 rounded-lg">
+                <h3 class="text-sm font-bold text-white mb-3 border-l-2 border-neon-purple pl-2 flex justify-between items-center">
+                    <span>AI RECOMMENDATIONS</span>
+                    <span id="rec-count" class="text-[10px] bg-neon-purple text-black px-1.5 rounded-full hidden">0</span>
+                </h3>
+                <div id="market-trends-container" class="space-y-3 min-h-[100px] flex flex-col justify-center">
+                     <!-- Dynamic content will be injected here -->
+                     <div class="text-center text-gray-500 text-xs italic opacity-50">
+                        <i class="fa-solid fa-radar fa-spin mr-1"></i> Scanning markets...
+                     </div>
+                </div>
+            </div>
+            
+        </aside>
+
+    </div>
+
+    <!-- League Filter Modal -->
+    <div id="league-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeLeagueModal()"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-slate-900 border border-cyber-cyan/30 rounded-lg shadow-[0_0_50px_rgba(255,42,42,0.1)] overflow-hidden flex flex-col max-h-[80vh] animate-fade-in-up">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/5">
+                <h3 class="font-bold text-white flex items-center gap-2 font-headings text-lg"><i class="fa-solid fa-list-ul text-cyber-cyan"></i> 联赛筛选</h3>
+                <button onclick="closeLeagueModal()" class="text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-2 border-b border-white/5 flex gap-2 bg-black/20">
+                <button onclick="toggleAllLeagues(true)" class="flex-1 py-1.5 text-xs font-mono font-bold bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20 border border-cyber-green/30 rounded transition-all">全选</button>
+                <button onclick="toggleAllLeagues(false)" class="flex-1 py-1.5 text-xs font-mono font-bold bg-alert-red/10 text-alert-red hover:bg-alert-red/20 border border-alert-red/30 rounded transition-all">全不选</button>
+            </div>
+
+            <div id="league-list-container" class="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent grid grid-cols-1 md:grid-cols-2 gap-2">
+                <!-- Checkboxes injected here -->
+            </div>
+
+            <div class="p-4 border-t border-white/10 bg-slate-900/5 flex justify-end gap-3">
+                <button onclick="closeLeagueModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">取消</button>
+                <button onclick="applyLeagueFilter()" class="px-6 py-2 text-sm font-bold bg-cyber-cyan text-black rounded hover:bg-red-500 shadow-[0_0_15px_rgba(255,42,42,0.3)] transition-all transform hover:scale-105">应用筛选</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeHistoryModal()"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-[95%] bg-slate-900 border border-cyber-cyan/30 rounded-lg shadow-[0_0_50px_rgba(255,42,42,0.1)] overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/5">
+                <h3 class="font-bold text-white flex items-center gap-2 font-headings text-lg"><i class="fa-solid fa-clock-rotate-left text-cyber-cyan"></i> 推荐历史记录</h3>
+                <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div id="history-stats-bar" class="grid grid-cols-4 gap-4 p-4 text-center border-b border-white/5 bg-white/5 hidden">
+                <div class="bg-gray-800/50 p-2 rounded border border-white/5">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-500">Total</div>
+                    <div id="stat-total" class="text-lg font-bold text-white">0</div>
+                </div>
+                <div class="bg-green-900/10 p-2 rounded border border-green-500/10">
+                    <div class="text-[10px] uppercase tracking-wider text-green-500/70">Win</div>
+                    <div id="stat-wins" class="text-lg font-bold text-green-400">0</div>
+                </div>
+                <div class="bg-red-900/10 p-2 rounded border border-red-500/10">
+                    <div class="text-[10px] uppercase tracking-wider text-red-500/70">Loss</div>
+                    <div id="stat-losses" class="text-lg font-bold text-red-400">0</div>
+                </div>
+                <div class="bg-yellow-900/10 p-2 rounded border border-yellow-500/10">
+                    <div class="text-[10px] uppercase tracking-wider text-yellow-500/70">Pending/Push</div>
+                    <div id="stat-pending" class="text-lg font-bold text-yellow-400">0</div>
+                </div>
+            </div>
+
+            <!-- Equity Curve Chart -->
+            <div id="equity-chart-container" class="p-4 border-b border-white/5 bg-black/20 hidden" style="height: 200px;">
+                <canvas id="equityChart"></canvas>
+            </div>
+
+            <div class="flex-1 overflow-y-auto overflow-x-auto p-0 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                <table class="w-full text-left border-collapse">
+                    <thead class="sticky top-0 bg-gray-900 text-xs text-gray-400 font-mono uppercase tracking-wider backdrop-blur-md whitespace-nowrap">
+                        <tr>
+                            <th class="p-3 border-b border-white/5">时间</th>
+                            <th class="p-3 border-b border-white/5">联赛/赛事</th>
+                            <th class="p-3 border-b border-white/5">比分</th>
+                            <th class="p-3 border-b border-white/5">推荐内容</th>
+                            <th class="p-3 border-b border-white/5 text-center">赔率</th>
+                            <th class="p-3 border-b border-white/5 text-center">期望值</th>
+                            <th class="p-3 border-b border-white/5 text-center">结果</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="text-sm font-mono text-gray-300 divide-y divide-white/5 whitespace-nowrap">
+                         <!-- Loaded via JS -->
+                    </tbody>
+                </table>
+                <div id="history-loading" class="text-center py-8 text-gray-500 hidden">
+                    <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> 正在加载历史记录...
+                </div>
+                <div id="history-empty" class="text-center py-8 text-gray-500 hidden">
+                    暂无推荐记录
+                </div>
+            </div>
+            
+            <div class="p-3 border-t border-white/10 bg-slate-900/5 text-xs text-center text-gray-500 font-mono">
+                * 结果等待比赛结束后自动结算更新
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Script -->
+    <script>
+        // Clock
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('en-GB');
+        }, 1000);
+
+        // --- League Filter Logic ---
+        let allAvailableLeagues = new Set();
+        let blockedLeagues = new Set(); // Track backend-blocked leagues
+        let isFilterActive = false;
+        let lastRenderedLeaguesSig = ""; // To detect changes and avoid unnecessary re-renders
+
+        function openLeagueModal() {
+            renderLeagueList();
+            document.getElementById('league-modal').classList.remove('hidden');
+            // 每次打开时强制刷新一次数据，确保列表最新
+            fetchLiveMatches(true);
+        }
+
+        function closeLeagueModal() {
+            document.getElementById('league-modal').classList.add('hidden');
+        }
+
+        function renderLeagueList() {
+            const container = document.getElementById('league-list-container');
+            
+            if (allAvailableLeagues.size === 0) {
+                container.innerHTML = '<div class="col-span-full text-center text-gray-500 py-4 text-sm font-mono"><i class="fa-solid fa-spinner fa-spin mr-2"></i>等待实时数据接入...</div>';
+                return;
+            }
+
+            // Check for changes to avoid overwriting user temporary selections
+            const sortedLeagues = Array.from(allAvailableLeagues).sort();
+            const currentSig = JSON.stringify(sortedLeagues);
+            
+            // Only re-render if the league list (names) has actually changed
+            if (currentSig === lastRenderedLeaguesSig && container.children.length > 0) {
+                return;
+            }
+            lastRenderedLeaguesSig = currentSig;
+
+            container.innerHTML = '';
+            
+            sortedLeagues.forEach(league => {
+                const label = document.createElement('label');
+                // New Card Style for League Items
+                label.className = 'group relative flex items-center justify-between p-3 rounded border cursor-pointer transition-all duration-200 select-none';
+                
+                // If the league is NOT in blockedLeagues, it is checked.
+                const isChecked = !blockedLeagues.has(league);
+                
+                // Dynamic styling based on checked state logic is handled by CSS peer/checked usually, 
+                // but since we are re-rendering, we can inject classes directly or use the input state.
+                // Here we use peer pattern for pure CSS toggling visual.
+                
+                label.innerHTML = `
+                    <input type="checkbox" value="${league}" ${isChecked ? 'checked' : ''} class="peer sr-only league-checkbox">
+                    
+                    <!-- Background & Border State -->
+                    <div class="absolute inset-0 rounded border border-white/5 bg-gray-800/40 peer-checked:bg-cyber-cyan/10 peer-checked:border-cyber-cyan/50 peer-checked:shadow-[0_0_10px_rgba(14,255,255,0.1)] transition-all"></div>
+                    
+                    <!-- Content -->
+                    <span class="relative z-10 text-xs font-mono font-bold text-gray-400 group-hover:text-gray-200 peer-checked:text-cyber-cyan transition-colors truncate pr-2">${league}</span>
+                    
+                    <!-- Check Icon -->
+                    <div class="relative z-10 w-5 h-5 rounded-full border border-gray-600 bg-black/50 flex items-center justify-center peer-checked:bg-cyber-cyan peer-checked:border-cyber-cyan transition-all">
+                        <i class="fa-solid fa-check text-[10px] text-black opacity-0 peer-checked:opacity-100 transform scale-50 peer-checked:scale-100 transition-all"></i>
+                    </div>
+                `;
+                container.appendChild(label);
+            });
+        }
+        
+        // --- History Modal Functions ---
+        async function openHistoryModal() {
+            document.getElementById('history-modal').classList.remove('hidden');
+            const tbody = document.getElementById('history-table-body');
+            const loading = document.getElementById('history-loading');
+            const empty = document.getElementById('history-empty');
+            const statsBar = document.getElementById('history-stats-bar');
+            
+            tbody.innerHTML = '';
+            loading.classList.remove('hidden');
+            empty.classList.add('hidden');
+            statsBar.classList.add('hidden');
+            
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                
+                loading.classList.add('hidden');
+                
+                if (!data.history || data.history.length === 0) {
+                    empty.classList.remove('hidden');
+                    return;
+                }
+                
+                // Calculate Stats
+                let win = 0, loss = 0, other = 0;
+                data.history.forEach(r => {
+                    const res = r.result || 'Pending';
+                    if (res === 'Win' || res === 'Half Win') win++;
+                    else if (res === 'Loss' || res === 'Half Loss') loss++;
+                    else other++;
+                });
+                
+                document.getElementById('stat-total').innerText = data.history.length;
+                document.getElementById('stat-wins').innerText = win;
+                document.getElementById('stat-losses').innerText = loss;
+                document.getElementById('stat-pending').innerText = other;
+                statsBar.classList.remove('hidden');
+                
+                // Draw Chart
+                document.getElementById('equity-chart-container').classList.remove('hidden');
+                drawEquityChart(data.history);
+                
+                let html = '';
+                
+                // Helper to translate status
+                const transRes = (r) => {
+                    const map = {
+                        'Win': '全赢', 'Half Win': '半赢',
+                        'Loss': '全输', 'Half Loss': '半输',
+                        'Push': '走水', 'Pending': '进行中'
+                    };
+                    return map[r] || r;
+                };
+
+                data.history.forEach(rec => {
+                    // Translate Result Badge
+                    let resultBadge = `<span class="text-xs text-gray-500 px-2 py-0.5 rounded bg-gray-800 border border-gray-600">进行中</span>`;
+                    const res = rec.result || 'Pending';
+                    const cnRes = transRes(res);
+                    
+                    if (res === 'Win' || res === 'Half Win') {
+                        resultBadge = `<span class="text-xs text-green-400 px-2 py-0.5 rounded bg-green-900/30 border border-green-500/50 font-bold shadow-[0_0_10px_rgba(74,222,128,0.2)]">${cnRes}</span>`;
+                    } else if (res === 'Loss' || res === 'Half Loss') {
+                        resultBadge = `<span class="text-xs text-red-400 px-2 py-0.5 rounded bg-red-900/30 border border-red-500/50 font-bold shadow-[0_0_10px_rgba(248,113,113,0.2)]">${cnRes}</span>`;
+                    } else if (res === 'Push') {
+                        resultBadge = `<span class="text-xs text-yellow-400 px-2 py-0.5 rounded bg-yellow-900/30 border border-yellow-500/50 font-bold">${cnRes}</span>`;
+                    }
+
+                    html += `
+                        <tr class="hover:bg-white/5 transition-colors">
+                            <td class="p-3 text-[10px] text-gray-400 whitespace-nowrap">${rec.timestamp || rec.time_at_rec}</td>
+                            <td class="p-3">
+                                <div class="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">${rec.league}</div>
+                                <div class="text-xs font-bold text-white">${rec.home_team} vs ${rec.away_team}</div>
+                            </td>
+                            <td class="p-3 font-bold text-cyber-cyan text-center flex flex-col items-center justify-center">
+                                <span>${rec.final_score || rec.score_at_rec}</span>
+                                ${rec.final_score ? '<span class="text-[9px] text-gray-500">(完)</span>' : ''}
+                            </td>
+                            <td class="p-3">
+                                <span class="bg-gray-800 text-cyan-400 px-2 py-1 rounded text-xs font-bold border border-cyan-400/30">${rec.bet_type.replace('HDP', '让球').replace('Over', '大').replace('Under', '小')}</span>
+                            </td>
+                            <td class="p-3 text-center">
+                                <div class="text-gray-300 font-bold">${rec.odds}</div>
+                                <div class="text-[10px] text-gray-500">公: ${rec.fair_odds}</div>
+                            </td>
+                            <td class="p-3 text-center font-bold text-cyber-green">+${rec.ev}%</td>
+                            <td class="p-3 text-center">
+                                ${resultBadge}
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+                
+            } catch (e) {
+                loading.classList.add('hidden');
+                console.error(e);
+                empty.innerText = "Error loading history.";
+                empty.classList.remove('hidden');
+            }
+        }
+        
+        function closeHistoryModal() {
+            document.getElementById('history-modal').classList.add('hidden');
+        }
+
+
+        function toggleAllLeagues(select) {
+            const checkboxes = document.querySelectorAll('.league-checkbox');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        async function applyLeagueFilter() {
+            const checkboxes = document.querySelectorAll('.league-checkbox');
+            blockedLeagues.clear();
+            
+            const blockedList = [];
+
+            checkboxes.forEach(cb => {
+                if (!cb.checked) {
+                    blockedLeagues.add(cb.value);
+                    blockedList.push(cb.value);
+                }
+            });
+
+            // Send blocked list to backend
+            try {
+                await fetch('/api/set-league-filter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ blocked: blockedList })
+                });
+            } catch (e) {
+                console.error("Failed to sync filter with backend", e);
+            }
+
+            // Update UI State
+            if (blockedLeagues.size === 0) {
+                 isFilterActive = false;
+                 updateFilterBadge('ALL');
+            } else {
+                 isFilterActive = true;
+                 // Assuming allAvailableLeagues is accurate
+                 let activeCount = allAvailableLeagues.size - blockedLeagues.size;
+                 updateFilterBadge(activeCount > 0 ? activeCount : '0'); 
+            }
+
+            closeLeagueModal();
+            fetchLiveMatches(true);
+        }
+        
+        function updateFilterBadge(text) {
+             const badge = document.getElementById('league-count-badge');
+             badge.innerText = text;
+             if (text === 'ALL') {
+                 badge.className = "text-[10px] bg-gray-800 text-gray-500 px-1.5 rounded group-hover:bg-cyber-cyan group-hover:text-black transition-colors";
+             } else {
+                 badge.className = "text-[10px] bg-cyber-cyan text-black px-1.5 rounded font-bold shadow-[0_0_10px_rgba(255,42,42,0.5)]";
+             }
+        }
+
+        // --- Sound Logic ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = false;
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('sound-toggle');
+            const icon = document.getElementById('sound-icon');
+            const status = document.getElementById('sound-status');
+            
+            if (soundEnabled) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                icon.className = "fa-solid fa-volume-high text-cyber-cyan";
+                status.innerText = "SOUND ON";
+                status.className = "hidden md:inline text-xs text-cyber-cyan";
+                // Test sound
+                playGoalSound(true);
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-gray-500";
+                status.innerText = "MUTED";
+                status.className = "hidden md:inline text-xs";
+            }
+        }
+
+        function playGoalSound(isTest = false) {
+            if (!soundEnabled) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            // Goal Alert Sound Effect (Siren-like)
+            osc.type = 'sawtooth';
+            
+            const now = audioCtx.currentTime;
+            
+            if (isTest) {
+                // Short blip
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.exponentialRampToValueAtTime(440, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else {
+                // Full Goal Siren
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.2);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.4);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.6);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.2, now + 0.6);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+                
+                osc.start(now);
+                osc.stop(now + 1.0);
+            }
+        }
+
+        // Terminal Logs (自动拉取后端算法日志)
+        const terminal = document.getElementById('terminal-content');
+
+        function renderAlgoLogs(logArr) {
+            terminal.innerHTML = '';
+            logArr.forEach(line => {
+                const div = document.createElement('div');
+                div.className = 'text-gray-400 break-all';
+                div.innerText = line;
+                terminal.appendChild(div);
+            });
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function fetchAlgoLogs() {
+            try {
+                const res = await fetch('/api/logs');
+                const data = await res.json();
+                if (data.logs) renderAlgoLogs(data.logs);
+            } catch (e) {
+                // 可选：显示错误
+            }
+        }
+
+        // 首次拉取
+        fetchAlgoLogs();
+        // 每3秒自动刷新
+        setInterval(fetchAlgoLogs, 3000);
+
+        function addLogLine(text, color = 'text-gray-400') {
+            // Keep terminal clean, maybe divert to console or mini-ticker
+            console.log(text);
+        }
+
+        // --- Live Matches Logic ---
+        let lastScores = {}; // Store previous scores to detect changes
+        let currentMode = 'live'; // 'live' or 'schedule'
+        let smartMoneyAlerts = []; // Store active smart money alerts
+
+        function updateSmartMoneyBanner() {
+            const banner = document.getElementById('smart-money-banner');
+            const content = document.getElementById('smart-money-content');
+            
+            if (!smartMoneyAlerts || smartMoneyAlerts.length === 0) {
+                banner.classList.add('hidden');
+                return;
+            }
+            
+            // Show latest alert
+            banner.classList.remove('hidden');
+            const alert = smartMoneyAlerts[0]; // Top alert
+            const team = alert.sm.team === 'HOME' ? alert.home_team : alert.away_team;
+            const drop = alert.sm.drop_pct;
+            
+            content.innerHTML = `
+                <div class="flex justify-between w-full gap-4">
+                    <span>Specific Sharp Action on <strong>${team}</strong> in ${alert.league}</span>
+                    <span class="text-yellow-400 font-bold">ODDS DROP: ${drop}% <i class="fa-solid fa-arrow-trend-down"></i></span>
+                </div>
+                <div class="mt-1 opacity-70">
+                    Detected move from ${alert.sm.from_odds} to ${alert.sm.to_odds} for ${alert.home_team} vs ${alert.away_team}
+                </div>
+            `;
+        }
+        
+        // Remove setInterval variables since we run them continuously
+        // let scheduleInterval = null;
+        // let liveInterval = null;
+
+        function switchMode(mode) {
+             // Forcing Live Mode Always - other modes disabled
+             mode = 'live';
+             currentMode = mode;
+             
+             /* 
+             // Disabled Mode Switching UI logic
+            const grid = document.getElementById('live-matches-grid');
+            const header = document.getElementById('main-header');
+            const btnLive = document.getElementById('nav-live');
+            const btnSchedule = document.getElementById('nav-schedule');
+            
+            // UI Toggle
+            if (mode === 'live') {
+                btnLive.classList.add('bg-cyber-cyan/10', 'text-cyber-cyan', 'border-cyber-cyan');
+                btnLive.classList.remove('text-gray-400', 'border-transparent');
+                
+                if (btnSchedule) {
+                    btnSchedule.classList.remove('bg-cyber-cyan/10', 'text-cyber-cyan', 'border-cyber-cyan');
+                    btnSchedule.classList.add('text-gray-400', 'border-transparent');
+                }
+                
+                header.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-alert-red animate-blink"></span>
+                    LIVE IN-PLAY <span class="text-xs text-gray-500 font-mono ml-2">(Auto-Refresh: ON)</span>
+                `;
+                
+                // Immediate render call
+                grid.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500"><i class="fa-solid fa-circle-notch fa-spin"></i> Switching to Live Feed...</div>';
+                fetchLiveMatches(true);
+
+            } else {
+                 // ... Schedule logic hidden ...
+            }
+            */
+            
+            // Simplified Live Mode Enforcement
+            const header = document.getElementById('main-header');
+            const grid = document.getElementById('live-matches-grid');
+            
+            header.innerHTML = `
+                <span class="w-2 h-2 rounded-full bg-alert-red animate-blink"></span>
+                LIVE IN-PLAY <span class="text-xs text-gray-500 font-mono ml-2">(Auto-Refresh: ON)</span>
+            `;
+            
+            // Trigger fetch immediately
+            fetchLiveMatches(true);
+        }
+
+        async function fetchScheduledMatches(forceRender = false) {
+             // Function Disabled: User requested to block today's schedule functionality
+             return; 
+        }
+
+        async function fetchLiveMatches(forceRender = false) {
+            try {
+                const response = await fetch('/api/live');
+                const data = await response.json();
+                
+                // Update AI Recommendations Panel
+                if (data.matches) updateMarketTrends(data.matches);
+
+                // Collect Smart Money Alerts
+                smartMoneyAlerts = [];
+                if (data.matches) {
+                    data.matches.forEach(m => {
+                        if (m.smart_money) {
+                            // Enrich with team names for display
+                            m.smart_money_data = {
+                                sm: m.smart_money,
+                                home_team: m.home_team,
+                                away_team: m.away_team,
+                                league: m.league,
+                                id: m.id
+                            };
+                            smartMoneyAlerts.push(m.smart_money_data);
+                        }
+                    });
+                }
+                updateSmartMoneyBanner();
+
+                // Determine if we should render to DOM
+                const shouldRender = (currentMode === 'live' || forceRender);
+                const grid = document.getElementById('live-matches-grid');
+                
+                if (shouldRender) {
+                    // Only clear if we are going to populate it
+                    grid.innerHTML = ''; 
+                }
+
+                if (data.count > 0 || (data.leagues && data.leagues.length > 0)) {
+                    // 1. 优先使用后端返回的全量联赛列表（包含被屏蔽的）
+                    if (data.leagues && data.leagues.length > 0) {
+                        allAvailableLeagues = new Set(data.leagues);
+                    }
+                    
+                    // 2. 双重保障：如果上述为空（异常情况）或者为了确保可见比赛的联赛一定在列表中
+                    // 将当前所有 match.league 也加入集合
+                    if (data.matches && data.matches.length > 0) {
+                        data.matches.forEach(m => {
+                            if (m.league) allAvailableLeagues.add(m.league);
+                        });
+                    }
+
+                    // Sync Blocked Leagues from backend if needed (optional, or rely on local)
+                    if (data.blocked_leagues) {
+                         blockedLeagues = new Set(data.blocked_leagues);
+                         
+                         // Update Badge Init
+                         if (blockedLeagues.size > 0 && allAvailableLeagues.size > 0) {
+                             isFilterActive = true;
+                             let activeCount = allAvailableLeagues.size - blockedLeagues.size;
+                             updateFilterBadge(activeCount > 0 ? activeCount : '0');
+                         } else {
+                             isFilterActive = false;
+                             updateFilterBadge('ALL');
+                         }
+                    }
+
+                    // Dynamically refresh league list if modal is open to reflect real-time translations
+                    const modal = document.getElementById('league-modal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                         renderLeagueList();
+                    }
+
+                    data.matches.forEach(match => {
+                        // Apply League Filter (Front-end double check, though backend filters it too)
+                        if (blockedLeagues.has(match.league)) return;
+
+                        const ai = match.ai_analysis || {};
+                        const h_prob = ai.home_prob || 0;
+                        const d_prob = ai.draw_prob || 0;
+                        const a_prob = ai.away_prob || 0;
+                        
+                        let ai_text = "-";
+                         // Frontend simplified logic for display color, backend does heavy lifting
+                        let badgeColor = "bg-gray-800 text-gray-400 border border-gray-600";
+                        if (h_prob >= 60) badgeColor = "bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan shadow-[0_0_15px_rgba(255,42,42,0.3)]";
+                        else if (a_prob >= 50) badgeColor = "bg-neon-purple/10 text-neon-purple border border-neon-purple shadow-[0_0_15px_rgba(176,38,255,0.3)]";
+                        else if (match.home_score + match.away_score > 2) badgeColor = "bg-cyber-green/10 text-cyber-green border border-cyber-green shadow-[0_0_15px_rgba(0,255,65,0.3)]";
+
+                        // Goal Detection
+                        let showGoal = false;
+                        let goalText = "";
+                        const prev = lastScores[match.id];
+                        
+                        // Check if score increased
+                        if (prev) {
+                            if (match.home_score > prev.h) {
+                                showGoal = true;
+                                goalText = "HOME GOAL!";
+                                addLogLine(`GOAL detected: ${match.home_team} scored!`, "text-alert-red font-bold");
+                                playGoalSound();
+                            } else if (match.away_score > prev.a) {
+                                showGoal = true;
+                                goalText = "AWAY GOAL!";
+                                addLogLine(`GOAL detected: ${match.away_team} scored!`, "text-alert-red font-bold");
+                                playGoalSound();
+                            }
+                        }
+                        
+                        // Update tracking
+                        lastScores[match.id] = { h: match.home_score, a: match.away_score };
+
+                        // Only generate HTML if we are rendering
+                        if (shouldRender) {
+                            // --- Advanced Analytics Preparation ---
+                            const analytics = match.advanced_analytics;
+                            let momentumHtml = '';
+                            let valueBetHtml = '';
+
+                            if (analytics) {
+                                // Momentum
+                                const h_mom = analytics.momentum.home;
+                                const a_mom = analytics.momentum.away;
+                                
+                                momentumHtml = `
+                                    <div class="mb-1 pt-1 border-t border-white/5">
+                                        <div class="flex justify-between text-[10px] text-gray-500 font-mono uppercase mb-0.5">
+                                            <span class="scale-90 origin-left"><i class="fa-solid fa-gauge-high mr-1"></i>Pressure</span>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-[10px] font-mono">
+                                            <div class="w-4 text-right text-gray-400 leading-none">${Math.round(h_mom)}</div>
+                                            <div class="flex-1 h-1 bg-gray-900 rounded-full overflow-hidden flex relative">
+                                                <div class="h-full bg-cyber-cyan transition-all duration-500" style="width: ${Math.min(h_mom, 100)}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-[10px] font-mono mt-0.5">
+                                            <div class="w-4 text-right text-gray-400 leading-none">${Math.round(a_mom)}</div>
+                                            <div class="flex-1 h-1 bg-gray-900 rounded-full overflow-hidden flex relative">
+                                                <div class="h-full bg-neon-purple transition-all duration-500" style="width: ${Math.min(a_mom, 100)}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+
+                                // Value Bet Signal
+                                if (analytics.signal) {
+                                    valueBetHtml = `
+                                        <div class="absolute -top-1 -right-1 z-20 pointer-events-none">
+                                            <span class="relative flex h-2 w-2">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-green opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2 w-2 bg-cyber-green"></span>
+                                            </span>
+                                        </div>
+                                        <div class="absolute bottom-0 left-0 right-0 bg-cyber-green text-black text-[10px] font-bold text-center py-0.5 transform translate-y-full group-hover/odds:translate-y-0 transition-transform z-10 leading-none">
+                                            EV +${analytics.signal.ev}%
+                                        </div>
+                                    `;
+                                }
+                            }
+
+
+                            // Weather Icon Logic
+                            let weatherHtml = '';
+                            if (match.weather && match.weather !== 'PERFECT') {
+                                let wIcon = 'fa-sun';
+                                let wColor = 'text-yellow-500';
+                                if (match.weather === 'RAIN') { wIcon = 'fa-cloud-rain'; wColor = 'text-blue-400'; }
+                                else if (match.weather === 'SNOW') { wIcon = 'fa-snowflake'; wColor = 'text-white'; }
+                                else if (match.weather === 'HOT') { wIcon = 'fa-temperature-high'; wColor = 'text-orange-500'; }
+                                
+                                weatherHtml = `<span class="${wColor} text-xs ml-2" title="${match.weather}"><i class="fa-solid ${wIcon}"></i></span>`;
+                            }
+
+                            // Create Card HTML
+                            const html = `
+                            <div class="signal-card p-2 rounded relative overflow-hidden group ${showGoal ? 'goal-scanned' : ''}">
+                            <!-- Tech Corner Decoration -->
+                            <div class="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-cyber-cyan/30 rounded-tl"></div>
+                            <div class="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-cyber-cyan/30 rounded-tr"></div>
+                            <div class="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-cyber-cyan/30 rounded-bl"></div>
+                            <div class="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-cyber-cyan/30 rounded-br"></div>
+
+                            <!-- Goal Overlay Animation -->
+                            ${showGoal ? `
+                                <div class="goal-banner">
+                                    <div class="text-2xl uppercase tracking-tighter italic">GOAL!</div>
+                                    <div class="text-xs font-mono">${goalText}</div>
+                                </div>
+                            ` : ''}
+
+                            <div class="absolute right-0 top-0 p-1.5 opacity-30 text-[9px] font-mono text-gray-500">
+                                #${match.id}
+                            </div>
+                            
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="animate-pulse w-1.5 h-1.5 bg-alert-red rounded-full"></span>
+                                    <span class="text-alert-red font-bold text-xs tracking-widest">${match.display_time}</span>
+                                    <span class="text-sm font-bold text-cyber-cyan/80 px-2 border-l border-gray-700 font-headings uppercase tracking-wider">${match.league}</span>
+                                    ${weatherHtml}
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex-1">
+                                    <div class="text-sm font-bold text-white leading-tight flex items-center gap-1">
+                                        ${match.home_team}
+                                        ${match.home_red_cards > 0 ? `<span class="text-alert-red text-[10px] animate-pulse" title="Red Card"><i class="fa-solid fa-square"></i> ${match.home_red_cards > 1 ? match.home_red_cards : ''}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="px-1 text-center">
+                                    <div class="text-lg font-mono font-bold text-cyber-cyan tracking-widest bg-black/40 px-2 py-0 rounded border border-white/10 shadow-inner">
+                                        ${match.home_score}-${match.away_score}
+                                    </div>
+                                </div>
+                                <div class="flex-1 text-right">
+                                    <div class="text-sm font-bold text-white leading-tight flex items-center justify-end gap-1">
+                                        ${match.away_red_cards > 0 ? `<span class="text-alert-red text-[10px] animate-pulse" title="Red Card">${match.away_red_cards > 1 ? match.away_red_cards : ''} <i class="fa-solid fa-square"></i></span>` : ''}
+                                        ${match.away_team}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Bar -->
+                            <div class="space-y-0.5 mb-2">
+                                <div class="flex justify-between text-[9px] text-gray-500 font-mono uppercase">
+                                    <span>H ${h_prob}%</span>
+                                    <span>A ${a_prob}%</span>
+                                </div>
+                                <div class="flex h-1 w-full bg-gray-800 rounded-full overflow-hidden opacity-80">
+                                        <div class="bg-gray-300" style="width: ${h_prob}%"></div>
+                                        <div class="bg-gray-600" style="width: ${d_prob}%"></div>
+                                        <div class="bg-gray-500" style="width: ${a_prob}%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Momentum Pressure Bar -->
+                            ${momentumHtml}
+
+                            <!-- Odds Section -->
+                            <div class="grid grid-cols-2 gap-1.5 mb-1">
+                                    <!-- Asian Handicap -->
+                                    <div class="bg-gradient-to-br from-gray-900 to-black rounded border border-white/5 p-1.5 shadow relative overflow-hidden group/odds hover:border-cyber-cyan/20 transition-colors">
+                                        ${valueBetHtml}
+                                        <div class="flex justify-between items-start mb-0.5">
+                                            <span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest">让球</span>
+                                            <span class="text-sm font-bold text-gray-200 font-mono tracking-wider">${match.odds_ah.val}</span>
+                                        </div>
+                                        
+                                        <div class="flex justify-between items-end font-mono">
+                                            <div class="flex flex-col">
+                                                <span class="text-cyber-cyan font-bold text-xs leading-none">${match.odds_ah.h}</span>
+                                            </div>
+                                            <div class="h-4 w-px bg-slate-900/5 mx-0.5"></div>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-neon-purple font-bold text-xs leading-none">${match.odds_ah.a}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Over/Under -->
+                                    <div class="bg-gradient-to-br from-gray-900 to-black rounded border border-white/5 p-1.5 shadow relative overflow-hidden group/odds hover:border-cyber-green/20 transition-colors">
+                                        
+                                        <div class="flex justify-between items-start mb-0.5">
+                                            <span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest">大小</span>
+                                            <span class="text-sm font-bold text-gray-200 font-mono tracking-wider">${match.odds_ou.line}</span>
+                                        </div>
+                                        
+                                        <div class="flex justify-between items-end font-mono">
+                                            <div class="flex flex-col">
+                                                <span class="text-cyber-green font-bold text-xs leading-none">${match.odds_ou.o}</span>
+                                            </div>
+                                            <div class="h-4 w-px bg-slate-900/5 mx-0.5"></div>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-alert-red font-bold text-xs leading-none">${match.odds_ou.u}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                            </div>
+
+                            <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                    <div class="text-[10px] text-gray-500">
+                                        AI Model: Poisson v2.1
+                                    </div>
+                                    <div class="px-2 py-0.5 rounded text-xs font-bold ${badgeColor}">
+                                        ${match.ai_analysis.ai_prediction || 'Analyzing...'}
+                                    </div>
+                            </div>
+
+                            </div>
+                            `;
+                            grid.innerHTML += html;
+                        }
+                    });
+                     // addLogLine(`Polled ${data.count} live matches.`, "text-cyber-cyan");
+                } else if (shouldRender) {
+                    grid.innerHTML = `
+                    <div class="text-center py-8 text-gray-500 border border-dashed border-gray-800 rounded bg-black/20">
+                        <i class="fa-solid fa-moon text-2xl mb-2 opacity-50"></i>
+                        <p class="text-sm">Currently no matches in play.</p>
+                        <p class="text-xs mt-1">Waiting for kick-off signals...</p>
+                    </div>
+                    `;
+                }
+            } catch (e) {
+                console.error("Fetch Live Error:", e);
+                addLogLine(`Error fetching live data: ${e.message}`, "text-alert-red");
+                if (e.name === 'SyntaxError') {
+                    addLogLine("JSON Parse Error: Backend returned invalid JSON or HTML error page.", "text-alert-red");
+                }
+            }
+        }
+
+        function updateMarketTrends(matches) {
+            const container = document.getElementById('market-trends-container');
+            const countBadge = document.getElementById('rec-count');
+            
+            // Filter matches with signals (EV > 0)
+            const recommendations = matches.filter(m => 
+                m.advanced_analytics && 
+                m.advanced_analytics.signal
+            );
+
+            if (recommendations.length === 0) {
+                countBadge.classList.add('hidden');
+                container.innerHTML = `
+                     <div class="p-8 flex flex-col items-center justify-center select-none">
+                        <!-- Momentum Equalizer Animation -->
+                        <div class="flex items-end space-x-1.5 h-16 mb-5">
+                            <div class="w-1.5 bg-cyber-cyan/20 animate-pulse rounded-t" style="height: 40%; animation-delay: 0s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/40 animate-pulse rounded-t" style="height: 70%; animation-delay: 0.2s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/60 animate-pulse rounded-t" style="height: 50%; animation-delay: 0.5s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/80 animate-pulse rounded-t" style="height: 90%; animation-delay: 0.1s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan animate-pulse rounded-t" style="height: 60%; animation-delay: 0.4s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/80 animate-pulse rounded-t" style="height: 80%; animation-delay: 0.3s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/60 animate-pulse rounded-t" style="height: 40%; animation-delay: 0.6s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/40 animate-pulse rounded-t" style="height: 70%; animation-delay: 0.2s;"></div>
+                            <div class="w-1.5 bg-cyber-cyan/20 animate-pulse rounded-t" style="height: 30%; animation-delay: 0.5s;"></div>
+                        </div>
+
+                        <div class="text-center space-y-2">
+                             <div class="text-xs font-mono text-cyber-cyan tracking-[0.2em] font-bold animate-pulse">SYSTEM ANALYSIS ACTIVE</div>
+                             <div class="text-[10px] text-gray-400">Calculing Real-time Momentum & Odds Alpha...</div>
+                        </div>
+                        
+                        <div class="mt-6 w-48 bg-gray-900/50 rounded p-2 border border-white/5">
+                            <div class="flex items-center space-x-2 mb-1.5">
+                                <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
+                                <div class="text-[9px] text-gray-500 font-mono">LIVE FEED CONNECTED</div>
+                            </div>
+                             <div class="h-0.5 w-full bg-gray-800 rounded overflow-hidden">
+                                <div class="h-full bg-cyber-cyan w-1/3 animate-[spin_3s_linear_infinite]" style="width: 100%; transform-origin: 0% 50%;"></div>
+                             </div>
+                        </div>
+                     </div>`;
+                return;
+            }
+
+            // Show count
+            countBadge.innerText = recommendations.length;
+            countBadge.classList.remove('hidden');
+            
+            // Render list
+            let html = '';
+            // Sort by EV desc
+            recommendations.sort((a,b) => b.advanced_analytics.signal.ev - a.advanced_analytics.signal.ev); 
+            
+            // --- Update Ticker ---
+            if (recommendations.length > 0) {
+                const ticker = document.getElementById('ticker-card');
+                const tickerContent = document.getElementById('ticker-content');
+                ticker.classList.remove('hidden');
+                
+                // Get top item or cycle
+                // For simplicity, let's create a scrolling list of the top 3 items
+                const topRecs = recommendations.slice(0, 5); // Take top 5
+                let tickerHtml = '';
+                
+                topRecs.forEach(r => {
+                    const sig = r.advanced_analytics.signal;
+                    tickerHtml += `
+                    <div class="h-14 flex flex-col justify-center cursor-pointer hover:bg-white/5 rounded px-1" onclick="document.getElementById('${r.id}').scrollIntoView({behavior: 'smooth'})">
+                        <div class="flex justify-between items-center text-xs font-bold text-white">
+                            <span class="truncate pr-2">${r.home_team} vs ${r.away_team}</span>
+                            <span class="text-cyber-green shrink-0">+${sig.ev}% EV</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+                            <span class="bg-gray-800 px-1 rounded border border-gray-700 text-cyber-cyan">${sig.market_odds}</span>
+                            <span>${r.league.substring(0,10)}..</span>
+                            <span class="text-xs font-bold text-white">${r.goals_home}-${r.goals_away}</span>
+                        </div>
+                    </div>`;
+                });
+                
+                // Duplicate for infinite scroll loop if enough items
+                if (topRecs.length > 1) {
+                    tickerContent.innerHTML = tickerHtml + tickerHtml;
+                    // Add CSS animation tailored to content height
+                    // Use simple JS interval for carousel effect instead of CSS for dynamic height handling
+                } else {
+                     tickerContent.innerHTML = tickerHtml;
+                }
+                
+                // Reset animation state (simple JS carousel)
+                if (!window.tickerInterval && topRecs.length > 1) {
+                    let offset = 0;
+                    const itemHeight = 64; // Approx height including gap (14 * 4px + gap) -> 3.5rem + gap
+                    window.tickerInterval = setInterval(() => {
+                        const content = document.getElementById('ticker-content');
+                        if(!content) return;
+                        offset += 1;
+                        if (offset >= topRecs.length) {
+                            offset = 0;
+                            content.style.transition = 'none'; // Snap back
+                            content.style.transform = `translateY(0px)`;
+                            // Force reflow
+                            void content.offsetWidth;
+                            content.style.transition = 'transform 0.5s ease-in-out';
+                        }
+                        content.style.transform = `translateY(-${offset * 56}px)`; // 56px = h-14
+                    }, 3000);
+                }
+
+            } else {
+                document.getElementById('ticker-card').classList.add('hidden');
+            }
+
+            recommendations.forEach(m => {
+                const signal = m.advanced_analytics.signal;
+                
+                // --- Feature 1 & 3: Kelly and Tiered Alerts ---
+                const ev = parseFloat(signal.ev);
+                const odds = parseFloat(signal.market_odds);
+                
+                // Kelly Calculation
+                // P = (EV + 1) / Odds
+                const p = (ev / 100.0 + 1.0) / odds;
+                const b = odds - 1.0;
+                const fullKelly = (p * b - (1 - p)) / b;
+                const qKelly = Math.max(0, fullKelly * 0.25); // 1/4 Kelly, no negative stake
+                const stakePct = (qKelly * 100).toFixed(1);
+                
+                // Tiered Styles
+                let borderClass = "border-cyber-green";
+                let bgPulse = "animate-pulse-slow";
+                let alertIcon = "";
+                
+                if (ev > 8.0) {
+                    borderClass = "border-alert-red shadow-[0_0_15px_rgba(255,0,60,0.4)]";
+                    bgPulse = "animate-pulse"; // Faster pulse
+                    alertIcon = `<i class="fa-solid fa-triangle-exclamation text-alert-red mr-1 animate-bounce"></i>`;
+                }
+                
+                html += `
+                <div class="${bgPulse} bg-gray-800/50 rounded p-2.5 border-l-2 ${borderClass} relative overflow-hidden group hover:bg-gray-800 transition-colors cursor-pointer" onclick="document.getElementById('${m.id}').scrollIntoView({behavior: 'smooth'})">
+                     <div class="absolute inset-0 bg-cyber-green/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                     <div class="absolute top-0 right-0 p-1">
+                        <span class="flex h-2 w-2 relative">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-green opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-cyber-green"></span>
+                        </span>
+                     </div>
+                     
+                     <div class="flex justify-between items-start mb-1 pr-4">
+                         <div class="text-[10px] text-gray-400 font-mono truncate max-w-[120px]">${m.league}</div>
+                         <div class="text-xs font-bold text-cyber-green transition-all group-hover:scale-110">EV +${ev}%</div>
+                     </div>
+                     
+                     <div class="text-sm font-bold text-white leading-tight mb-1 truncate">
+                         ${alertIcon} ${m.home_team} <span class="text-gray-500 font-normal">vs</span> ${m.away_team}
+                     </div>
+                     
+                     <div class="flex justify-between items-center text-xs mt-1.5 pt-1.5 border-t border-white/5">
+                         <span class="text-gray-300 font-mono bg-black/30 px-1.5 rounded">让球 ${m.odds_ah.val}</span>
+                         <div class="text-right">
+                             <span class="text-cyber-cyan font-bold block">@ ${odds}</span>
+                             <span class="text-[9px] text-gray-500 block mt-0.5">建议: ${stakePct}%</span>
+                         </div>
+                     </div>
+                </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        let equityChartInstance = null;
+
+        function drawEquityChart(history) {
+            const ctx = document.getElementById('equityChart').getContext('2d');
+            
+            // Destroy existing chart if any
+            if (equityChartInstance) {
+                equityChartInstance.destroy();
+            }
+
+            // Prepare Data
+            // Sort by time ascending
+            const sorted = [...history].sort((a,b) => new Date(a.time_at_rec || a.timestamp) - new Date(b.time_at_rec || b.timestamp));
+            
+            let balance = 100; // Start with 100 units
+            const labels = ['初始'];
+            const dataPoints = [100];
+            
+            const fmtTime = (t) => {
+                 const d = new Date(t);
+                 return `${d.getMonth()+1}/${d.getDate()}`;
+            }
+
+            sorted.forEach(rec => {
+                const res = rec.result;
+                let pnl = 0;
+                const odds = parseFloat(rec.odds);
+                
+                if (res === 'Win') pnl = (odds - 1);
+                else if (res === 'Half Win') pnl = (odds - 1) / 2;
+                else if (res === 'Loss') pnl = -1;
+                else if (res === 'Half Loss') pnl = -0.5;
+                
+                // Only graph settled bets
+                if (res && res !== 'Pending' && res !== 'Push') {
+                    balance += pnl;
+                    labels.push(fmtTime(rec.time_at_rec || rec.timestamp));
+                    dataPoints.push(balance);
+                }
+            });
+
+            // Config
+            equityChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '资金增长曲线 (单位:手)',
+                        data: dataPoints,
+                        borderColor: '#0effff', // Cyber Cyan
+                        backgroundColor: 'rgba(14, 255, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1, // Less curvy for financial data
+                        pointRadius: 2,
+                        pointBackgroundColor: '#000',
+                        pointBorderColor: '#0effff',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(10,10,10,0.9)',
+                            titleColor: '#fff',
+                            bodyColor: '#0effff',
+                            borderColor: '#333',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return `资金权益: ${context.parsed.y.toFixed(2)} 手`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false, 
+                            grid: { display: false }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { 
+                                color: '#6b7280',
+                                callback: function(value) { return value.toFixed(1); }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // Init - Poll Together
+        fetchLiveMatches();
+        fetchScheduledMatches();
+        setInterval(fetchLiveMatches, 15000); // Live Data every 15s
+        setInterval(fetchScheduledMatches, 60000); // Schedule Data every 60s
+    </script>
+</body>
+</html>

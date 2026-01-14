@@ -35,6 +35,7 @@ export interface LogEntry {
 
 const STORAGE_KEY = 'ai_prediction_history';
 const MAX_ENTRIES = 500; // 最多保存500条记录
+const TRANSLATION_CACHE_KEY = 'translation_dictionary';
 
 // ===========================================
 // 存储服务类
@@ -42,11 +43,55 @@ const MAX_ENTRIES = 500; // 最多保存500条记录
 
 class HistoryLogService {
   private entries: LogEntry[] = [];
+  private translationDictionary: Record<string, string> = {};
 
   constructor() {
     this.loadFromStorage();
+    this.loadTranslations();
   }
 
+  // 加载翻译字典
+  private async loadTranslations() {
+    try {
+      // 1. 先加载本地缓存
+      const cached = localStorage.getItem(TRANSLATION_CACHE_KEY);
+      if (cached) {
+        this.translationDictionary = JSON.parse(cached);
+      }
+
+      // 2. 从后端获取最新字典
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/translations`);
+      if (response.ok) {
+        const remoteDict = await response.json();
+        // 合并
+        this.translationDictionary = { ...this.translationDictionary, ...remoteDict };
+        // 保存
+        localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(this.translationDictionary));
+        console.log(`🌐 [History] 翻译字典已更新，共 ${Object.keys(this.translationDictionary).length} 条`);
+      }
+    } catch (e) {
+      console.warn('⚠️ 获取翻译字典失败，使用本地缓存或原文');
+    }
+  }
+
+  // 翻译辅助函数
+  public translate(text: string): string {
+    if (!text) return text;
+    // 1. 直接匹配
+    if (this.translationDictionary[text]) return this.translationDictionary[text];
+    
+    // 2. 去空格匹配
+    const trimmed = text.trim();
+    if (this.translationDictionary[trimmed]) return this.translationDictionary[trimmed];
+
+    // 3. 尝试智能匹配 (简单处理 FC / 后缀等)
+    const simple = trimmed.replace(/\s+(FC|SC|CF)$/i, '');
+    if (this.translationDictionary[simple]) return this.translationDictionary[simple];
+
+    return text;
+  }
+  
   // 从 localStorage 加载数据
   private loadFromStorage(): void {
     try {

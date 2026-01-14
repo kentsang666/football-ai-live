@@ -1,0 +1,72 @@
+import subprocess
+import time
+import sys
+import os
+import signal
+
+def main():
+    print("🚀 正在启动 NeuroBall AI 全套服务...")
+    
+    processes = []
+    
+    try:
+        # 1. 启动调度器 (负责初始化 DB 和定时抓取赛前数据)
+        print(" -> [1/3] 启动日常调度器 (daily_scheduler.py)...")
+        p_scheduler = subprocess.Popen(
+            [sys.executable, "daily_scheduler.py"],
+            cwd=os.getcwd(),
+            shell=False 
+        )
+        processes.append(p_scheduler)
+        time.sleep(3) # 等待3秒，确保数据库初始化完成
+        
+        # 2. 启动实时监控 (负责抓取实时比分和计算滚球胜率)
+        print(" -> [2/3] 启动实时监控器 (live_monitor.py)...")
+        p_monitor = subprocess.Popen(
+            [sys.executable, "live_monitor.py"],
+            cwd=os.getcwd(),
+            shell=False
+        )
+        processes.append(p_monitor)
+        time.sleep(2)
+        
+        # 3. 启动 Web 服务 (API Server)
+        print(" -> [3/3] 启动 API 服务器 (api_server.py)...")
+        p_main = subprocess.Popen(
+            [sys.executable, "api_server.py"],
+            cwd=os.getcwd(),
+            shell=False
+        )
+        processes.append(p_main)
+        
+        print("\n✅ 所有服务已启动！")
+        print("📝 日志将混合输出到本终端。")
+        print("🌐 访问 API: http://localhost:5000/api/live-matches")
+        print("❌ 按 Ctrl+C 可以一键停止所有服务。")
+        
+        # 保持主进程运行，并监听子进程状态
+        while True:
+            time.sleep(1)
+            # 检查是否有进程意外退出
+            if p_scheduler.poll() is not None:
+                print("⚠️ 警告: 调度器已退出")
+            if p_monitor.poll() is not None:
+                print("⚠️ 警告: 监控器已退出")
+            if p_main.poll() is not None:
+                print("⚠️ 警告: API 服务器已退出")
+                break # 主服务挂了就退出
+                
+    except KeyboardInterrupt:
+        print("\n🛑 正在停止所有服务...")
+    finally:
+        for p in processes:
+            if p.poll() is None: # 还在运行
+                p.terminate()
+                try:
+                    p.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+        print("👋 服务已全部关闭。")
+
+if __name__ == "__main__":
+    main()

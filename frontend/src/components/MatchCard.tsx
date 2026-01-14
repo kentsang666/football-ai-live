@@ -1,8 +1,6 @@
-import { useState } from 'react';
-import { Trophy, TrendingUp, ChevronDown, ChevronUp, Target } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import type { MatchState } from '../store/matchStore';
 import { MomentumGauge } from './prediction/MomentumGauge';
-import WinRateChart from './prediction/WinRateChart';
 import { GoalBettingTips, GoalTipBadge } from './prediction/GoalBettingTips';
 
 interface MatchCardProps {
@@ -18,8 +16,6 @@ const statusStyles: Record<string, { bg: string; text: string; label: string }> 
 };
 
 export function MatchCard({ match }: MatchCardProps) {
-  const [showChart, setShowChart] = useState(false);
-  const [showGoalTips, setShowGoalTips] = useState(false);
   
   const status = statusStyles[match.status] || statusStyles.live;
   const prediction = match.prediction || { home: 0.33, draw: 0.34, away: 0.33 };
@@ -27,16 +23,6 @@ export function MatchCard({ match }: MatchCardProps) {
   // 判断哪队领先
   const homeLeading = match.home_score > match.away_score;
   const awayLeading = match.away_score > match.home_score;
-
-  // 切换图表显示
-  const toggleChart = () => {
-    setShowChart(!showChart);
-  };
-
-  // 切换进球建议显示
-  const toggleGoalTips = () => {
-    setShowGoalTips(!showGoalTips);
-  };
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all">
@@ -175,61 +161,9 @@ export function MatchCard({ match }: MatchCardProps) {
         </div>
       )}
 
-      {/* 📊 趋势分析 & ⚽ 进球建议按钮 */}
-      <div className="mt-3 pt-3 border-t border-slate-700/50 flex gap-2">
-        {/* 趋势分析按钮 */}
-        <button
-          onClick={toggleChart}
-          className={`
-            flex-1 flex items-center justify-center gap-2 
-            px-3 py-2 rounded-lg text-sm font-medium
-            transition-all duration-200
-            ${showChart 
-              ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' 
-              : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white border border-transparent'
-            }
-          `}
-        >
-          <TrendingUp className="w-4 h-4" />
-          <span>📊 趋势</span>
-          {showChart ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-
-        {/* 🟢 进球建议按钮 */}
-        {prediction.goalBettingTips && (
-          <button
-            onClick={toggleGoalTips}
-            className={`
-              flex-1 flex items-center justify-center gap-2 
-              px-3 py-2 rounded-lg text-sm font-medium
-              transition-all duration-200
-              ${showGoalTips 
-                ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' 
-                : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white border border-transparent'
-              }
-            `}
-          >
-            <Target className="w-4 h-4" />
-            <span>⚽ 进球</span>
-            {showGoalTips ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-        )}
-      </div>
-
-      {/* 📈 胜率走势图 - 展开显示 */}
-      {showChart && (
-        <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
-          <WinRateChart 
-            matchId={match.match_id}
-            homeTeam={match.home_team}
-            awayTeam={match.away_team}
-          />
-        </div>
-      )}
-
-      {/* 🟢 进球投注建议 - 展开显示 */}
-      {showGoalTips && prediction.goalBettingTips && (
-        <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
+      {/* � 进球投注建议 - 直接显示 */}
+      {prediction.goalBettingTips && (
+        <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in slide-in-from-top-2 duration-300">
           <GoalBettingTips
             tips={prediction.goalBettingTips}
             matchStatus={match.status}

@@ -1,0 +1,236 @@
+import time
+import requests
+import json
+import logging
+import os
+from sqlalchemy.orm import Session
+from database_models import SessionLocal, Match  # 导入数据库模型
+from prediction_engine import FootballPredictionSystem # 导入预测核心
+
+# Configure logging
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+logging.basicConfig(filename=os.path.join(log_dir, 'live_monitor.log'), level=logging.INFO,
+                    format='%(asctime)s %(levelname)s: %(message)s')
+
+# ===========================
+# 配置部分
+# ===========================
+API_KEY = "8b86ae86981996818bbdcafafa10717f"  # 使用您现有的 API Key
+API_URL = "https://v3.football.api-sports.io/fixtures"
+REFRESH_INTERVAL = 60  # 刷新频率 (秒)，建议 60秒，避免 API 超限
+
+# ===========================
+# 1. API 获取函数
+# ===========================
+def get_live_fixtures_from_api():
+    """
+    调用 API-Football 获取当前所有正在进行的比赛
+    """
+    headers = {
+        'x-rapidapi-host': "v3.football.api-sports.io",
+        'x-rapidapi-key': API_KEY
+    }
+    # 参数 live='all' 表示获取所有正在进行的比赛
+    params = {"live": "all"}
+    
+    try:
+        print("📡 请求 API 获取实时比赛数据...")
+        response = requests.get(API_URL, headers=headers, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            # 返回比赛列表
+            return data.get('response', [])
+        else:
+            msg = f"API Request Failed: {response.status_code}"
+            print(msg)
+            logging.error(msg)
+            return []
+    except Exception as e:
+        msg = f"Network Error: {e}"
+        print(msg)
+        logging.error(msg)
+        return []
+
+# ===========================
+# 2. 核心监听循环
+# ===========================
+def run_live_monitor():
+    print(f"Start live monitor (interval {REFRESH_INTERVAL}s)...")
+    
+    # 初始化预测计算器
+    predictor = FootballPredictionSystem()
+    
+    while True:
+        session = SessionLocal()
+        try:
+            # A. 获取 API 实时数据
+            live_matches_api = get_live_fixtures_from_api()
+            
+            if not live_matches_api:
+                print("No live matches found from API.")
+            else:
+                print(f"Captured {len(live_matches_api)} live matches.")
+
+                # B. 遍历 API 返回的每一场比赛
+                for api_match in live_matches_api:
+                    fixture = api_match['fixture']
+                    goals = api_match['goals']
+                    
+                    match_id = fixture['id']
+                    current_time = fixture['status']['elapsed'] # 比赛进行了多少分钟
+                    
+                    # 防止 API 返回 null 的时间 (如中场休息)
+                    if current_time is None: 
+                        current_time = 45 
+                        
+                    current_home_score = goals['home'] if goals['home'] is not None else 0
+                    current_away_score = goals['away'] if goals['away'] is not None else 0
+                    
+                    # 解析红牌 (events) - 集成之前的红牌逻辑
+                    red_cards_home = 0
+                    red_cards_away = 0
+                    events = api_match.get('events', [])
+                    home_team_id = api_match['teams']['home']['id']
+                    away_team_id = api_match['teams']['away']['id']
+
+                    if events:
+                        for ev in events:
+                            if ev['type'] == 'Card' and ev['detail'] in ['Red Card', 'Second Yellow card', 'Red card']: 
+                                team_id = ev['team']['id']
+                                if team_id == home_team_id:
+                                    red_cards_home += 1
+                                elif team_id == away_team_id:
+                                    red_cards_away += 1
+
+                    # C. 在我们的数据库中查找这场比赛
+                    # 我们需要中午存进去的 pre_match_lambda
+                    db_match = session.query(Match).filter(Match.id == match_id).first()
+                    
+                    if db_match:
+                        # 检查是否有赛前数据 (防止中午漏抓的比赛)
+                        if db_match.pre_match_home_lambda is None:
+                            print(f"⚠️ 比赛 {match_id} 缺少赛前数据，跳过计算")
+                            continue
+
+                        # D. 核心：调用算法计算实时胜率
+                        # 传入：赛前实力 + 实时比分 + 实时时间
+                        live_odds = predictor.calculate_live_odds(
+                            home_prematch_exp=db_match.pre_match_home_lambda,
+                            away_prematch_exp=db_match.pre_match_away_lambda,
+                            current_minute=current_time,
+                            current_score_home=current_home_score,
+                            current_score_away=current_away_score,
+                            red_cards_home=red_cards_home,
+                            red_cards_away=red_cards_away
+                        )
+                        
+                        # E. 更新数据库
+                        db_match.current_minute = current_time
+                        db_match.home_score = current_home_score
+                        db_match.away_score = current_away_score
+                        db_match.red_cards_home = red_cards_home
+                        db_match.red_cards_away = red_cards_away
+                        db_match.status = 'LIVE'
+                        
+                        # 写入计算出的概率
+                        db_match.live_home_win_prob = live_odds.get('home_prob', 0)
+                        db_match.live_draw_prob = live_odds.get('draw_prob', 0)
+                        db_match.live_away_win_prob = live_odds.get('away_prob', 0)
+                        db_match.live_over_25_prob = live_odds.get('over_2_5_prob', 0)
+                        db_match.live_under_25_prob = live_odds.get('under_2_5_prob', 0)
+                        
+                        print(f"Update match {match_id} | {current_time}' {current_home_score}-{current_away_score} (Red:{red_cards_home}-{red_cards_away}) | HomeProb: {live_odds.get('home_prob')}% | Over2.5: {live_odds.get('over_2_5_prob')}%")
+                    
+                    else:
+                        # Database miss: Insert new match record to ensure it shows in UI
+                        print(f"Match {match_id} not found in DB. Inserting on-the-fly...")
+                        
+                        try:
+                            # Parse UTC date time string: 2026-01-13T19:00:00+00:00
+                            # Simple cut if no fancy parser available, or just store string if DB allows
+                            # But model expects DateTime. 
+                            # Let's try flexible parsing or just use current time if lazy, but best to try parsing.
+                            # For safety, we import datetime at top, but here we can just use string if sqlite accepts it, 
+                            # but SQLAlchemy wants object.
+                            from datetime import datetime as dt_cls
+                            start_time_str = fixture['date']
+                            # Remove +00:00 for simple parsing if needed, or use robust method
+                            try:
+                                start_dt = dt_cls.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                            except:
+                                start_dt = dt_cls.now()
+
+                            new_match = Match(
+                                id=match_id,
+                                league_id=api_match['league']['id'],
+                                league_name=api_match['league']['name'],
+                                home_team=api_match['teams']['home']['name'],
+                                away_team=api_match['teams']['away']['name'],
+                                start_time=start_dt,
+                                status='LIVE',
+                                # Set defaults for lambda to allow live calc
+                                pre_match_home_lambda=1.2,
+                                pre_match_away_lambda=1.2,
+                                pre_home_win_prob=33.3,
+                                pre_draw_prob=33.3,
+                                pre_away_win_prob=33.3,
+                                current_minute=current_time,
+                                home_score=current_home_score,
+                                away_score=current_away_score,
+                                red_cards_home=red_cards_home,
+                                red_cards_away=red_cards_away
+                            )
+                            
+                            # Calc live odds immediately
+                            live_odds = predictor.calculate_live_odds(
+                                home_prematch_exp=1.2,
+                                away_prematch_exp=1.2,
+                                current_minute=current_time,
+                                current_score_home=current_home_score,
+                                current_score_away=current_away_score,
+                                red_cards_home=red_cards_home,
+                                red_cards_away=red_cards_away
+                            )
+                            
+                            new_match.live_home_win_prob = live_odds.get('home_prob', 0)
+                            new_match.live_draw_prob = live_odds.get('draw_prob', 0)
+                            new_match.live_away_win_prob = live_odds.get('away_prob', 0)
+                            new_match.live_over_25_prob = live_odds.get('over_2_5_prob', 0)
+                            new_match.live_under_25_prob = live_odds.get('under_2_5_prob', 0)
+                            
+                            session.add(new_match)
+                            print(f"Inserted new match {match_id}: {new_match.home_team} vs {new_match.away_team}")
+                            
+                        except Exception as insert_err:
+                            print(f"Failed to insert missing match {match_id}: {insert_err}")
+
+                # F. 提交更改到数据库
+                session.commit()
+        
+        except Exception as e:
+            print(f"❌ 循环发生错误: {e}")
+            session.rollback()
+        
+        finally:
+            session.close()
+            
+        # G. 等待下一轮
+        time.sleep(REFRESH_INTERVAL)
+
+if __name__ == "__main__":
+    run_live_monitor()
+
+if __name__ == '__main__':
+    import sys
+    import io
+    # Force UTF-8 for stdout/stderr
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+        
+    logging.basicConfig(level=logging.INFO)
+    run_live_monitor()

@@ -6,6 +6,7 @@ import { MatchCard } from './MatchCard';
 import { AlertToast } from './AlertToast';
 import { DebugPanel } from './DebugPanel';
 import { matchStore } from '../store/matchStore';
+import { isLeagueAllowed } from '../data/allowedLeagues';
 import { 
   usePredictionAlert, 
   alertSoundManager 
@@ -258,9 +259,15 @@ export function LiveMatchDashboard() {
 
     setSocket(newSocket);
 
-    // 订阅 store 变化
+    // 订阅 store 变化，并应用白名单过滤
     const unsubscribe = matchStore.subscribe(() => {
-      setMatches(matchStore.getAllMatches());
+      const allMatches = matchStore.getAllMatches();
+      // 🟢 前端强制过滤非白名单联赛
+      const filteredMatches = allMatches.filter(m => {
+        if (!m.league_id) return true; // 如果没有 ID，默认显示（或根据需求隐藏）
+        return isLeagueAllowed(m.league_id);
+      });
+      setMatches(filteredMatches);
     });
 
     return () => {
@@ -278,8 +285,12 @@ export function LiveMatchDashboard() {
       const response = await fetch(`${SOCKET_URL}/api/matches/live`);
       const data = await response.json();
       console.log('📋 初始比赛列表:', data);
+      
       if (data.matches && Array.isArray(data.matches)) {
+        // 更新 store
         matchStore.setMatches(data.matches);
+        
+        // 这里的日志只记录原始数量，实际显示会被上面的 subscribe 过滤
         addLog(`📋 获取到 ${data.matches.length} 场比赛`);
       } else {
         addLog('📋 暂无进行中的比赛');

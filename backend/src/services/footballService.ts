@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 // Redis 类型在运行时动态处理
 import { Server } from 'socket.io';
-import { getTeamChineseName as getTeamChineseNameLegacy } from '../data/teamNames';
+// import { getTeamChineseName as getTeamChineseNameLegacy } from '../data/teamNames';
 import { getTeamChineseNameSmart, getLeagueChineseNameSmart, formatLeagueDisplayName } from '../utils/nameResolver';
 import { Bet365OddsService, Bet365LiveOdds } from './bet365OddsService';
 
@@ -1082,11 +1082,9 @@ export class FootballService {
         const chineseCountry = getCountryChineseName(leagueId, fixture.league.country);
         
         // 获取中文球队名称
-        // 深度汉化策略：优先使用智能名称解析器，回退到旧版映射表
-        const homeTeamChinese = getTeamChineseNameSmart(fixture.teams.home.name, fixture.teams.home.id) 
-            || getTeamChineseNameLegacy(fixture.teams.home.name);
-        const awayTeamChinese = getTeamChineseNameSmart(fixture.teams.away.name, fixture.teams.away.id)
-            || getTeamChineseNameLegacy(fixture.teams.away.name);
+        // 深度汉化策略：仅使用智能名称解析器
+        const homeTeamChinese = getTeamChineseNameSmart(fixture.teams.home.name, fixture.teams.home.id);
+        const awayTeamChinese = getTeamChineseNameSmart(fixture.teams.away.name, fixture.teams.away.id);
         
         // 🟢 新增：从比赛事件中统计红牌数
         let homeRedCards = 0;
@@ -1252,7 +1250,7 @@ export class FootballService {
 
     public getLiveMatches(): MatchData[] {
         return Array.from(this.matchCache.values())
-            .filter(m => m.status === 'live' || m.status === 'halftime');
+            .filter(m => (m.status === 'live' || m.status === 'halftime') && this.isLeagueAllowed(m.league_id));
     }
 
     // ===========================================
