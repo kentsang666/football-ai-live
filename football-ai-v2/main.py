@@ -52,7 +52,7 @@ twin_engine = DigitalTwinGym() # New Digital Twin Simulation
 latency_guard = LatencyGuard() # New Latency Protection
 kelly_engine = KellyStaking(fraction=0.25) # Quarter Kelly
 oracle_engine = ConsensusOracle() # New Multi-Source Consensus
-paper_engine = PaperTrader() # New Simulated Trading
+paper_engine = PaperTrader(initial_bankroll=100000.0) # New Simulated Trading
 pred_engine = FootballPredictionSystem()
 
 # --- Initialize GNN with Historical Context ---
@@ -132,6 +132,142 @@ def add_recommendation_record(record):
 # Check & Load history on startup
 RECOMMENDATION_HISTORY = load_history()
 
+def is_handicap_is_double(hdp_abs):
+    # 3.14159 -> 0.1419
+    tail = hdp_abs - int(hdp_abs)
+    fraction_str = f"{tail:.2f}"
+    # 0.14
+    first_char = fraction_str[2]
+    # 取第二个字符，得到1 
+    if first_char in ['2','7']:
+        first = hdp_abs - 0.25
+        second = hdp_abs + 0.25
+        return True,first,second
+    else:
+        return False,hdp_abs,0
+    
+def settle_one_handicap(hdp_abs,hand,final_home_score,final_away_score,bet_home_score,
+                        bet_away_score,selection,score_value):
+    if hand == 1:
+        # 上盘 
+        compare_value = hdp_abs
+    elif hand == 2:
+        # 下盘
+        compare_value = -hdp_abs
+    else:
+        compare_value = 0.0
+
+    one_detla = 0
+    two_delta = 0
+    if selection == "Home":
+        one_detla = final_home_score - bet_home_score
+        two_delta = final_away_score - bet_away_score
+    else:
+        one_detla = final_away_score - bet_away_score
+        two_delta = final_home_score - bet_home_score
+    
+    delta = one_detla - two_delta
+
+    if delta > compare_value + 0.00001:
+        return score_value # win
+    elif delta < compare_value - 0.00001:
+        return -score_value # loss
+    else:
+        return 0.0 # push
+
+
+def settle_one_hdp_record(rec,final_home_sore,final_away_score):
+    selection = rec.get('selection', 'Home')
+    hdp =  float(rec['handicap'])
+    hdp_abs = round(abs(hdp), 2)
+    # 这里first，second也都是正数
+    is_double,first,second = is_handicap_is_double(hdp_abs)
+    # hand = 0 平手盘，1上盘，2下盘
+    hand = 0
+    if hdp < -0.00001:
+        # 主队让球
+        if selection == "Home":
+            # 选择主，那么就是上盘
+            hand = 1
+        else:
+            # 选择客，那么就是下盘
+            hand = 2
+    elif hdp > 0.00001:
+        # 客队让球
+        if selection == "Home":
+            # 选择主，那么就是下盘
+            hand = 2
+        else:
+            # 选择客，那么就是上盘
+            hand = 1
+    else:
+        # 平手盘
+        hand = 0
+    bet_home_score, bet_away_score = 0, 0
+    if 'score_at_rec' in rec and rec['score_at_rec']:
+        try:
+            parts = rec['score_at_rec'].split('-')
+            bet_home_score = int(parts[0])
+            bet_away_score = int(parts[1])
+        except: pass
+    total_score = 0.0
+    if is_double:
+        res1 = settle_one_handicap(first,hand,final_home_sore,final_away_score,bet_home_score,bet_away_score,selection,0.5)
+        res2 = settle_one_handicap(second,hand,final_home_sore,final_away_score,bet_home_score,bet_away_score,selection,0.5)
+        total_score = res1 + res2
+    else:
+        total_score = settle_one_handicap(hdp,hand,final_home_sore,final_away_score,bet_home_score,bet_away_score,selection,1.0)   
+    # total_score范围: 1.0,0.5,0.0,-0.5,-1.0
+    if abs(total_score - 1.0) < 0.00001:
+        rec['result'] = "Win"
+    elif abs(total_score - 0.5) < 0.00001:
+        rec['result'] = "Half Win"
+    elif abs(total_score - 0.0) < 0.00001:
+        rec['result'] = "Push"
+    elif abs(total_score + 0.5) < 0.00001:
+        rec['result'] = "Half Loss"
+    elif abs(total_score + 1.0) < 0.00001:
+        rec['result'] = "Loss"
+
+def settle_one_ou(hdp,total_goals,selection,score_value):
+    if selection == "Over":
+        if total_goals > hdp + 0.00001:
+            return score_value # win
+        elif total_goals < hdp - 0.00001:
+            return -score_value # loss
+        else:
+            return 0.0 # push
+    else:
+        if total_goals < hdp - 0.00001:
+            return score_value # win
+        elif total_goals > hdp + 0.00001:
+            return -score_value # loss
+        else:
+            return 0.0 # push
+
+def settle_one_ou_record(rec,final_home_sore,final_away_score):
+    selection = rec.get('selection', 'Under')
+    # 大小盘的handicap是正数
+    hdp =  float(rec['handicap'])
+    is_double,first,second = is_handicap_is_double(hdp)
+    total_goals = final_home_sore + final_away_score
+    if is_double:
+        res1 = settle_one_ou(first,total_goals,selection,0.5)
+        res2 = settle_one_ou(second,total_goals,selection,0.5)
+        total_score = res1 + res2
+    else:
+        total_score = settle_one_ou(hdp,total_goals,selection,1.0)
+    if abs(total_score - 1.0) < 0.00001:
+        rec['result'] = "Win"
+    elif abs(total_score - 0.5) < 0.00001:
+        rec['result'] = "Half Win"
+    elif abs(total_score - 0.0) < 0.00001:
+        rec['result'] = "Push"
+    elif abs(total_score + 0.5) < 0.00001:
+        rec['result'] = "Half Loss"
+    elif abs(total_score + 1.0) < 0.00001:
+        rec['result'] = "Loss"
+
 # --- 自动结算逻辑 ---
 async def settle_pending_records():
     """
@@ -195,25 +331,19 @@ async def settle_pending_records():
                         dirty = True
 
                         try:
-                            # 解析盘口 "HDP -0.5"
-                            if 'HDP' in rec['bet_type']:
-                                line_str = rec['bet_type'].replace('HDP ', '')
-                                line = float(line_str)
-                                
-                                # 计算过程
-                                # Outcome = (Home - Away) + Line
-                                diff = h_s - a_s
-                                val = diff + line
-                                
-                                res = "Error"
-                                if val == 0: res = "Push"
-                                elif val == 0.25: res = "Half Win"
-                                elif val == -0.25: res = "Half Loss"
-                                elif val > 0: res = "Win"
-                                else: res = "Loss"
-                                
-                                rec['result'] = res
-                                logger.info(f"Settled bet {rec['key']} ({rec['bet_type']}) with Score {h_s}-{a_s} -> {res}")
+                            if '主' in rec['bet_type'] or '客' in rec['bet_type'] or '平' in rec['bet_type']:
+                                settle_one_hdp_record(rec,h_s,a_s)
+                                selection = rec.get('selection', 'Home')
+                                res = rec['result']
+                                line = float(rec['handicap'])
+                                start_h, start_a = 0, 0
+                                if 'score_at_rec' in rec and rec['score_at_rec']:
+                                    try:
+                                        parts = rec['score_at_rec'].split('-')
+                                        start_h = int(parts[0])
+                                        start_a = int(parts[1])
+                                    except: pass
+                                logger.info(f"Settled {rec.get('key')} [{selection} {line}]: BetScore {start_h}-{start_a}. FinScore={h_s}-{a_s} => {res}")
                                 
                                 # --- Online Learning (RL) ---
                                 if 'snapshot' in rec:
@@ -224,29 +354,18 @@ async def settle_pending_records():
                                     elif res == 'Half Loss': learn_val = -0.5
                                     
                                     if learn_val != 0:
-                                        algo_log = momentum_engine.learn(learn_val, rec['snapshot'], is_home_bet=True)
+                                        if selection == 'Home':
+                                            algo_log = momentum_engine.learn(learn_val, rec['snapshot'], is_home_bet=True)
+                                        else:
+                                            algo_log = momentum_engine.learn(learn_val, rec['snapshot'], is_home_bet=False)
                                         # logger.info(f"Updated Model Weights: {algo_log}")
                             
                             # 简单的 O/U 扩展 (以备后续使用)
                             elif 'Over' in rec['bet_type'] or 'Under' in rec['bet_type'] or 'O/U' in rec['bet_type']:
                                 # 假设格式: "Over 2.5" / "Under 2.5"
-                                parts = rec['bet_type'].split() # ["Over", "2.5"]
-                                if len(parts) >= 2:
-                                    direction = parts[0]
-                                    line = float(parts[1])
-                                    total_goals = h_s + a_s
-                                    
-                                    if direction == 'Over':
-                                        if total_goals > line: res = "Win"
-                                        elif total_goals < line: res = "Loss"
-                                        else: res = "Push"
-                                    elif direction == 'Under':
-                                        if total_goals < line: res = "Win"
-                                        elif total_goals > line: res = "Loss"
-                                        else: res = "Push"
-                                    
-                                    rec['result'] = res
-                                    logger.info(f"Settled bet {rec['key']} ({rec['bet_type']}) with Score {h_s}-{a_s} -> {res}")
+                                settle_one_ou_record(rec,h_s,a_s)
+                                res = rec['result'] 
+                                logger.info(f"Settled bet {rec['key']} ({rec['bet_type']}) with Score {h_s}-{a_s} -> {res}")
 
                         except Exception as e:
                             logger.error(f"Settlement calc error for {rec['key']}: {e}")
@@ -915,12 +1034,30 @@ async def poll_live_data_task():
                             best_line = None
                             min_diff = 999
                             
-                            # Group by handicap
+                            # Group by handicap (Robust)
                             lines = {}
                             for v in book['values']:
-                                h = v['handicap']
-                                if h not in lines: lines[h] = {}
-                                lines[h][v['value']] = v['odd']
+                                try:
+                                    raw_val = str(v.get('value', ''))
+                                    target_h = v.get('handicap')
+                                    tag = None
+                                    
+                                    if "Over" in raw_val: tag = "Over"
+                                    elif "Under" in raw_val: tag = "Under"
+                                    
+                                    if not target_h and tag:
+                                        parts = raw_val.split(' ')
+                                        for p in parts:
+                                            try:
+                                                float(p)
+                                                target_h = p
+                                            except: continue
+                                    
+                                    if tag and target_h:
+                                        h_key = str(float(target_h))
+                                        if h_key not in lines: lines[h_key] = {}
+                                        lines[h_key][tag] = v['odd']
+                                except: continue
                                 
                             for h, odds in lines.items():
                                 if 'Over' in odds and 'Under' in odds:
@@ -936,6 +1073,7 @@ async def poll_live_data_task():
                             
                             if best_line:
                                 ou_data = best_line
+                                log_algo(f"  [OU DEBUG] Found Line {best_line['line']} | O:{best_line['o']} U:{best_line['u']}")
 
                     # 处理时间显示
                     log_algo(f"  当前比分: {goals['home']}:{goals['away']}")
@@ -1507,11 +1645,11 @@ async def poll_live_data_task():
                     final_a_prob = prob_a * 0.7 + (sim_a_win * 100) * 0.3
 
                     live_probs = {
-                        "home_prob": final_h_prob,
-                        "draw_prob": final_d_prob,
-                        "away_prob": final_a_prob,
-                        "lambda_home": lambda_h,
-                        "lambda_away": lambda_a
+                        "home_prob": round(final_h_prob, 2),
+                        "draw_prob": round(final_d_prob, 2),
+                        "away_prob": round(final_a_prob, 2),
+                        "lambda_home": round(lambda_h, 2),
+                        "lambda_away": round(lambda_a, 2)
                     }
                     parsed_match['ai_analysis'] = live_probs
                     
@@ -1571,7 +1709,7 @@ async def poll_live_data_task():
                                 win_prob_ah = 1.0 / fair_odd
                                 kelly_pct = kelly_engine.calculate_stake(win_prob_ah, m_odd_h)
                                 
-                                ah_signal['kelly_stake'] = f"{kelly_pct}%"
+                                ah_signal['kelly_stake'] = f"{kelly_pct:.2f}%"
                                 if kelly_pct > 0:
                                     parsed_match["ai_signal_ah"] = ah_signal
                                     # Boost priority heavily if Kelly suggests a bet
@@ -1583,7 +1721,8 @@ async def poll_live_data_task():
                                     sel_info = {
                                         "type": "AH",
                                         "line": current_line,
-                                        "desc": f"Home {current_line} @ {m_odd_h:.2f}"
+                                        "start_score": (goals['home'], goals['away']),
+                                        "desc": f"Home {current_line} @ {m_odd_h:.2f} (Score {goals['home']}-{goals['away']})"
                                     }
                                     
                                     success, msg = paper_engine.place_order(
@@ -1646,17 +1785,33 @@ async def poll_live_data_task():
                                     parsed_match['priority_score'] = 888
 
                             # Update threshold to 3% as requested
-                            signal = signal_gen.analyze(fair_odd, market_odd_raw, threshold=0.03)
+                            # --- 双向信号分析 (Dual-Side Analysis) ---
                             
-                            if signal:
-                                log_algo(f"*** 发现价值注单 *** {league_cn} {home_cn} vs {away_cn} | EV: {signal['ev']}% | Fair: {fair_odd} | Mkt: {market_odd_raw}")
+                            # 定义下单处理函数
+                            def process_bet_signal(signal, side, m_odd, f_odd):
+                                # Kelly Calculation
+                                k_win_prob = 1.0 / f_odd if f_odd > 0 else 0
+                                k_pct = kelly_engine.calculate_stake(k_win_prob, m_odd)
+                                k_amount = int(1000 * k_pct)
                                 
-                                # --- Auto-Save Recommendation to History ---
-                                # Key: MatchID + Line (To allow multiple bets per match if line triggers differently, but avoid spamming same line)
-                                # Actually, match_id + signal_type is better if we only support 'VALUE BET' type.
-                                # Let's assume one recommendation per match per session for now to keep it clean.
-                                rec_key = f"{fixture['id']}_{current_line}" 
+                                # Skip invalid or small stakes
+                                if k_pct <= 0: return None
+
+                                signal['algo'] = "AI 综合模型 V3 (泊松+GNN)"
+                                signal['stake_amt'] = k_amount
+
+                                # Unique Key: MatchID + Line + Side
+                                rec_key = f"{fixture['id']}_{current_line}_{side}"
                                 
+                                # 文案生成
+                                display_bet = ""
+                                eff_line = current_line if side == 'Home' else -current_line
+                                side_cn = "主" if side == 'Home' else "客"
+                                
+                                if eff_line < 0: display_bet = f"{side_cn}让 {abs(eff_line)}"
+                                elif eff_line > 0: display_bet = f"{side_cn}受 {abs(eff_line)}"
+                                else: display_bet = "平手 0"
+
                                 rec_record = {
                                     "key": rec_key,
                                     "match_id": fixture['id'],
@@ -1666,15 +1821,85 @@ async def poll_live_data_task():
                                     "away_team": away_cn,
                                     "score_at_rec": f"{goals['home']}-{goals['away']}",
                                     "time_at_rec": display_time,
-                                    "bet_type": f"HDP {current_line}", # e.g. "HDP -0.5"
-                                    "odds": market_odd_raw,
-                                    "fair_odds": fair_odd,
+                                    "selection": side,            # Home / Away
+                                    "handicap": current_line,     # 统一记录主让盘口
+                                    "bet_type": display_bet,
+                                    "odds": m_odd, 
+                                    "fair_odds": f_odd,
                                     "ev": signal['ev'],
+                                    "algo": "AI 综合模型 V3 (泊松+GNN)",
+                                    "stake": f"¥{k_amount}",
                                     "result": "Pending",
-                                    "snapshot": flat_stats # Save snapshot for learning
+                                    "snapshot": flat_stats
                                 }
                                 add_recommendation_record(rec_record)
-                                # --------------------------------------------
+                                
+                                # Paper Trading
+                                sel_info = {
+                                    "type": "AH",
+                                    "line": current_line, 
+                                    "side": side,         
+                                    "start_score": (goals['home'], goals['away']),
+                                    "desc": f"{side} ({display_bet}) @ {m_odd:.2f}"
+                                }
+                                success, msg = paper_engine.place_order(
+                                    fixture['id'],
+                                    f"{home_cn} vs {away_cn}",
+                                    sel_info,
+                                    m_odd,
+                                    k_pct,
+                                    f"Kelly Signal > 0 ({side})"
+                                )
+                                if success:
+                                    log_algo(f"🤖 模拟交易触发: {msg}")
+                                return signal
+
+                            # 1. 主队方向分析
+                            try:
+                                m_odd_h = float(ah_data.get('h')) + 1.0 
+                            except: m_odd_h = 0.0
+                            
+                            ah_signal_h = signal_gen.analyze(fair_odd, m_odd_h, threshold=0.03)
+                            
+                            # 2. 客队方向分析
+                            try:
+                                m_odd_a = float(ah_data.get('a')) + 1.0
+                            except: m_odd_a = 0.0
+
+                            fair_odd_a = 0.0
+                            if fair_odd > 0:
+                                prob_h = 1.0 / fair_odd
+                                prob_a = 1.0 - prob_h
+                                if prob_a > 0.01: fair_odd_a = 1.0 / prob_a
+                            
+                            ah_signal_a = signal_gen.analyze(fair_odd_a, m_odd_a, threshold=0.03)
+
+                            # 执行优选
+                            best_signal = None
+                            
+                            # Process Home
+                            if ah_signal_h:
+                                log_algo(f"*** 发现价值注单(主) *** {league_cn} {home_cn} vs {away_cn} | EV: {ah_signal_h['ev']}%")
+                                s = process_bet_signal(ah_signal_h, 'Home', m_odd_h, fair_odd)
+                                if s: 
+                                    parsed_match['priority_score'] = 999
+                                    best_signal = s
+                                    
+                            # Process Away
+                            if ah_signal_a:
+                                log_algo(f"*** 发现价值注单(客) *** {league_cn} {home_cn} vs {away_cn} | EV: {ah_signal_a['ev']}%")
+                                s = process_bet_signal(ah_signal_a, 'Away', m_odd_a, fair_odd_a)
+                                if s:
+                                    parsed_match['priority_score'] = 999
+                                    # 如果之前没有信号，或者客队EV更高，则展示客队
+                                    if not best_signal or float(s['ev']) > float(best_signal['ev'] or 0):
+                                        best_signal = s
+
+                            # 设置前端显示信号
+                            if best_signal:
+                                parsed_match['ai_signal_ah'] = best_signal
+
+                            # --- Auto-Save Logic Replaced by process_bet_signal above ---
                             
                             parsed_match['advanced_analytics'] = {
                                 "momentum": {"home": round(h_press, 1), "away": round(a_press, 1)},
@@ -1684,59 +1909,130 @@ async def poll_live_data_task():
                         else:
                              parsed_match['advanced_analytics'] = None
 
-                        # D. 大小球公平赔率 & 信号 (新增)
+                        # D. 大小球公平赔率 & 信号 (双向 v2)
                         # 获取当前大小盘 (从 odds_ou.line, e.g. "3.5")
                         ou_line_str = ou_data.get('line', '0')
                         if ou_line_str and ou_line_str != '-':
                             ou_line = float(ou_line_str)
                             
-                            # 大球公平赔率
+                            # 1. 计算公平赔率 (Fair Odds)
+                            # Over Fair
                             fair_odd_over = ou_pricer.calculate_fair_odds(
                                 live_probs['lambda_home'],
                                 live_probs['lambda_away'],
                                 goals['home'] + goals['away'],
                                 ou_line
                             )
-                            
-                            # 获取市场大球赔率
-                            # ou_data['o'] 是显示值 (可能减了1), 需要还原? 
-                            # 不，ou_data 在前面的代码逻辑里是 {"o": odds['Over'], "u": odds['Under']}
-                            # 但是 wait, 之前的代码逻辑做了 "赔率减1显示"。
-                            # CHECK LINE 167:
-                            # o_display = round(float(odds['Over']) - 1, 2)
-                            # u_display = round(float(odds['Under']) - 1, 2)
-                            # best_line = {"line": h, "o": o_display, "u": u_display}
-                            
-                            # 所以 ou_data['o'] 是净赔率 (0.95)，通过 +1 还原为欧赔 (1.95)
+                            # Under Fair (1 / (1 - P_over))
+                            fair_odd_under = 0.0
+                            if fair_odd_over > 0:
+                                p_over = 1.0 / fair_odd_over
+                                p_under = 1.0 - p_over
+                                if p_under > 0.01:
+                                    fair_odd_under = 1.0 / p_under
+
+                            # 2. 获取市场赔率 (Market Odds)
+                            mkt_over = 0.0
+                            mkt_under = 0.0
                             try:
-                                if ou_data and ou_data.get('o') != "-":
-                                    mkt_over_raw = float(ou_data['o']) + 1.0
-                                    
-                                    # 生成信号
-                                    # Fixed: signal_gen.analyze call should be safe now
-                                signal_ou = signal_gen.analyze(fair_odd_over, mkt_over_raw, threshold=0.05) # 阈值 5%
+                                # 假设 odds 原始数据是净赔率 (0.85)，需加1还原为欧赔 (1.85)
+                                if ou_data.get('o') and ou_data['o'] != "-":
+                                    mkt_over = float(ou_data['o']) + 1.0
+                                if ou_data.get('u') and ou_data['u'] != "-":
+                                    mkt_under = float(ou_data['u']) + 1.0
                                 
-                                if signal_ou:
-                                    log_algo(f"*** 发现大小球价值 *** {league_cn} | 大 {ou_line} | EV: {signal_ou['ev']}% | Fair: {fair_odd_over} | Mkt: {mkt_over_raw}")
+                                # DEBUG OU CALC
+                                if mkt_over > 0:
+                                    diff_over = round(mkt_over - fair_odd_over, 2)
+                                    diff_under = round(mkt_under - fair_odd_under, 2)
+                                    # log_algo(f"  [OU CALC] Line:{ou_line} | Over: M{mkt_over}/F{fair_odd_over}({diff_over}) | Under: M{mkt_under}/F{fair_odd_under}({diff_under})")
                                     
-                                    rec_key_ou = f"{fixture['id']}_OU_{ou_line}"
-                                    rec_record_ou = {
-                                        "key": rec_key_ou,
-                                        "match_id": fixture['id'],
-                                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                        "league": league_cn,
-                                        "home_team": home_cn,
-                                        "away_team": away_cn,
-                                        "score_at_rec": f"{goals['home']}-{goals['away']}",
-                                        "time_at_rec": display_time,
-                                        "bet_type": f"Over {ou_line}", 
-                                        "odds": mkt_over_raw,
-                                        "fair_odds": fair_odd_over,
-                                        "ev": signal_ou['ev'],
-                                        "result": "Pending" 
-                                    }
-                                    add_recommendation_record(rec_record_ou)
                             except: pass
+
+                            # 3. 信号处理函数
+                            def process_ou_signal(sig, sel, line, m_odd, f_odd):
+                                # Kelly Calculation
+                                k_win = 1.0 / f_odd if f_odd > 0 else 0
+                                k_pct = kelly_engine.calculate_stake(k_win, m_odd)
+                                k_amt = int(1000 * k_pct)
+                                
+                                if k_pct <= 0: return None
+                                
+                                sig['algo'] = "AI 综合模型 V3 (泊松+GNN)"
+                                sig['stake_amt'] = k_amt
+                                
+                                # 生成记录
+                                rec_key = f"{fixture['id']}_OU_{line}_{sel}"
+                                display_type = f"{sel} {line}" # Over 2.5
+                                
+                                rec = {
+                                    "key": rec_key,
+                                    "match_id": fixture['id'],
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "league": league_cn,
+                                    "home_team": home_cn,
+                                    "away_team": away_cn,
+                                    "score_at_rec": f"{goals['home']}-{goals['away']}",
+                                    "time_at_rec": display_time,
+                                    "selection": sel,            # "Over" / "Under"
+                                    "handicap": line,            # 2.5
+                                    "bet_type": display_type,    # "Over 2.5"
+                                    "odds": m_odd, 
+                                    "fair_odds": f_odd,
+                                    "ev": sig['ev'],
+                                    "algo": "AI 综合模型 V3 (泊松+GNN)",
+                                    "stake": f"¥{k_amt}",
+                                    "result": "Pending"
+                                }
+                                add_recommendation_record(rec)
+                                
+                                # Paper Trading
+                                paper_sel = {
+                                    "type": "OU",
+                                    "line": line,
+                                    "side": sel, # Over/Under
+                                    "start_score": (goals['home'], goals['away']),
+                                    "desc": f"{sel} {line} @ {m_odd:.2f}"
+                                }
+                                paper_engine.place_order(
+                                    fixture['id'], 
+                                    f"{home_cn} vs {away_cn}", 
+                                    paper_sel, m_odd, k_pct, "OU Signal"
+                                )
+                                return sig
+
+                            # 4. 执行双向扫描
+                            best_ou_signal = None
+                            
+                            # Over Analysis
+                            sig_over = signal_gen.analyze(fair_odd_over, mkt_over, threshold=0.05)
+                            if sig_over:
+                                sig_over['market_odds'] = mkt_over # Ensure frontend has odds
+                                log_algo(f"*** 发现价值注单(大) *** {league_cn} | 大 {ou_line} | EV: {sig_over['ev']}%")
+                                process_ou_signal(sig_over, "Over", ou_line, mkt_over, fair_odd_over)
+                                best_ou_signal = sig_over
+                                
+                            # Under Analysis
+                            sig_under = signal_gen.analyze(fair_odd_under, mkt_under, threshold=0.05)
+                            if sig_under:
+                                sig_under['market_odds'] = mkt_under # Ensure frontend has odds
+                                log_algo(f"*** 发现价值注单(小) *** {league_cn} | 小 {ou_line} | EV: {sig_under['ev']}%")
+                                process_ou_signal(sig_under, "Under", ou_line, mkt_under, fair_odd_under)
+                                # Pick better EV if both exist (rare)
+                                if not best_ou_signal or float(sig_under['ev']) > float(best_ou_signal['ev']):
+                                    best_ou_signal = sig_under
+
+                            # 5. 整合信号到 Live Feed
+                            # 如果有大小球信号，且 (没有亚盘信号 OR 大小球EV更高)
+                            if best_ou_signal:
+                                current_signal = parsed_match['advanced_analytics'].get('signal')
+                                if not current_signal or float(best_ou_signal['ev']) > float(current_signal.get('ev', 0)):
+                                    # Update the display signal
+                                    parsed_match['advanced_analytics']['signal'] = best_ou_signal
+                                    # Add hint for frontend to display OU lines correctly
+                                    parsed_match['odds_ah'] = {"val": f"OU {ou_line}"} # Hack to show line in card
+
+
 
                     except Exception as e:
                         logger.warning(f"Engine calc error: {e}")
@@ -2079,12 +2375,24 @@ def apply_translation_to_cache():
     LIVE_INPLAY_CACHE = new_cache
 
 @app.get("/api/history")
-async def get_history_api():
+async def get_history_api(date: str = None):
     """
-    获取推荐历史记录
+    获取推荐历史记录，可选日期过滤 (date: YYYY-MM-DD)
     """
+    filtered = RECOMMENDATION_HISTORY
+    
+    # Date Filter
+    if date:
+        filtered = []
+        for r in RECOMMENDATION_HISTORY:
+            # Timestamp format usually "YYYY-MM-DD HH:MM:SS"
+            ts = r.get('timestamp', '')
+            if ts.startswith(date):
+                filtered.append(r)
+    
     # Sort by timestamp desc
-    sorted_hist = sorted(RECOMMENDATION_HISTORY, key=lambda x: x['timestamp'], reverse=True)
+    sorted_hist = sorted(filtered, key=lambda x: x['timestamp'], reverse=True)
+
     
     # 重新尝试翻译未汉化的球队名
     final_hist = []
@@ -2113,6 +2421,16 @@ async def get_history_api():
         final_hist.append(r)
 
     return {"count": len(final_hist), "history": final_hist}
+
+@app.post("/api/history/clear")
+async def clear_history_api():
+    """
+    清除所有推荐历史记录
+    """
+    global RECOMMENDATION_HISTORY
+    RECOMMENDATION_HISTORY = []
+    save_history_to_disk()
+    return {"status": "success", "message": "History cleared"}
 
 @app.get("/api/schedule")
 async def get_schedule_data():

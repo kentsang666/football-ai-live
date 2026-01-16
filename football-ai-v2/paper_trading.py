@@ -13,7 +13,7 @@ class PaperTrader:
     2. 接收交易信号进行"虚拟下单"。
     3. 比赛结束后结算损益 (PnL)，并记录流水。
     """
-    def __init__(self, initial_bankroll=10000.0):
+    def __init__(self, initial_bankroll=100000.0):
         self.initial_bankroll = initial_bankroll
         # Data structure:
         # bankroll: float
@@ -163,29 +163,49 @@ class PaperTrader:
         
         # Asian Handicap Logic
         if sel.get('type') == 'AH':
-            line = sel.get('line') # e.g. -0.5
-            diff = h - a
-            # If bet on Home, val = diff + line
-            # Checking logic... our system usually bets on Home for now in the demo
-            # Assuming selection is always HOME relative
+            line = sel.get('line') # e.g. -0.5 (Always from Home Perspective in our system)
+            # Future Proofing: sel.get('side') == 'Home' or 'Away' if needed
             
-            val = diff + line
+            # [FIX] 滚球让球盘必须基于下单时的比分清零计算
+            start_h, start_a = sel.get('start_score', (0,0))
+            
+            # 有效净胜球
+            net_h = h - start_h
+            net_a = a - start_a
+            
+            diff = net_h - net_a
+            
+            # Determine Value based on "Which team did we pick?"
+            # Currently system assumes we picked the side that line belongs to?
+            # Or always picks HOME? 
+            # In main.py place_order, we pass 'selection' dict.
+            # Let's assume for now 100% of our automated bets are HOME side bets.
+            # If we ever bet Away, we need to flip the logic: val = -(diff + line)
+            
+            val = diff + line # Default Home
             
             # Full Win
+            pnl = 0.0
+            res_str = "VOID"
+            
             if val >= 0.5:
-                return stk * (odds - 1), "WIN"
+                pnl, res_str = stk * (odds - 1), "WIN"
             # Full Loss
             elif val <= -0.5:
-                return -stk, "LOSS"
+                pnl, res_str = -stk, "LOSS"
             # Push
             elif abs(val) < 0.01:
-                return 0.0, "PUSH"
+                pnl, res_str = 0.0, "PUSH"
             # Half Win (+0.25 net)
             elif abs(val - 0.25) < 0.01:
-                return (stk / 2) * (odds - 1), "HALF_WIN"
+                pnl, res_str = (stk / 2) * (odds - 1), "HALF_WIN"
             # Half Loss (-0.25 net)
             elif abs(val + 0.25) < 0.01:
-                return -stk / 2, "HALF_LOSS"
+                pnl, res_str = -stk / 2, "HALF_LOSS"
+            
+            # Log Settle Logic for Debug
+            print(f"[PaperSettle] Order {order.get('order_id')}: Final {h}-{a}, Start {start_h}-{start_a} => Net {net_h}-{net_a}. Diff {diff} + Line {line} = {val} => {res_str}")
+            return pnl, res_str
                 
         return 0.0, "VOID"
 

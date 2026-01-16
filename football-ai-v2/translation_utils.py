@@ -6,6 +6,11 @@ import queue
 import threading
 import time
 
+# --- DeepSeek 配置 ---
+# 请在此填入您的 API Key, 格式如 sk-xxxxxxxx
+DEEPSEEK_API_KEY = "sk-3f8b098a030a486aad4f6e8c87cecc46" 
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
 # --- 自动汉化缓存逻辑 ---
 AUTO_TRANS_FILE = "auto_translations.json"
 AUTO_TRANS_CACHE = {}
@@ -54,27 +59,60 @@ def google_translate_worker():
                 continue
 
             success = False
+            
+            # 0. 尝试 DeepSeek API (优先)
+            # 使用 DeepSeek-V3.2 (deepseek-chat)
+            if not success and DEEPSEEK_API_KEY:
+                try:
+                    ds_url = f"{DEEPSEEK_BASE_URL}/chat/completions"
+                    headers = {
+                        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    payload = {
+                        "model": "deepseek-chat", # DeepSeek-V3.2
+                        "messages": [
+                            {"role": "system", "content": "You are a professional football translator. Translate the following team or league name to Simplified Chinese. Output ONLY the translated name, no explanation."},
+                            {"role": "user", "content": clean_text}
+                        ],
+                        "temperature": 0.1,
+                        "stream": False
+                    }
+                    resp = session.post(ds_url, json=payload, headers=headers, timeout=5)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get('choices') and len(data['choices']) > 0:
+                            res = data['choices'][0]['message']['content'].strip()
+                            # 简单的结果清理 (防止模型偶尔话多)
+                            if len(res) < len(clean_text) * 3: 
+                                save_auto_translation(raw_text, res)
+                                success = True
+                except Exception as e:
+                    # DeepSeek 失败，继续尝试其他
+                    pass
+
             # 1. 尝试 Google Translate API
-            try:
-                base_url = "https://translate.googleapis.com/translate_a/single"
-                params = {
-                    "client": "gtx",
-                    "sl": "auto",
-                    "tl": "zh-CN",
-                    "dt": "t",
-                    "q": clean_text
-                }
-                # 设置超时
-                resp = session.get(base_url, params=params, timeout=3)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data and data[0] and data[0][0] and data[0][0][0]:
-                        res = data[0][0][0]
-                        save_auto_translation(raw_text, res)
-                        success = True
-            except Exception as e:
-                # 忽略 Google 错误，尝试 fallback
-                pass
+            if not success:
+                try:
+                    base_url = "https://translate.googleapis.com/translate_a/single"
+                    params = {
+                        "client": "gtx",
+                        "sl": "auto",
+                        "tl": "zh-CN",
+                        "dt": "t",
+                        "q": clean_text
+                    }
+                    # 设置超时
+                    resp = session.get(base_url, params=params, timeout=3)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data and data[0] and data[0][0] and data[0][0][0]:
+                            res = data[0][0][0]
+                            save_auto_translation(raw_text, res)
+                            success = True
+                except Exception as e:
+                    # 忽略 Google 错误，尝试 fallback
+                    pass
             
             # 2. 如果 Google 失败，尝试 MyMemory API (Backup)
             if not success:

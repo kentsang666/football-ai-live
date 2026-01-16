@@ -11,7 +11,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
     <script>
         tailwind.config = {
@@ -27,8 +27,9 @@
                         'alert-red': '#ff003c',
                     },
                     fontFamily: {
-                        'mono': ['"JetBrains Mono"', 'monospace'],
-                        'headings': ['"Rajdhani"', 'sans-serif'],
+                        'mono': ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                        'headings': ['"Rajdhani"', '"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+                        'sans': ['"Inter"', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', '"Noto Sans"', '"PingFang SC"', '"Microsoft YaHei"', '"Heiti SC"', 'sans-serif'],
                     }
                 }
             }
@@ -38,7 +39,7 @@
         body {
             background-color: #030303;
             color: #e2e8f0;
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'sans-serif';
             background-image: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #000000 80%);
             min-height: 100vh;
         }
@@ -329,16 +330,33 @@
             <div class="glass-panel rounded-lg overflow-hidden flex flex-col h-[300px] border border-cyber-cyan/20 relative group">
                 <div class="absolute inset-0 bg-[url('https://assets.codepen.io/13471/sparkle.png')] opacity-10 animate-pulse"></div>
                 
-                <div class="bg-black/40 px-3 py-2 border-b border-white/5 flex items-center justify-between backdrop-blur-sm z-10">
-                    <span class="text-xs font-mono text-cyber-cyan font-bold flex items-center gap-2">
-                        <i class="fa-solid fa-chart-line"></i> MOMENTUM ANALYTICS
-                    </span>
-                    <div class="flex items-center gap-2">
-                         <span class="flex h-1.5 w-1.5 relative">
-                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-green opacity-75"></span>
-                              <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyber-green"></span>
-                         </span>
-                         <span class="text-[9px] text-gray-500 font-mono">PROCESSING</span>
+                <div class="bg-black/40 px-3 py-2 border-b border-white/5 flex flex-col gap-1 backdrop-blur-sm z-10 transition-all duration-300">
+                    <div class="flex items-center justify-between w-full">
+                        <span class="text-xs font-mono text-cyber-cyan font-bold flex items-center gap-2 cursor-help group relative">
+                            <i class="fa-solid fa-chart-line"></i> 动量趋势分析
+                            <!-- Tooltip -->
+                            <div class="absolute left-0 top-full mt-2 w-56 p-2 bg-slate-900/95 border border-cyber-cyan/30 text-gray-300 text-[10px] rounded shadow-[0_0_15px_rgba(14,255,255,0.2)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 normal-case font-sans hidden group-hover:block backdrop-blur-md">
+                                <div class="mb-1 text-cyber-cyan font-bold border-b border-white/10 pb-1">系统说明</div>
+                                实时监控全场比赛节奏，结合赔率波动与场上危险进攻事件，计算得出的综合压力指数。
+                            </div>
+                        </span>
+                        <div class="flex items-center gap-2">
+                             <span class="flex h-1.5 w-1.5 relative">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-green opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyber-green"></span>
+                             </span>
+                             <span class="text-[9px] text-gray-500 font-mono">实时计算中</span>
+                        </div>
+                    </div>
+                    <div id="momentum-match-info" class="text-[10px] text-gray-400 font-mono pl-5 border-t border-white/5 pt-1 mt-1 hidden flex items-center justify-between">
+                        <div class="flex items-center min-w-0 flex-1 mr-2">
+                            <i class="fa-solid fa-crosshairs text-cyber-cyan mr-1.5 animate-pulse"></i>
+                            <span id="momentum-match-title" class="truncate"></span>
+                        </div>
+                        <div class="flex items-center whitespace-nowrap gap-1 bg-cyber-green/10 px-1.5 py-0.5 rounded border border-cyber-green/20">
+                            <i class="fa-solid fa-coins text-cyber-green text-[9px]"></i>
+                            <span id="momentum-match-stake" class="text-cyber-green font-bold text-[10px]"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -373,17 +391,17 @@
                     <!-- Odds Alpha Calculation View -->
                     <div class="h-20 bg-black/30 rounded border border-white/5 p-2 flex items-center justify-between gap-2 font-mono text-[10px]">
                         <div class="text-center">
-                            <div class="text-gray-500 mb-1">RAW PROB</div>
+                            <div class="text-gray-500 mb-1">原始概率</div>
                             <div class="text-white text-xs font-bold">52.4%</div>
                         </div>
                         <i class="fa-solid fa-arrow-right text-gray-600 text-[8px]"></i>
                         <div class="text-center group">
-                            <div class="text-neon-purple mb-1 animate-pulse">V2.0 CONTEXT</div>
+                            <div class="text-neon-purple mb-1 animate-pulse">V2.0 修正</div>
                             <div class="text-white text-xs font-bold border border-neon-purple/30 rounded px-1 bg-neon-purple/10">+4.2%</div>
                         </div>
                         <i class="fa-solid fa-arrow-right text-gray-600 text-[8px]"></i>
                         <div class="text-center">
-                            <div class="text-cyber-green mb-1">ALPHA</div>
+                            <div class="text-cyber-green mb-1">综合指数</div>
                             <div class="text-cyber-green text-xs font-bold text-shadow-green">56.6%</div>
                         </div>
                     </div>
@@ -393,11 +411,11 @@
                 <div id="terminal-content" class="h-16 border-t border-white/5 bg-black/60 p-2 font-mono text-[9px] text-gray-500 overflow-hidden relative">
                     <div class="absolute top-0 right-0 p-1 opacity-50"><i class="fa-solid fa-terminal"></i></div>
                     <div class="animate-[slide-up_10s_linear_infinite]">
-                        > Initializing V2.0 Context Engine...<br>
-                        > Loading Poisson Distribution Models...<br>
-                        > Connecting to API-Football V3 Stream...<br>
-                        > LIVE: 42 matches monitoring...<br>
-                        > Scanning for EV > 5% opportunities...
+                        > 正在初始化 V2.0 语境引擎...<br>
+                        > 正在加载泊松分布模型...<br>
+                        > 正在连接 API-Football V3 数据流...<br>
+                        > 实时: 正在监控 42 场比赛...<br>
+                        > 正在扫描 EV > 5% 的机会...
                     </div>
                 </div>
             </div>
@@ -409,7 +427,7 @@
                  </div>
                  <div class="flex items-center gap-2 mb-2">
                      <span class="w-1.5 h-1.5 rounded-full bg-alert-red animate-ping"></span>
-                     <div class="text-[10px] text-gray-500 font-mono uppercase tracking-wider">LIVE SIGNAL FEED</div>
+                     <div class="text-[10px] text-gray-500 font-mono uppercase tracking-wider">实时信号流</div>
                  </div>
                  
                  <!-- Carousel Viewport -->
@@ -423,13 +441,13 @@
             <!-- Stats/Market Info -->
             <div class="glass-panel p-4 rounded-lg">
                 <h3 class="text-sm font-bold text-white mb-3 border-l-2 border-neon-purple pl-2 flex justify-between items-center">
-                    <span>AI RECOMMENDATIONS</span>
+                    <span>AI 智能推荐</span>
                     <span id="rec-count" class="text-[10px] bg-neon-purple text-black px-1.5 rounded-full hidden">0</span>
                 </h3>
                 <div id="market-trends-container" class="space-y-3 min-h-[100px] flex flex-col justify-center">
                      <!-- Dynamic content will be injected here -->
                      <div class="text-center text-gray-500 text-xs italic opacity-50">
-                        <i class="fa-solid fa-radar fa-spin mr-1"></i> Scanning markets...
+                        <i class="fa-solid fa-radar fa-spin mr-1"></i> 正在扫描市场...
                      </div>
                 </div>
             </div>
@@ -450,6 +468,9 @@
             <div class="p-2 border-b border-white/5 flex gap-2 bg-black/20">
                 <button onclick="toggleAllLeagues(true)" class="flex-1 py-1.5 text-xs font-mono font-bold bg-cyber-green/10 text-cyber-green hover:bg-cyber-green/20 border border-cyber-green/30 rounded transition-all">全选</button>
                 <button onclick="toggleAllLeagues(false)" class="flex-1 py-1.5 text-xs font-mono font-bold bg-alert-red/10 text-alert-red hover:bg-alert-red/20 border border-alert-red/30 rounded transition-all">全不选</button>
+                <button id="btn-show-blocked" onclick="toggleBlockedView()" class="flex-1 py-1.5 text-xs font-mono font-bold bg-gray-700/50 text-gray-300 hover:bg-gray-700 border border-gray-600 rounded transition-all">
+                    <i class="fa-solid fa-filter-circle-xmark mr-1"></i>只看已过滤
+                </button>
             </div>
 
             <div id="league-list-container" class="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -466,47 +487,96 @@
     <!-- History Modal -->
     <div id="history-modal" class="fixed inset-0 z-[100] hidden">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeHistoryModal()"></div>
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-[95%] bg-slate-900 border border-cyber-cyan/30 rounded-lg shadow-[0_0_50px_rgba(255,42,42,0.1)] overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up">
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-fit min-w-[600px] md:min-w-[800px] bg-slate-900 border border-cyber-cyan/30 rounded-lg shadow-[0_0_50px_rgba(255,42,42,0.1)] overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-up">
             <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/5">
-                <h3 class="font-bold text-white flex items-center gap-2 font-headings text-lg"><i class="fa-solid fa-clock-rotate-left text-cyber-cyan"></i> 推荐历史记录</h3>
+                <div class="flex items-center gap-4">
+                    <h3 class="font-bold text-white flex items-center gap-2 font-headings text-lg"><i class="fa-solid fa-clock-rotate-left text-cyber-cyan"></i> 推荐历史记录</h3>
+                    
+                    <!-- Date Filter -->
+                    <div class="flex items-center gap-2 ml-4">
+                        <div class="relative group">
+                            <input type="date" id="history-date-picker" onchange="loadHistoryData(this.value)" class="bg-black/30 border border-white/10 text-gray-300 text-[10px] font-mono rounded px-2 py-1 outline-none focus:border-cyber-cyan transition-colors h-[26px] hover:bg-white/5 cursor-pointer uppercase [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer">
+                            <i class="fa-regular fa-calendar absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] pointer-events-none group-hover:text-cyber-cyan transition-colors"></i>
+                        </div>
+                        
+                        <button onclick="setHistoryDate('today')" class="history-filter-btn px-2.5 py-1 text-[10px] font-mono font-bold bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 rounded border border-white/5 transition-colors h-[26px]">今天</button>
+                        <button onclick="setHistoryDate(null)" class="history-filter-btn px-2.5 py-1 text-[10px] font-mono font-bold bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 rounded border border-white/5 transition-colors h-[26px]">全部</button>
+                    </div>
+
+                    <div class="h-4 w-px bg-white/10 mx-2"></div>
+
+                    <button onclick="clearHistory()" class="px-3 py-1 text-xs bg-red-900/20 text-red-400 border border-red-500/20 rounded hover:bg-red-900/40 hover:text-red-300 transition-colors flex items-center gap-1.5 h-[26px]" title="清除所有记录">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
                 <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
-            <div id="history-stats-bar" class="grid grid-cols-4 gap-4 p-4 text-center border-b border-white/5 bg-white/5 hidden">
-                <div class="bg-gray-800/50 p-2 rounded border border-white/5">
-                    <div class="text-[10px] uppercase tracking-wider text-gray-500">Total</div>
-                    <div id="stat-total" class="text-lg font-bold text-white">0</div>
+
+            <div id="history-stats-bar" class="flex flex-col gap-3 p-4 border-b border-white/5 bg-white/5 hidden">
+                <!-- Main Stats -->
+                <div class="grid grid-cols-4 gap-3">
+                    <div class="bg-gray-800/50 p-2 rounded border border-white/5 text-center">
+                        <div class="text-[10px] uppercase tracking-wider text-gray-500">Total</div>
+                        <div id="stat-total" class="text-lg font-bold text-white">0</div>
+                    </div>
+                    <div class="bg-green-900/10 p-2 rounded border border-green-500/10 text-center">
+                        <div class="text-[10px] uppercase tracking-wider text-green-500/70">Win</div>
+                        <div id="stat-wins" class="text-lg font-bold text-green-400">0</div>
+                    </div>
+                    <div class="bg-red-900/10 p-2 rounded border border-red-500/10 text-center">
+                        <div class="text-[10px] uppercase tracking-wider text-red-500/70">Loss</div>
+                        <div id="stat-losses" class="text-lg font-bold text-red-400">0</div>
+                    </div>
+                    <div class="bg-yellow-900/10 p-2 rounded border border-yellow-500/10 text-center">
+                        <div class="text-[10px] uppercase tracking-wider text-yellow-500/70">Pending/Push</div>
+                        <div id="stat-pending" class="text-lg font-bold text-yellow-400">0</div>
+                    </div>
                 </div>
-                <div class="bg-green-900/10 p-2 rounded border border-green-500/10">
-                    <div class="text-[10px] uppercase tracking-wider text-green-500/70">Win</div>
-                    <div id="stat-wins" class="text-lg font-bold text-green-400">0</div>
-                </div>
-                <div class="bg-red-900/10 p-2 rounded border border-red-500/10">
-                    <div class="text-[10px] uppercase tracking-wider text-red-500/70">Loss</div>
-                    <div id="stat-losses" class="text-lg font-bold text-red-400">0</div>
-                </div>
-                <div class="bg-yellow-900/10 p-2 rounded border border-yellow-500/10">
-                    <div class="text-[10px] uppercase tracking-wider text-yellow-500/70">Pending/Push</div>
-                    <div id="stat-pending" class="text-lg font-bold text-yellow-400">0</div>
+
+                <!-- Sub Stats (AH & OU) -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- AH Stats -->
+                    <div class="bg-slate-800/30 p-2 rounded border border-white/5 flex items-center justify-between px-4">
+                        <div class="flex items-center gap-2">
+                             <div class="text-[10px] text-gray-400 font-mono font-bold">让球(AH)</div>
+                        </div>
+                        <div class="flex gap-4 text-xs font-mono">
+                             <span class="text-green-400"><span id="stat-ah-win" class="font-bold text-sm">0</span> <span class="text-[9px] text-green-500/50">W</span></span>
+                             <span class="text-red-400"><span id="stat-ah-loss" class="font-bold text-sm">0</span> <span class="text-[9px] text-red-500/50">L</span></span>
+                        </div>
+                    </div>
+                    
+                    <!-- OU Stats -->
+                    <div class="bg-slate-800/30 p-2 rounded border border-white/5 flex items-center justify-between px-4">
+                        <div class="flex items-center gap-2">
+                             <div class="text-[10px] text-gray-400 font-mono font-bold">大小(OU)</div>
+                        </div>
+                         <div class="flex gap-4 text-xs font-mono">
+                             <span class="text-green-400"><span id="stat-ou-win" class="font-bold text-sm">0</span> <span class="text-[9px] text-green-500/50">W</span></span>
+                             <span class="text-red-400"><span id="stat-ou-loss" class="font-bold text-sm">0</span> <span class="text-[9px] text-red-500/50">L</span></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Equity Curve Chart -->
-            <div id="equity-chart-container" class="p-4 border-b border-white/5 bg-black/20 hidden" style="height: 200px;">
+            <div id="equity-chart-container" class="p-4 border-b border-white/5 bg-black/20 hidden relative" style="height: 240px;">
                 <canvas id="equityChart"></canvas>
             </div>
 
             <div class="flex-1 overflow-y-auto overflow-x-auto p-0 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 <table class="w-full text-left border-collapse">
-                    <thead class="sticky top-0 bg-gray-900 text-xs text-gray-400 font-mono uppercase tracking-wider backdrop-blur-md whitespace-nowrap">
+                    <thead class="sticky top-0 bg-gray-900/95 text-[11px] text-gray-500 font-bold uppercase tracking-wider backdrop-blur-md whitespace-nowrap z-10 shadow-sm">
                         <tr>
-                            <th class="p-3 border-b border-white/5">时间</th>
-                            <th class="p-3 border-b border-white/5">联赛/赛事</th>
-                            <th class="p-3 border-b border-white/5">比分</th>
-                            <th class="p-3 border-b border-white/5">推荐内容</th>
-                            <th class="p-3 border-b border-white/5 text-center">赔率</th>
-                            <th class="p-3 border-b border-white/5 text-center">期望值</th>
-                            <th class="p-3 border-b border-white/5 text-center">结果</th>
+                            <th class="px-4 py-3 border-b border-white/5 font-mono">时间</th>
+                            <th class="px-4 py-3 border-b border-white/5">联赛/赛事</th>
+                            <th class="px-4 py-3 border-b border-white/5 text-center">比分</th>
+                            <th class="px-4 py-3 border-b border-white/5">推荐内容</th>
+                            <th class="px-4 py-3 border-b border-white/5 text-left">算法模型 / 建议</th>
+                            <th class="px-4 py-3 border-b border-white/5 text-center">赔率</th>
+                            <th class="px-4 py-3 border-b border-white/5 text-center">期望值</th>
+                            <th class="px-4 py-3 border-b border-white/5 text-center">结果</th>
                         </tr>
                     </thead>
                     <tbody id="history-table-body" class="text-sm font-mono text-gray-300 divide-y divide-white/5 whitespace-nowrap">
@@ -585,7 +655,7 @@
                 // Here we use peer pattern for pure CSS toggling visual.
                 
                 label.innerHTML = `
-                    <input type="checkbox" value="${league}" ${isChecked ? 'checked' : ''} class="peer sr-only league-checkbox">
+                    <input type="checkbox" value="${league}" ${isChecked ? 'checked' : ''} onchange="checkBlockedView(this)" class="peer sr-only league-checkbox">
                     
                     <!-- Background & Border State -->
                     <div class="absolute inset-0 rounded border border-white/5 bg-gray-800/40 peer-checked:bg-cyber-cyan/10 peer-checked:border-cyber-cyan/50 peer-checked:shadow-[0_0_10px_rgba(14,255,255,0.1)] transition-all"></div>
@@ -600,45 +670,131 @@
                 `;
                 container.appendChild(label);
             });
+            reapplyBlockedView();
         }
         
+        let historyInterval = null;
+        let lastHistoryCount = -1;
+        let currentHistoryDate = null;
+
         // --- History Modal Functions ---
         async function openHistoryModal() {
             document.getElementById('history-modal').classList.remove('hidden');
+            lastHistoryCount = -1; // Reset count on open
+            
+            // Default to ALL on open, or persist last selection?
+            // User requested "Check by date", so maybe default to today or none?
+            // Let's keep it 'all' (null) by default on fresh open, unless we want to remember state.
+            // Resetting to null for clean slate on open seems better UX than confusing state.
+            currentHistoryDate = null;
+            
+            await loadHistoryData(currentHistoryDate);
+            
+            // Start polling if not already running
+            if (!historyInterval) {
+                historyInterval = setInterval(() => loadHistoryData(currentHistoryDate), 5000); // Poll every 5 seconds
+            }
+        }
+        
+        function setHistoryDate(val) {
+            if (val === 'today') {
+                const today = new Date().toISOString().split('T')[0];
+                loadHistoryData(today);
+            } else {
+                loadHistoryData(val); // null for ALL
+            }
+        }
+        
+        async function loadHistoryData(date = null) {
             const tbody = document.getElementById('history-table-body');
             const loading = document.getElementById('history-loading');
             const empty = document.getElementById('history-empty');
             const statsBar = document.getElementById('history-stats-bar');
             
-            tbody.innerHTML = '';
-            loading.classList.remove('hidden');
-            empty.classList.add('hidden');
-            statsBar.classList.add('hidden');
+            // Set current filter for polling updates
+            currentHistoryDate = date;
             
+            // Update Picker UI
+            const picker = document.getElementById('history-date-picker');
+            if (date) {
+                picker.value = date;
+                picker.classList.add('text-cyber-cyan', 'border-cyber-cyan/50');
+                picker.classList.remove('text-gray-300');
+            } else {
+                picker.value = '';
+                picker.classList.remove('text-cyber-cyan', 'border-cyber-cyan/50');
+                picker.classList.add('text-gray-300');
+            }
+
+            // Only show main loading on first load (empty table)
+            if (tbody.children.length === 0) {
+                 loading.classList.remove('hidden');
+                 empty.classList.add('hidden');
+                 statsBar.classList.add('hidden');
+            }
+
             try {
-                const res = await fetch('/api/history');
+                let url = '/api/history';
+                if (date) url += `?date=${date}`;
+                
+                const res = await fetch(url);
                 const data = await res.json();
                 
                 loading.classList.add('hidden');
                 
-                if (!data.history || data.history.length === 0) {
+                if (!data.history) data.history = [];
+
+                // Check for new records prompt
+                if (lastHistoryCount !== -1 && data.history.length > lastHistoryCount) {
+                    playGoalSound(true); // Short notification sound
+                }
+                lastHistoryCount = data.history.length;
+                
+                if (data.history.length === 0) {
                     empty.classList.remove('hidden');
                     return;
                 }
                 
                 // Calculate Stats
                 let win = 0, loss = 0, other = 0;
+                let ah_win = 0, ah_loss = 0;
+                let ou_win = 0, ou_loss = 0;
+
                 data.history.forEach(r => {
                     const res = r.result || 'Pending';
-                    if (res === 'Win' || res === 'Half Win') win++;
-                    else if (res === 'Loss' || res === 'Half Loss') loss++;
+                    const isWin = (res === 'Win' || res === 'Half Win');
+                    const isLoss = (res === 'Loss' || res === 'Half Loss');
+                    
+                    if (isWin) win++;
+                    else if (isLoss) loss++;
                     else other++;
+                    
+                    // Categorized Stats
+                    if (r.bet_type) {
+                        const isAh = r.bet_type.includes('HDP') || r.bet_type.includes('让球');
+                        const isOu = r.bet_type.includes('Over') || r.bet_type.includes('Under') || r.bet_type.includes('大') || r.bet_type.includes('小');
+                        
+                        if (isAh) {
+                            if (isWin) ah_win++;
+                            else if (isLoss) ah_loss++;
+                        } else if (isOu) {
+                             if (isWin) ou_win++;
+                             else if (isLoss) ou_loss++;
+                        }
+                    }
                 });
                 
                 document.getElementById('stat-total').innerText = data.history.length;
                 document.getElementById('stat-wins').innerText = win;
                 document.getElementById('stat-losses').innerText = loss;
                 document.getElementById('stat-pending').innerText = other;
+                
+                // Detailed Stats
+                document.getElementById('stat-ah-win').innerText = ah_win;
+                document.getElementById('stat-ah-loss').innerText = ah_loss;
+                document.getElementById('stat-ou-win').innerText = ou_win;
+                document.getElementById('stat-ou-loss').innerText = ou_loss;
+
                 statsBar.classList.remove('hidden');
                 
                 // Draw Chart
@@ -656,60 +812,226 @@
                     };
                     return map[r] || r;
                 };
+                
+                // Helper to format numbers (2 decimal places)
+                const fmt = (n) => {
+                    const num = parseFloat(n);
+                    return isNaN(num) ? n : num.toFixed(2);
+                };
 
                 data.history.forEach(rec => {
                     // Translate Result Badge
-                    let resultBadge = `<span class="text-xs text-gray-500 px-2 py-0.5 rounded bg-gray-800 border border-gray-600">进行中</span>`;
+                    let resultBadge = `<span class="inline-flex items-center justify-center min-w-[48px] text-[10px] text-gray-400 px-2 py-0.5 rounded-sm bg-gray-800/80 border border-gray-700 tracking-wide">进行中</span>`;
                     const res = rec.result || 'Pending';
                     const cnRes = transRes(res);
                     
                     if (res === 'Win' || res === 'Half Win') {
-                        resultBadge = `<span class="text-xs text-green-400 px-2 py-0.5 rounded bg-green-900/30 border border-green-500/50 font-bold shadow-[0_0_10px_rgba(74,222,128,0.2)]">${cnRes}</span>`;
+                        resultBadge = `<span class="inline-flex items-center justify-center min-w-[48px] text-[10px] text-green-400 px-2 py-0.5 rounded-sm bg-green-500/10 border border-green-500/40 font-bold shadow-[0_0_8px_rgba(74,222,128,0.15)] tracking-wide">${cnRes}</span>`;
                     } else if (res === 'Loss' || res === 'Half Loss') {
-                        resultBadge = `<span class="text-xs text-red-400 px-2 py-0.5 rounded bg-red-900/30 border border-red-500/50 font-bold shadow-[0_0_10px_rgba(248,113,113,0.2)]">${cnRes}</span>`;
+                        resultBadge = `<span class="inline-flex items-center justify-center min-w-[48px] text-[10px] text-red-400 px-2 py-0.5 rounded-sm bg-red-500/10 border border-red-500/40 font-bold shadow-[0_0_8px_rgba(248,113,113,0.15)] tracking-wide">${cnRes}</span>`;
                     } else if (res === 'Push') {
-                        resultBadge = `<span class="text-xs text-yellow-400 px-2 py-0.5 rounded bg-yellow-900/30 border border-yellow-500/50 font-bold">${cnRes}</span>`;
+                        resultBadge = `<span class="inline-flex items-center justify-center min-w-[48px] text-[10px] text-yellow-400 px-2 py-0.5 rounded-sm bg-yellow-500/10 border border-yellow-500/40 font-bold tracking-wide">${cnRes}</span>`;
                     }
 
+                    // Resolve Selected Team Name OR Over/Under
+                    let selectedTeamName = '';
+                    
+                    if (rec.selection === 'Over') selectedTeamName = '大球 (Over)';
+                    else if (rec.selection === 'Under') selectedTeamName = '小球 (Under)';
+                    else if (rec.selection === 'Home') selectedTeamName = rec.home_team;
+                    else if (rec.selection === 'Away') selectedTeamName = rec.away_team;
+                    
+                    // Fallback to parsing bet_type if legacy record
+                    if (!selectedTeamName && rec.bet_type) {
+                        if (rec.bet_type.includes('主') || rec.bet_type.includes('Home')) selectedTeamName = rec.home_team;
+                        else if (rec.bet_type.includes('客') || rec.bet_type.includes('Away')) selectedTeamName = rec.away_team;
+                        else if (rec.bet_type.includes('Over') || rec.bet_type.includes('大')) selectedTeamName = '大球 (Over)';
+                        else if (rec.bet_type.includes('Under') || rec.bet_type.includes('小')) selectedTeamName = '小球 (Under)';
+                    }
+
+                    // If still unknown (e.g. Draw), keep empty or show dash
+                    if (!selectedTeamName) selectedTeamName = '-';
+
+                    // Format Display Line (HDP / OU)
+                    let displayLine = (rec.bet_type || '').replace('HDP', '让球').replace('Over', '大').replace('Under', '小');
+                    
+                    // Priority 1: Over/Under Line
+                    if (rec.selection === 'Over' || rec.selection === 'Under') {
+                         if (rec.handicap !== undefined) displayLine = `OU ${rec.handicap}`;
+                         else displayLine = (rec.bet_type || '').replace('Over', 'OU').replace('Under', 'OU').replace('大', 'OU').replace('小', 'OU');
+                    }
+                    // Priority 2: AH Line
+                    else if (rec.handicap !== undefined && rec.handicap !== null) {
+                        displayLine = `HDP ${rec.handicap}`;
+                    }
+                    
+                    // Icon Logic
+                    let selectionIcon = `<i class="fa-solid fa-shirt text-[9px] text-gray-500"></i>`;
+                    if (rec.selection === 'Over') selectionIcon = `<i class="fa-solid fa-arrow-up text-[9px] text-cyber-green"></i>`;
+                    else if (rec.selection === 'Under') selectionIcon = `<i class="fa-solid fa-arrow-down text-[9px] text-alert-red"></i>`;
+
                     html += `
-                        <tr class="hover:bg-white/5 transition-colors">
-                            <td class="p-3 text-[10px] text-gray-400 whitespace-nowrap">${rec.timestamp || rec.time_at_rec}</td>
-                            <td class="p-3">
-                                <div class="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">${rec.league}</div>
-                                <div class="text-xs font-bold text-white">${rec.home_team} vs ${rec.away_team}</div>
+                        <tr class="hover:bg-white/[0.03] transition-colors border-b border-white/[0.02] last:border-0 group">
+                            <td class="px-4 py-3 text-[11px] text-gray-500 font-mono whitespace-nowrap">${rec.timestamp || rec.time_at_rec}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex flex-col">
+                                    <span class="text-[10px] font-bold text-cyber-cyan/60 uppercase tracking-wider mb-0.5">${rec.league}</span>
+                                    <span class="text-[13px] font-medium text-gray-200 group-hover:text-white transition-colors">${rec.home_team} <span class="text-gray-600 text-[10px] mx-1">VS</span> ${rec.away_team}</span>
+                                </div>
                             </td>
-                            <td class="p-3 font-bold text-cyber-cyan text-center flex flex-col items-center justify-center">
-                                <span>${rec.final_score || rec.score_at_rec}</span>
-                                ${rec.final_score ? '<span class="text-[9px] text-gray-500">(完)</span>' : ''}
+                            <td class="px-4 py-3 text-center align-middle">
+                                <div class="flex flex-col items-center justify-center gap-1.5 w-full">
+                                    <div class="flex items-center gap-1 text-[11px] text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5 whitespace-nowrap leading-none" title="推荐时比分">
+                                        <span class="text-[9px] text-gray-600 opacity-70 uppercase scale-90">REC</span> <span class="font-mono text-gray-300">${rec.score_at_rec || '-'}</span>
+                                    </div>
+                                    ${rec.final_score ? 
+                                        `<div class="flex items-center gap-1 text-[11px] text-cyber-cyan bg-cyber-cyan/5 px-2 py-0.5 rounded border border-cyber-cyan/10 whitespace-nowrap leading-none" title="完场比分">
+                                            <span class="text-[9px] text-cyber-cyan/50 opacity-70 uppercase scale-90">FINAL</span> <span class="font-bold font-mono">${rec.final_score}</span>
+                                         </div>` : 
+                                        ``
+                                    }
+                                </div>
                             </td>
-                            <td class="p-3">
-                                <span class="bg-gray-800 text-cyan-400 px-2 py-1 rounded text-xs font-bold border border-cyan-400/30">${rec.bet_type.replace('HDP', '让球').replace('Over', '大').replace('Under', '小')}</span>
+                            <td class="px-4 py-3 align-middle">
+                                <div class="flex flex-col items-start gap-1">
+                                    <div class="flex items-center gap-1.5 tooltipped" title="当前选择">
+                                        ${selectionIcon}
+                                        <span class="text-[12px] font-bold text-cyber-cyan tracking-wide border-b border-cyber-cyan/20 pb-0.5 leading-none">
+                                           ${selectedTeamName}
+                                        </span>
+                                    </div>
+                                    <span class="inline-block bg-slate-800 text-gray-400 px-1.5 py-0.5 rounded-sm text-[10px] font-mono border border-gray-700 ml-4">
+                                        ${displayLine}
+                                    </span>
+                                </div>
                             </td>
-                            <td class="p-3 text-center">
-                                <div class="text-gray-300 font-bold">${rec.odds}</div>
-                                <div class="text-[10px] text-gray-500">公: ${rec.fair_odds}</div>
+                            <td class="px-4 py-3 align-middle">
+                                <div class="flex flex-col gap-0.5">
+                                    <div class="flex items-center gap-1">
+                                        <i class="fa-solid fa-brain text-[9px] text-neon-purple/70"></i>
+                                        <span class="text-[10px] text-gray-400 font-medium">${rec.algo || 'AI 综合模型 V3 (泊松)'}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1 pl-0.5">
+                                        <span class="text-[10px] text-gray-600">注额:</span>
+                                        <span class="text-[11px] text-cyber-cyan font-bold font-mono tracking-tight">${rec.stake || '-'}</span>
+                                    </div>
+                                </div>
                             </td>
-                            <td class="p-3 text-center font-bold text-cyber-green">+${rec.ev}%</td>
-                            <td class="p-3 text-center">
+                            <td class="px-4 py-3 text-center align-middle">
+                                <div class="flex flex-col items-center">
+                                    <span class="text-[13px] text-gray-200 font-mono font-bold tracking-tight">${fmt(rec.odds)}</span>
+                                    <span class="text-[10px] text-gray-600 font-mono scale-90">Fair: ${fmt(rec.fair_odds)}</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-center font-mono font-bold text-cyber-green text-[12px] align-middle tracking-tight">+${fmt(rec.ev)}%</td>
+                            <td class="px-4 py-3 text-center align-middle">
                                 ${resultBadge}
                             </td>
                         </tr>
                     `;
                 });
+                
+                // Update table content only if changed to avoid flicker (optional, simple replacement for now)
                 tbody.innerHTML = html;
                 
             } catch (e) {
                 loading.classList.add('hidden');
                 console.error(e);
-                empty.innerText = "Error loading history.";
-                empty.classList.remove('hidden');
+                // Don't show empty error on polling fail, just log
+                if (tbody.children.length === 0) { 
+                    empty.innerText = "Error loading history.";
+                    empty.classList.remove('hidden');
+                }
             }
         }
         
         function closeHistoryModal() {
             document.getElementById('history-modal').classList.add('hidden');
+            if (historyInterval) {
+                clearInterval(historyInterval);
+                historyInterval = null;
+            }
         }
 
+        async function clearHistory() {
+            if (!confirm('确定要清除所有推荐记录吗？此操作不可恢复。')) return;
+            
+            try {
+                const res = await fetch('/api/history/clear', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    // Update UI
+                    document.getElementById('history-table-body').innerHTML = '';
+                    document.getElementById('history-empty').classList.remove('hidden');
+                    document.getElementById('history-stats-bar').classList.add('hidden');
+                    document.getElementById('equity-chart-container').classList.add('hidden');
+                    document.getElementById('stat-total').innerText = '0';
+                    document.getElementById('stat-wins').innerText = '0';
+                    document.getElementById('stat-losses').innerText = '0';
+                    document.getElementById('stat-pending').innerText = '0';
+                } else {
+                    alert('清除失败: ' + (data.message || 'Unknown error'));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('清除请求失败');
+            }
+        }
+
+        let isShowBlockedOnly = false;
+
+        function toggleBlockedView() {
+            isShowBlockedOnly = !isShowBlockedOnly;
+            const btn = document.getElementById('btn-show-blocked');
+            
+            if (isShowBlockedOnly) {
+                btn.classList.add('bg-cyber-cyan/20', 'text-cyber-cyan', 'border-cyber-cyan/50');
+                btn.classList.remove('bg-gray-700/50', 'text-gray-300', 'border-gray-600');
+                btn.innerHTML = '<i class="fa-solid fa-eye mr-1"></i>显示已选联赛';
+            } else {
+                btn.classList.remove('bg-cyber-cyan/20', 'text-cyber-cyan', 'border-cyber-cyan/50');
+                btn.classList.add('bg-gray-700/50', 'text-gray-300', 'border-gray-600');
+                btn.innerHTML = '<i class="fa-solid fa-filter-circle-xmark mr-1"></i>只看已过滤';
+            }
+            reapplyBlockedView();
+        }
+
+        function reapplyBlockedView() {
+            const labels = document.querySelectorAll('#league-list-container label');
+            labels.forEach(label => {
+                const checkbox = label.querySelector('input[type="checkbox"]');
+                if (isShowBlockedOnly) {
+                    // In View B (Blocked/Filtered): Show ONLY Unchecked.
+                    if (checkbox.checked) {
+                        label.classList.add('hidden');
+                    } else {
+                        label.classList.remove('hidden');
+                    }
+                } else {
+                    // In View A (Allowed/Selected): Show ONLY Checked.
+                    if (!checkbox.checked) {
+                         label.classList.add('hidden');
+                    } else {
+                         label.classList.remove('hidden');
+                    }
+                }
+            });
+        }
+
+        function checkBlockedView(checkbox) {
+            const label = checkbox.closest('label');
+            if (isShowBlockedOnly) {
+                // If in Blocked View and we CHECK (unblock) it, it should leave this view.
+                if (checkbox.checked) {
+                    setTimeout(() => label.classList.add('hidden'), 300);
+                }
+            } else {
+                // If in Selected View and we UNCHECK (block) it, it should leave this view.
+                if (!checkbox.checked) {
+                    setTimeout(() => label.classList.add('hidden'), 300);
+                }
+            }
+        }
 
         function toggleAllLeagues(select) {
             const checkboxes = document.querySelectorAll('.league-checkbox');
@@ -1075,7 +1397,7 @@
                                 momentumHtml = `
                                     <div class="mb-1 pt-1 border-t border-white/5">
                                         <div class="flex justify-between text-[10px] text-gray-500 font-mono uppercase mb-0.5">
-                                            <span class="scale-90 origin-left"><i class="fa-solid fa-gauge-high mr-1"></i>Pressure</span>
+                                            <span class="scale-90 origin-left"><i class="fa-solid fa-gauge-high mr-1"></i>赛场施压</span>
                                         </div>
                                         <div class="flex items-center gap-1 text-[10px] font-mono">
                                             <div class="w-4 text-right text-gray-400 leading-none">${Math.round(h_mom)}</div>
@@ -1102,7 +1424,7 @@
                                             </span>
                                         </div>
                                         <div class="absolute bottom-0 left-0 right-0 bg-cyber-green text-black text-[10px] font-bold text-center py-0.5 transform translate-y-full group-hover/odds:translate-y-0 transition-transform z-10 leading-none">
-                                            EV +${analytics.signal.ev}%
+                                            EV +${Number(analytics.signal.ev).toFixed(2)}%
                                         </div>
                                     `;
                                 }
@@ -1144,8 +1466,8 @@
                             
                             <div class="flex items-center justify-between mb-1">
                                 <div class="flex items-center gap-2">
-                                    <span class="animate-pulse w-1.5 h-1.5 bg-alert-red rounded-full"></span>
-                                    <span class="text-alert-red font-bold text-xs tracking-widest">${match.display_time}</span>
+                                    <span class="animate-pulse w-1.5 h-1.5 bg-cyber-green rounded-full"></span>
+                                    <span class="text-cyber-green font-bold text-xs tracking-widest">${match.display_time}</span>
                                     <span class="text-sm font-bold text-cyber-cyan/80 px-2 border-l border-gray-700 font-headings uppercase tracking-wider">${match.league}</span>
                                     ${weatherHtml}
                                 </div>
@@ -1174,8 +1496,8 @@
                             <!-- Analysis Bar -->
                             <div class="space-y-0.5 mb-2">
                                 <div class="flex justify-between text-[9px] text-gray-500 font-mono uppercase">
-                                    <span>H ${h_prob}%</span>
-                                    <span>A ${a_prob}%</span>
+                                    <span>H ${Number(h_prob).toFixed(2)}%</span>
+                                    <span>A ${Number(a_prob).toFixed(2)}%</span>
                                 </div>
                                 <div class="flex h-1 w-full bg-gray-800 rounded-full overflow-hidden opacity-80">
                                         <div class="bg-gray-300" style="width: ${h_prob}%"></div>
@@ -1270,6 +1592,40 @@
                 m.advanced_analytics && 
                 m.advanced_analytics.signal
             );
+
+            // Update Momentum Card Info (Top Signal)
+            const momentumInfo = document.getElementById('momentum-match-info');
+            const momentumTitle = document.getElementById('momentum-match-title');
+            
+            if (recommendations.length > 0) {
+                 // Sort by Strength (EV or Signal value) - assuming recommendations are already somewhat interesting
+                 // Let's pick the one with highest EV
+                 const bestMatch = recommendations.reduce((prev, current) => {
+                     return (prev.advanced_analytics.signal.ev > current.advanced_analytics.signal.ev) ? prev : current;
+                 }, recommendations[0]);
+                 
+                 momentumTitle.textContent = `${bestMatch.home_team} vs ${bestMatch.away_team}`;
+                 
+                 // Calculate Stake for this top match
+                 const signal = bestMatch.advanced_analytics.signal;
+                 const ev = parseFloat(signal.ev);
+                 const odds = parseFloat(signal.market_odds);
+                 // Kelly Eq: Use same logic as list
+                 const p = (ev / 100.0 + 1.0) / odds;
+                 const b = odds - 1.0;
+                 const fullKelly = (p * b - (1 - p)) / b;
+                 const qKelly = Math.max(0, fullKelly * 0.25); 
+                 const stakePct = (qKelly * 100).toFixed(1);
+                 
+                 // Bankroll Calc
+                 const baseBankroll = 10000;
+                 const stakeAmount = Math.floor(baseBankroll * qKelly);
+
+                 document.getElementById('momentum-match-stake').textContent = `建议: ¥${stakeAmount}`;
+                 momentumInfo.classList.remove('hidden');
+            } else {
+                 momentumInfo.classList.add('hidden');
+            }
 
             if (recommendations.length === 0) {
                 countBadge.classList.add('hidden');
@@ -1390,6 +1746,17 @@
                 const qKelly = Math.max(0, fullKelly * 0.25); // 1/4 Kelly, no negative stake
                 const stakePct = (qKelly * 100).toFixed(1);
                 
+                // Bankroll Calc
+                const baseBankroll = 10000;
+                let stakeAmount = Math.floor(baseBankroll * qKelly);
+                
+                // Use backend precise calculation if available
+                if (signal.stake_amt) {
+                    stakeAmount = signal.stake_amt;
+                }
+                
+                const algoDisplay = signal.algo || "AI 综合模型 V3 (泊松)";
+
                 // Tiered Styles
                 let borderClass = "border-cyber-green";
                 let bgPulse = "animate-pulse-slow";
@@ -1411,9 +1778,13 @@
                         </span>
                      </div>
                      
-                     <div class="flex justify-between items-start mb-1 pr-4">
+                     <div class="flex justify-between items-start mb-0.5 pr-4">
                          <div class="text-[10px] text-gray-400 font-mono truncate max-w-[120px]">${m.league}</div>
                          <div class="text-xs font-bold text-cyber-green transition-all group-hover:scale-110">EV +${ev}%</div>
+                     </div>
+                     
+                     <div class="mb-1.5 flex items-center">
+                        <span class="text-[9px] text-neon-purple/80 bg-neon-purple/10 px-1 rounded border border-neon-purple/20 truncate max-w-[150px]">${algoDisplay}</span>
                      </div>
                      
                      <div class="text-sm font-bold text-white leading-tight mb-1 truncate">
@@ -1421,10 +1792,10 @@
                      </div>
                      
                      <div class="flex justify-between items-center text-xs mt-1.5 pt-1.5 border-t border-white/5">
-                         <span class="text-gray-300 font-mono bg-black/30 px-1.5 rounded">让球 ${m.odds_ah.val}</span>
+                         <span class="text-gray-300 font-mono bg-black/30 px-1.5 rounded">让球 ${m.odds_ah ? m.odds_ah.val : '-'}</span>
                          <div class="text-right">
                              <span class="text-cyber-cyan font-bold block">@ ${odds}</span>
-                             <span class="text-[9px] text-gray-500 block mt-0.5">建议: ${stakePct}%</span>
+                             <span class="text-[9px] text-gray-500 block mt-0.5">建议: ¥${stakeAmount}</span>
                          </div>
                      </div>
                 </div>
@@ -1445,12 +1816,11 @@
             }
 
             // Prepare Data
-            // Sort by time ascending
             const sorted = [...history].sort((a,b) => new Date(a.time_at_rec || a.timestamp) - new Date(b.time_at_rec || b.timestamp));
             
-            let balance = 100; // Start with 100 units
+            let balance = 10000; // Start with 10k
             const labels = ['初始'];
-            const dataPoints = [100];
+            const dataPoints = [10000];
             
             const fmtTime = (t) => {
                  const d = new Date(t);
@@ -1460,12 +1830,16 @@
             sorted.forEach(rec => {
                 const res = rec.result;
                 let pnl = 0;
+                let stake = 0;
+                if (rec.stake) stake = parseInt(rec.stake.replace(/[^\d]/g, '')) || 0;
+                else stake = 1000;
+
                 const odds = parseFloat(rec.odds);
                 
-                if (res === 'Win') pnl = (odds - 1);
-                else if (res === 'Half Win') pnl = (odds - 1) / 2;
-                else if (res === 'Loss') pnl = -1;
-                else if (res === 'Half Loss') pnl = -0.5;
+                if (res === 'Win') pnl = stake * (odds - 1);
+                else if (res === 'Half Win') pnl = (stake * (odds - 1)) / 2;
+                else if (res === 'Loss') pnl = -stake;
+                else if (res === 'Half Loss') pnl = -stake / 2;
                 
                 // Only graph settled bets
                 if (res && res !== 'Pending' && res !== 'Push') {
@@ -1481,7 +1855,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: '资金增长曲线 (单位:手)',
+                        label: '账户净值',
                         data: dataPoints,
                         borderColor: '#0effff', // Cyber Cyan
                         backgroundColor: 'rgba(14, 255, 255, 0.1)',
@@ -1508,7 +1882,7 @@
                             borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
-                                    return `资金权益: ${context.parsed.y.toFixed(2)} 手`;
+                                    return `资金权益: ¥${context.parsed.y.toFixed(0)}`;
                                 }
                             }
                         }
