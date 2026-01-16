@@ -771,7 +771,7 @@
                     
                     // Categorized Stats
                     if (r.bet_type) {
-                        const isAh = r.bet_type.includes('HDP') || r.bet_type.includes('让球');
+                        const isAh = r.bet_type.includes('HDP') || r.bet_type.includes('让') || r.bet_type.includes('受') || r.bet_type.includes('平手');
                         const isOu = r.bet_type.includes('Over') || r.bet_type.includes('Under') || r.bet_type.includes('大') || r.bet_type.includes('小');
                         
                         if (isAh) {
