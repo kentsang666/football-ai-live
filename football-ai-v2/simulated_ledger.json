@@ -1,5 +1,5 @@
 {
-  "bankroll": 7696.632166844411,
+  "bankroll": 2432.682289084601,
   "active_orders": [
     {
       "order_id": "ORD_1404196_1768398632",
@@ -142,9 +142,1361 @@
       "reason": "Kelly Signal > 0",
       "timestamp": 1768482137.5841858,
       "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1482323_1768566268",
+      "match_id": 1482323,
+      "event": "Negelle Arsi vs Welayta Dicha",
+      "selection": {
+        "type": "AH",
+        "line": -0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.25) @ 1.75"
+      },
+      "odds": 1.75,
+      "stake": 101.58,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768566268.5112221,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1490990_1768566272",
+      "match_id": 1490990,
+      "event": "Nakhon Si Thammarat vs Esan Pattaya",
+      "selection": {
+        "type": "AH",
+        "line": 0.25,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 0.25 @ 1.77 (Score 0-0)"
+      },
+      "odds": 1.77,
+      "stake": 362.98,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768566272.9267838,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503878_1768566350",
+      "match_id": 1503878,
+      "event": "Grazer AK vs Admira Wacker",
+      "selection": {
+        "type": "AH",
+        "line": -0.5,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.5) @ 1.80"
+      },
+      "odds": 1.8,
+      "stake": 161.21,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768566350.8572173,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1456788_1768570906",
+      "match_id": 1456788,
+      "event": "Kfar Saba 1928 vs Hapoel Herzliya",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "side": "Away",
+        "start_score": [
+          1,
+          3
+        ],
+        "desc": "Away (平手 0) @ 2.60"
+      },
+      "odds": 2.6,
+      "stake": 195.91,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768570906.428144,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503870_1768570907",
+      "match_id": 1503870,
+      "event": "FC Fredericia vs Aarhus Fremad",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "side": "Away",
+        "start_score": [
+          2,
+          4
+        ],
+        "desc": "Away (平手 0) @ 1.90"
+      },
+      "odds": 1.9,
+      "stake": 186.12,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768570907.7896018,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506274_1768570908",
+      "match_id": 1506274,
+      "event": "Japan U23 vs Jordan U23",
+      "selection": {
+        "type": "OU",
+        "line": 2.5,
+        "side": "Under",
+        "start_score": [
+          1,
+          1
+        ],
+        "desc": "Under 2.5 @ 1.17"
+      },
+      "odds": 1.17,
+      "stake": 176.81,
+      "reason": "OU Signal",
+      "timestamp": 1768570908.0806239,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1508019_1768570908",
+      "match_id": 1508019,
+      "event": "Horriya vs Hottin",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "side": "Away",
+        "start_score": [
+          0,
+          1
+        ],
+        "desc": "Away (平手 0) @ 1.70"
+      },
+      "odds": 1.7,
+      "stake": 167.97,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768570908.1344118,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1436048_1768570930",
+      "match_id": 1436048,
+      "event": "Al Najma vs Al-Fateh",
+      "selection": {
+        "type": "AH",
+        "line": 0.5,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 0.5 @ 1.88 (Score 0-0)"
+      },
+      "odds": 1.88,
+      "stake": 134.94,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768570930.7022502,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503877_1768572046",
+      "match_id": 1503877,
+      "event": "杜纳斯卡斯特雷达 vs 卡尔卡格SE",
+      "selection": {
+        "type": "AH",
+        "line": -1.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 1.25) @ 1.98"
+      },
+      "odds": 1.98,
+      "stake": 166.75,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768572046.012657,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506195_1768572136",
+      "match_id": 1506195,
+      "event": "安纳巴USM vs 泰勒格马",
+      "selection": {
+        "type": "AH",
+        "line": -0.75,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.75) @ 1.80"
+      },
+      "odds": 1.8,
+      "stake": 170.68,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768572136.6083329,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506196_1768572136",
+      "match_id": 1506196,
+      "event": "比斯克拉 vs 伊布赫米斯埃尔赫什纳",
+      "selection": {
+        "type": "AH",
+        "line": -2.0,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 2.0) @ 1.90"
+      },
+      "odds": 1.9,
+      "stake": 189.01,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768572136.6576374,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503872_1768572172",
+      "match_id": 1503872,
+      "event": "Malmo FF vs Sparta Praha",
+      "selection": {
+        "type": "AH",
+        "line": 1.0,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 1.0 @ 1.88 (Score 0-0)"
+      },
+      "odds": 1.88,
+      "stake": 179.56,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768572172.840956,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506198_1768572191",
+      "match_id": 1506198,
+      "event": "HB Chelghoum Laïd vs JS Jijel",
+      "selection": {
+        "type": "AH",
+        "line": 1.5,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 1.5 @ 1.98 (Score 0-0)"
+      },
+      "odds": 1.98,
+      "stake": 170.58,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768572191.4743583,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506201_1768572246",
+      "match_id": 1506201,
+      "event": "MSP Batna vs MO Bejaia",
+      "selection": {
+        "type": "AH",
+        "line": 0.25,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 0.25 @ 1.90 (Score 0-0)"
+      },
+      "odds": 1.9,
+      "stake": 162.05,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768572246.5648348,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503537_1768572338",
+      "match_id": 1503537,
+      "event": "奈斯特韦德 vs HB科厄",
+      "selection": {
+        "type": "AH",
+        "line": 0.5,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 0.5 @ 1.95 (Score 0-0)"
+      },
+      "odds": 1.95,
+      "stake": 153.95,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768572338.9193203,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506199_1768572339",
+      "match_id": 1506199,
+      "event": "贝尼图尔足球俱乐部 vs MO康斯坦丁",
+      "selection": {
+        "type": "AH",
+        "line": -0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.25) @ 1.73"
+      },
+      "odds": 1.73,
+      "stake": 143.91,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768572339.2740324,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1437428_1768577879",
+      "match_id": 1437428,
+      "event": "朱拜勒 vs 阿达拉",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "start_score": [
+          1,
+          1
+        ],
+        "desc": "Home 0.0 @ 2.02 (Score 1-1)"
+      },
+      "odds": 2.02,
+      "stake": 198.05,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768577879.1089602,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1437429_1768577879",
+      "match_id": 1437429,
+      "event": "Al Bukayriyah vs Al Diriyah",
+      "selection": {
+        "type": "AH",
+        "line": 0.5,
+        "side": "Away",
+        "start_score": [
+          0,
+          1
+        ],
+        "desc": "Away (客让 0.5) @ 2.00"
+      },
+      "odds": 2.0,
+      "stake": 241.43,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577879.1558003,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1468636_1768577880",
+      "match_id": 1468636,
+      "event": "Hearts of Oak vs Dreams",
+      "selection": {
+        "type": "AH",
+        "line": -1.0,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 1.0) @ 1.80"
+      },
+      "odds": 1.8,
+      "stake": 229.35,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577880.7342331,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1471664_1768577882",
+      "match_id": 1471664,
+      "event": "Luanda City vs Sagrada Esperança",
+      "selection": {
+        "type": "AH",
+        "line": 0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          1
+        ],
+        "desc": "Away (客让 0.25) @ 2.10"
+      },
+      "odds": 2.1,
+      "stake": 217.89,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577882.2382529,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1471800_1768577883",
+      "match_id": 1471800,
+      "event": "Guelson vs 1º de Maio",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Home 0.0 @ 1.95 (Score 0-0)"
+      },
+      "odds": 1.95,
+      "stake": 97.29,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768577883.5508137,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1482259_1768577885",
+      "match_id": 1482259,
+      "event": "Mebrat Hayl vs Ethiopia Nigd Bank",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "start_score": [
+          1,
+          0
+        ],
+        "desc": "Home 0.0 @ 2.08 (Score 1-0)"
+      },
+      "odds": 2.08,
+      "stake": 202.13,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768577885.0637808,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1494080_1768577886",
+      "match_id": 1494080,
+      "event": "CS Constantine vs ES Setif",
+      "selection": {
+        "type": "AH",
+        "line": -0.75,
+        "side": "Away",
+        "start_score": [
+          0,
+          1
+        ],
+        "desc": "Away (客受 0.75) @ 1.90"
+      },
+      "odds": 1.9,
+      "stake": 192.02,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577886.3327365,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1501877_1768577886",
+      "match_id": 1501877,
+      "event": "Slavia Praha vs Brann",
+      "selection": {
+        "type": "AH",
+        "line": -0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.25) @ 2.02"
+      },
+      "odds": 2.02,
+      "stake": 130.25,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577886.3721023,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1502938_1768577886",
+      "match_id": 1502938,
+      "event": "Sturm Graz二队 vs SV Lafnitz",
+      "selection": {
+        "type": "AH",
+        "line": -1.0,
+        "start_score": [
+          2,
+          0
+        ],
+        "desc": "Home -1.0 @ 1.98 (Score 2-0)"
+      },
+      "odds": 1.98,
+      "stake": 175.91,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768577886.4076529,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503876_1768577886",
+      "match_id": 1503876,
+      "event": "Zaglebie Lubin vs Qarabag",
+      "selection": {
+        "type": "AH",
+        "line": 0.75,
+        "start_score": [
+          1,
+          1
+        ],
+        "desc": "Home 0.75 @ 1.90 (Score 1-1)"
+      },
+      "odds": 1.9,
+      "stake": 167.11,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768577886.4486346,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1503880_1768577886",
+      "match_id": 1503880,
+      "event": "Sandefjord vs Eik-Tønsberg",
+      "selection": {
+        "type": "AH",
+        "line": -2.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 2.25) @ 1.95"
+      },
+      "odds": 1.95,
+      "stake": 158.76,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577886.4939878,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1507962_1768577888",
+      "match_id": 1507962,
+      "event": "HJK helsinki vs Mariehamn",
+      "selection": {
+        "type": "AH",
+        "line": -0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.25) @ 1.95"
+      },
+      "odds": 1.95,
+      "stake": 98.33,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577888.270773,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1494380_1768577888",
+      "match_id": 1494380,
+      "event": "Al-Rustaq vs Al-Shabab",
+      "selection": {
+        "type": "AH",
+        "line": 0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          2
+        ],
+        "desc": "Away (客让 0.25) @ 1.85"
+      },
+      "odds": 1.85,
+      "stake": 145.9,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577888.5337577,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1494381_1768577888",
+      "match_id": 1494381,
+      "event": "Al-Nahda vs Al Nasr",
+      "selection": {
+        "type": "OU",
+        "line": 0.5,
+        "side": "Over",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Over 0.5 @ 1.50"
+      },
+      "odds": 1.5,
+      "stake": 138.61,
+      "reason": "OU Signal",
+      "timestamp": 1768577888.5704331,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1494079_1768577911",
+      "match_id": 1494079,
+      "event": "谢利夫ASO vs MC 赛达",
+      "selection": {
+        "type": "AH",
+        "line": -0.5,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.5) @ 1.90"
+      },
+      "odds": 1.9,
+      "stake": 48.72,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577911.4293754,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506732_1768577911",
+      "match_id": 1506732,
+      "event": "Vietnam U23 vs UAE U23",
+      "selection": {
+        "type": "AH",
+        "line": -0.25,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (客受 0.25) @ 1.82"
+      },
+      "odds": 1.8199999999999998,
+      "stake": 92.54,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577911.6444442,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1491608_1768577911",
+      "match_id": 1491608,
+      "event": "Al Shahaniya vs UMM Salal",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (平手 0) @ 2.15"
+      },
+      "odds": 2.15,
+      "stake": 22.68,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768577911.761271,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1488655_1768578026",
+      "match_id": 1488655,
+      "event": "埃及石油 vs 加济勒迈哈拉",
+      "selection": {
+        "type": "AH",
+        "line": 0.0,
+        "side": "Away",
+        "start_score": [
+          0,
+          0
+        ],
+        "desc": "Away (平手 0) @ 2.15"
+      },
+      "odds": 2.15,
+      "stake": 43.22,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768578026.3255663,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1506293_1768578027",
+      "match_id": 1506293,
+      "event": "阿姆施泰滕 vs 克雷姆斯/雷贝格",
+      "selection": {
+        "type": "AH",
+        "line": -1.0,
+        "side": "Away",
+        "start_score": [
+          0,
+          1
+        ],
+        "desc": "Away (客受 1.0) @ 1.85"
+      },
+      "odds": 1.85,
+      "stake": 121.32,
+      "reason": "Kelly Signal > 0 (Away)",
+      "timestamp": 1768578027.019305,
+      "status": "OPEN"
+    },
+    {
+      "order_id": "ORD_1436052_1768578716",
+      "match_id": 1436052,
+      "event": "海灣 vs 奥胡德",
+      "selection": {
+        "type": "AH",
+        "line": -0.5,
+        "start_score": [
+          1,
+          0
+        ],
+        "desc": "Home -0.5 @ 1.98 (Score 1-0)"
+      },
+      "odds": 1.98,
+      "stake": 128.04,
+      "reason": "Kelly Signal > 0",
+      "timestamp": 1768578716.5783422,
+      "status": "OPEN"
     }
   ],
   "ledger": [
+    {
+      "time": "2026-01-16 23:51:56",
+      "type": "BET",
+      "amount": -128.04,
+      "balance": 2432.68,
+      "desc": "下单: 海灣 vs 奥胡德 [Home -0.5 @ 1.98 (Score 1-0)] @ 1.98"
+    },
+    {
+      "time": "2026-01-16 23:51:51",
+      "type": "WIN",
+      "amount": 255.65,
+      "balance": 2560.72,
+      "desc": "结算 (WIN): JS Bordj Ménaïel vs Nrb Beni Oulbene PnL: +123.19"
+    },
+    {
+      "time": "2026-01-16 23:40:27",
+      "type": "BET",
+      "amount": -121.32,
+      "balance": 2305.07,
+      "desc": "下单: 阿姆施泰滕 vs 克雷姆斯/雷贝格 [Away (客受 1.0) @ 1.85] @ 1.85"
+    },
+    {
+      "time": "2026-01-16 23:40:26",
+      "type": "BET",
+      "amount": -43.22,
+      "balance": 2426.39,
+      "desc": "下单: 埃及石油 vs 加济勒迈哈拉 [Away (平手 0) @ 2.15] @ 2.15"
+    },
+    {
+      "time": "2026-01-16 23:38:31",
+      "type": "BET",
+      "amount": -22.68,
+      "balance": 2469.61,
+      "desc": "下单: Al Shahaniya vs UMM Salal [Away (平手 0) @ 2.15] @ 2.15"
+    },
+    {
+      "time": "2026-01-16 23:38:31",
+      "type": "BET",
+      "amount": -92.54,
+      "balance": 2492.29,
+      "desc": "下单: Vietnam U23 vs UAE U23 [Away (客受 0.25) @ 1.82] @ 1.8199999999999998"
+    },
+    {
+      "time": "2026-01-16 23:38:31",
+      "type": "BET",
+      "amount": -48.72,
+      "balance": 2584.82,
+      "desc": "下单: 谢利夫ASO vs MC 赛达 [Away (客受 0.5) @ 1.90] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 23:38:08",
+      "type": "BET",
+      "amount": -138.61,
+      "balance": 2633.55,
+      "desc": "下单: Al-Nahda vs Al Nasr [Over 0.5 @ 1.50] @ 1.5"
+    },
+    {
+      "time": "2026-01-16 23:38:08",
+      "type": "BET",
+      "amount": -145.9,
+      "balance": 2772.15,
+      "desc": "下单: Al-Rustaq vs Al-Shabab [Away (客让 0.25) @ 1.85] @ 1.85"
+    },
+    {
+      "time": "2026-01-16 23:38:08",
+      "type": "BET",
+      "amount": -98.33,
+      "balance": 2918.06,
+      "desc": "下单: HJK helsinki vs Mariehamn [Away (客受 0.25) @ 1.95] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 23:38:06",
+      "type": "BET",
+      "amount": -158.76,
+      "balance": 3016.39,
+      "desc": "下单: Sandefjord vs Eik-Tønsberg [Away (客受 2.25) @ 1.95] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 23:38:06",
+      "type": "BET",
+      "amount": -167.11,
+      "balance": 3175.15,
+      "desc": "下单: Zaglebie Lubin vs Qarabag [Home 0.75 @ 1.90 (Score 1-1)] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 23:38:06",
+      "type": "BET",
+      "amount": -175.91,
+      "balance": 3342.26,
+      "desc": "下单: Sturm Graz二队 vs SV Lafnitz [Home -1.0 @ 1.98 (Score 2-0)] @ 1.98"
+    },
+    {
+      "time": "2026-01-16 23:38:06",
+      "type": "BET",
+      "amount": -130.25,
+      "balance": 3518.17,
+      "desc": "下单: Slavia Praha vs Brann [Away (客受 0.25) @ 2.02] @ 2.02"
+    },
+    {
+      "time": "2026-01-16 23:38:06",
+      "type": "BET",
+      "amount": -192.02,
+      "balance": 3648.42,
+      "desc": "下单: CS Constantine vs ES Setif [Away (客受 0.75) @ 1.90] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 23:38:05",
+      "type": "BET",
+      "amount": -202.13,
+      "balance": 3840.44,
+      "desc": "下单: Mebrat Hayl vs Ethiopia Nigd Bank [Home 0.0 @ 2.08 (Score 1-0)] @ 2.08"
+    },
+    {
+      "time": "2026-01-16 23:38:03",
+      "type": "BET",
+      "amount": -97.29,
+      "balance": 4042.57,
+      "desc": "下单: Guelson vs 1º de Maio [Home 0.0 @ 1.95 (Score 0-0)] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 23:38:02",
+      "type": "BET",
+      "amount": -217.89,
+      "balance": 4139.85,
+      "desc": "下单: Luanda City vs Sagrada Esperança [Away (客让 0.25) @ 2.10] @ 2.1"
+    },
+    {
+      "time": "2026-01-16 23:38:00",
+      "type": "BET",
+      "amount": -229.35,
+      "balance": 4357.74,
+      "desc": "下单: Hearts of Oak vs Dreams [Away (客受 1.0) @ 1.80] @ 1.8"
+    },
+    {
+      "time": "2026-01-16 23:37:59",
+      "type": "BET",
+      "amount": -241.43,
+      "balance": 4587.1,
+      "desc": "下单: Al Bukayriyah vs Al Diriyah [Away (客让 0.5) @ 2.00] @ 2.0"
+    },
+    {
+      "time": "2026-01-16 23:37:59",
+      "type": "BET",
+      "amount": -198.05,
+      "balance": 4828.52,
+      "desc": "下单: 朱拜勒 vs 阿达拉 [Home 0.0 @ 2.02 (Score 1-1)] @ 2.02"
+    },
+    {
+      "time": "2026-01-16 23:34:05",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 5026.57,
+      "desc": "结算 (LOSS): Queens Park Rangers U21 vs 布伦特福德 U21 PnL: -145.96"
+    },
+    {
+      "time": "2026-01-16 23:34:04",
+      "type": "HALF_WIN",
+      "amount": 217.82,
+      "balance": 5026.57,
+      "desc": "结算 (HALF_WIN): Smail vs Oman Club PnL: +63.34"
+    },
+    {
+      "time": "2026-01-16 23:34:04",
+      "type": "WIN",
+      "amount": 508.38,
+      "balance": 4808.75,
+      "desc": "结算 (WIN): Colchester United U21 vs 伯恩茅斯 U21 PnL: +233.58"
+    },
+    {
+      "time": "2026-01-16 23:34:04",
+      "type": "PUSH",
+      "amount": 105.3,
+      "balance": 4300.37,
+      "desc": "结算 (PUSH): Milan U20 vs Fiorentina U20 PnL: +0.00"
+    },
+    {
+      "time": "2026-01-16 23:34:04",
+      "type": "PUSH",
+      "amount": 53.57,
+      "balance": 4195.07,
+      "desc": "结算 (PUSH): Hapoel Ramat Gan vs Bnei Yehuda PnL: +0.00"
+    },
+    {
+      "time": "2026-01-16 23:34:04",
+      "type": "PUSH",
+      "amount": 303.15,
+      "balance": 4141.5,
+      "desc": "结算 (PUSH): 哈代拉工人 vs 卡比利奥马卡比雅法 PnL: +0.00"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "HALF_LOSS",
+      "amount": 34.49,
+      "balance": 3838.35,
+      "desc": "结算 (HALF_LOSS): Stade Tunisien vs US Monastirienne PnL: -34.49"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "PUSH",
+      "amount": 56.38,
+      "balance": 3803.86,
+      "desc": "结算 (PUSH): 恩塔格埃尔哈比 vs 曼苏拉 PnL: +0.00"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "HALF_LOSS",
+      "amount": 60.89,
+      "balance": 3747.48,
+      "desc": "结算 (HALF_LOSS): 达赫莱亚 vs 伊蒂哈德电信 PnL: -60.89"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "WIN",
+      "amount": 61.19,
+      "balance": 3686.59,
+      "desc": "结算 (WIN): 阿尔詹达尔 vs 阿拉伯人体育俱乐部 PnL: +31.34"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 3625.4,
+      "desc": "结算 (LOSS): Al Baten vs Al-Faisaly PnL: -128.19"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 3625.4,
+      "desc": "结算 (LOSS): 利兹联 U21 vs 斯托克城 U21 PnL: -145.67"
+    },
+    {
+      "time": "2026-01-16 23:34:03",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 3625.4,
+      "desc": "结算 (LOSS): 米尔沃尔 U21 vs 斯旺西 U21 PnL: -133.72"
+    },
+    {
+      "time": "2026-01-16 23:34:02",
+      "type": "HALF_LOSS",
+      "amount": 48.03,
+      "balance": 3625.4,
+      "desc": "结算 (HALF_LOSS): 海法工人 vs 莫迪因铁人 PnL: -48.03"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 3577.37,
+      "desc": "结算 (LOSS): Olympique Béja vs US Ben Guerdane PnL: -209.86"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "WIN",
+      "amount": 446.61,
+      "balance": 3577.37,
+      "desc": "结算 (WIN): Hadiya Hosaena vs Suhul Shire PnL: +217.58"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 3130.76,
+      "desc": "结算 (LOSS): Tanta SC vs Baladiyyat Al Mehalla PnL: -241.09"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "VOID",
+      "amount": 253.78,
+      "balance": 3130.76,
+      "desc": "结算 (VOID): Al Jabalain vs Al Wehda Club PnL: +0.00"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "PUSH",
+      "amount": 74.6,
+      "balance": 2876.98,
+      "desc": "结算 (PUSH): 桑德兰 U21 vs 纽卡斯尔联 U21 PnL: +0.00"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 2802.38,
+      "desc": "结算 (LOSS): Maccabi Herzliya vs Kiryat Yam SC PnL: -105.00"
+    },
+    {
+      "time": "2026-01-16 23:34:01",
+      "type": "HALF_LOSS",
+      "amount": 21.2,
+      "balance": 2802.38,
+      "desc": "结算 (HALF_LOSS): 哈普尔里雄莱锡安 vs 海法工人 PnL: -21.20"
+    },
+    {
+      "time": "2026-01-16 22:05:39",
+      "type": "BET",
+      "amount": -143.91,
+      "balance": 2781.18,
+      "desc": "下单: 贝尼图尔足球俱乐部 vs MO康斯坦丁 [Away (客受 0.25) @ 1.73] @ 1.73"
+    },
+    {
+      "time": "2026-01-16 22:05:38",
+      "type": "BET",
+      "amount": -153.95,
+      "balance": 2925.09,
+      "desc": "下单: 奈斯特韦德 vs HB科厄 [Home 0.5 @ 1.95 (Score 0-0)] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 22:04:06",
+      "type": "BET",
+      "amount": -162.05,
+      "balance": 3079.04,
+      "desc": "下单: MSP Batna vs MO Bejaia [Home 0.25 @ 1.90 (Score 0-0)] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 22:03:11",
+      "type": "BET",
+      "amount": -170.58,
+      "balance": 3241.1,
+      "desc": "下单: HB Chelghoum Laïd vs JS Jijel [Home 1.5 @ 1.98 (Score 0-0)] @ 1.98"
+    },
+    {
+      "time": "2026-01-16 22:02:52",
+      "type": "BET",
+      "amount": -179.56,
+      "balance": 3411.68,
+      "desc": "下单: Malmo FF vs Sparta Praha [Home 1.0 @ 1.88 (Score 0-0)] @ 1.88"
+    },
+    {
+      "time": "2026-01-16 22:02:16",
+      "type": "BET",
+      "amount": -189.01,
+      "balance": 3591.24,
+      "desc": "下单: 比斯克拉 vs 伊布赫米斯埃尔赫什纳 [Away (客受 2.0) @ 1.90] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 22:02:16",
+      "type": "BET",
+      "amount": -170.68,
+      "balance": 3780.26,
+      "desc": "下单: 安纳巴USM vs 泰勒格马 [Away (客受 0.75) @ 1.80] @ 1.8"
+    },
+    {
+      "time": "2026-01-16 22:01:19",
+      "type": "WIN",
+      "amount": 782.61,
+      "balance": 3950.94,
+      "desc": "结算 (WIN): PSPS vs Persekat PnL: +395.18"
+    },
+    {
+      "time": "2026-01-16 22:00:46",
+      "type": "BET",
+      "amount": -166.75,
+      "balance": 3168.33,
+      "desc": "下单: 杜纳斯卡斯特雷达 vs 卡尔卡格SE [Away (客受 1.25) @ 1.98] @ 1.98"
+    },
+    {
+      "time": "2026-01-16 21:59:33",
+      "type": "BET",
+      "amount": -132.46,
+      "balance": 3335.08,
+      "desc": "下单: JS Bordj Ménaïel vs Nrb Beni Oulbene [Away (客受 0.5) @ 1.93] @ 1.9300000000000002"
+    },
+    {
+      "time": "2026-01-16 21:56:32",
+      "type": "BET",
+      "amount": -56.38,
+      "balance": 3467.54,
+      "desc": "下单: 恩塔格埃尔哈比 vs 曼苏拉 [Home 0.0 @ 1.88 (Score 0-0)] @ 1.88"
+    },
+    {
+      "time": "2026-01-16 21:56:32",
+      "type": "BET",
+      "amount": -29.85,
+      "balance": 3523.93,
+      "desc": "下单: 阿尔詹达尔 vs 阿拉伯人体育俱乐部 [Away (平手 0) @ 2.05] @ 2.05"
+    },
+    {
+      "time": "2026-01-16 21:55:13",
+      "type": "HALF_WIN",
+      "amount": 591.34,
+      "balance": 3553.78,
+      "desc": "结算 (HALF_WIN): Maccabi Nujeidat Ahmed vs Araba PnL: +183.52"
+    },
+    {
+      "time": "2026-01-16 21:55:12",
+      "type": "WIN",
+      "amount": 648.63,
+      "balance": 2962.44,
+      "desc": "结算 (WIN): Ujpest vs Mezokovesd-zsory PnL: +321.04"
+    },
+    {
+      "time": "2026-01-16 21:49:41",
+      "type": "BET",
+      "amount": -121.78,
+      "balance": 2313.81,
+      "desc": "下单: 达赫莱亚 vs 伊蒂哈德电信 [Home 0.75 @ 1.75 (Score 0-0)] @ 1.75"
+    },
+    {
+      "time": "2026-01-16 21:42:12",
+      "type": "BET",
+      "amount": -128.19,
+      "balance": 2435.59,
+      "desc": "下单: Al Baten vs Al-Faisaly [Home 0.25 @ 1.85 (Score 1-1)] @ 1.85"
+    },
+    {
+      "time": "2026-01-16 21:42:10",
+      "type": "BET",
+      "amount": -134.94,
+      "balance": 2563.78,
+      "desc": "下单: Al Najma vs Al-Fateh [Home 0.5 @ 1.88 (Score 0-0)] @ 1.88"
+    },
+    {
+      "time": "2026-01-16 21:42:10",
+      "type": "BET",
+      "amount": -74.6,
+      "balance": 2698.71,
+      "desc": "下单: 桑德兰 U21 vs 纽卡斯尔联 U21 [Home 0.0 @ 2.02 (Score 0-0)] @ 2.02"
+    },
+    {
+      "time": "2026-01-16 21:42:10",
+      "type": "BET",
+      "amount": -145.96,
+      "balance": 2773.32,
+      "desc": "下单: Queens Park Rangers U21 vs 布伦特福德 U21 [Away (客让 0.25) @ 1.82] @ 1.8199999999999998"
+    },
+    {
+      "time": "2026-01-16 21:42:09",
+      "type": "BET",
+      "amount": -133.72,
+      "balance": 2919.28,
+      "desc": "下单: 米尔沃尔 U21 vs 斯旺西 U21 [Home 0.5 @ 1.85 (Score 0-0)] @ 1.85"
+    },
+    {
+      "time": "2026-01-16 21:42:07",
+      "type": "BET",
+      "amount": -42.41,
+      "balance": 3053.0,
+      "desc": "下单: 哈普尔里雄莱锡安 vs 海法工人 [Away (客受 0.25) @ 1.88] @ 1.88"
+    },
+    {
+      "time": "2026-01-16 21:42:07",
+      "type": "BET",
+      "amount": -96.06,
+      "balance": 3095.41,
+      "desc": "下单: 海法工人 vs 莫迪因铁人 [Away (客受 0.25) @ 1.90] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 21:41:48",
+      "type": "BET",
+      "amount": -167.97,
+      "balance": 3191.47,
+      "desc": "下单: Horriya vs Hottin [Away (平手 0) @ 1.70] @ 1.7"
+    },
+    {
+      "time": "2026-01-16 21:41:48",
+      "type": "BET",
+      "amount": -176.81,
+      "balance": 3359.44,
+      "desc": "下单: Japan U23 vs Jordan U23 [Under 2.5 @ 1.17] @ 1.17"
+    },
+    {
+      "time": "2026-01-16 21:41:47",
+      "type": "BET",
+      "amount": -186.12,
+      "balance": 3536.26,
+      "desc": "下单: FC Fredericia vs Aarhus Fremad [Away (平手 0) @ 1.90] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 21:41:46",
+      "type": "BET",
+      "amount": -195.91,
+      "balance": 3722.38,
+      "desc": "下单: Kfar Saba 1928 vs Hapoel Herzliya [Away (平手 0) @ 2.60] @ 2.6"
+    },
+    {
+      "time": "2026-01-16 21:41:44",
+      "type": "BET",
+      "amount": -68.98,
+      "balance": 3918.29,
+      "desc": "下单: Stade Tunisien vs US Monastirienne [Away (客受 0.25) @ 1.77] @ 1.77"
+    },
+    {
+      "time": "2026-01-16 21:41:42",
+      "type": "LOSS",
+      "amount": 0.0,
+      "balance": 3987.27,
+      "desc": "结算 (LOSS): FC Fredericia vs Aarhus Fremad PnL: -344.83"
+    },
+    {
+      "time": "2026-01-16 21:41:42",
+      "type": "BET",
+      "amount": -209.86,
+      "balance": 3987.27,
+      "desc": "下单: Olympique Béja vs US Ben Guerdane [Home 0.25 @ 1.95 (Score 1-0)] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 21:41:40",
+      "type": "BET",
+      "amount": -154.48,
+      "balance": 4197.13,
+      "desc": "下单: Smail vs Oman Club [Home 0.25 @ 1.82 (Score 0-0)] @ 1.8199999999999998"
+    },
+    {
+      "time": "2026-01-16 21:41:40",
+      "type": "BET",
+      "amount": -229.03,
+      "balance": 4351.61,
+      "desc": "下单: Hadiya Hosaena vs Suhul Shire [Away (客受 0.25) @ 1.95] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 21:41:38",
+      "type": "BET",
+      "amount": -241.09,
+      "balance": 4580.64,
+      "desc": "下单: Tanta SC vs Baladiyyat Al Mehalla [Home 0.0 @ 2.08 (Score 1-0)] @ 2.08"
+    },
+    {
+      "time": "2026-01-16 21:41:37",
+      "type": "BET",
+      "amount": -253.78,
+      "balance": 4821.73,
+      "desc": "下单: Al Jabalain vs Al Wehda Club [Over 3.75 @ 1.95] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 21:41:36",
+      "type": "BET",
+      "amount": -145.67,
+      "balance": 5075.5,
+      "desc": "下单: 利兹联 U21 vs 斯托克城 U21 [Away (客受 0.25) @ 1.95] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 21:41:34",
+      "type": "BET",
+      "amount": -274.8,
+      "balance": 5221.17,
+      "desc": "下单: Colchester United U21 vs 伯恩茅斯 U21 [Home 1.5 @ 1.85 (Score 0-0)] @ 1.85"
+    },
+    {
+      "time": "2026-01-16 21:41:33",
+      "type": "BET",
+      "amount": -105.3,
+      "balance": 5495.97,
+      "desc": "下单: Milan U20 vs Fiorentina U20 [Home 0.0 @ 2.00 (Score 0-0)] @ 2.0"
+    },
+    {
+      "time": "2026-01-16 21:41:32",
+      "type": "BET",
+      "amount": -105.0,
+      "balance": 5601.28,
+      "desc": "下单: Maccabi Herzliya vs Kiryat Yam SC [Home 0.0 @ 1.80 (Score 0-0)] @ 1.8"
+    },
+    {
+      "time": "2026-01-16 21:41:31",
+      "type": "BET",
+      "amount": -53.57,
+      "balance": 5706.27,
+      "desc": "下单: Hapoel Ramat Gan vs Bnei Yehuda [Home (平手 0) @ 1.98] @ 1.98"
+    },
+    {
+      "time": "2026-01-16 21:37:38",
+      "type": "BET",
+      "amount": -303.15,
+      "balance": 5759.84,
+      "desc": "下单: 哈代拉工人 vs 卡比利奥马卡比雅法 [Home 0.0 @ 1.95 (Score 1-0)] @ 1.95"
+    },
+    {
+      "time": "2026-01-16 20:25:50",
+      "type": "BET",
+      "amount": -161.21,
+      "balance": 6062.99,
+      "desc": "下单: Grazer AK vs Admira Wacker [Away (客受 0.5) @ 1.80] @ 1.8"
+    },
+    {
+      "time": "2026-01-16 20:25:45",
+      "type": "BET",
+      "amount": -327.59,
+      "balance": 6224.19,
+      "desc": "下单: Ujpest vs Mezokovesd-zsory [Home 4.75 @ 1.98 (Score 2-0)] @ 1.98"
+    },
+    {
+      "time": "2026-01-16 20:24:39",
+      "type": "BET",
+      "amount": -344.83,
+      "balance": 6551.78,
+      "desc": "下单: FC Fredericia vs Aarhus Fremad [Home -0.25 @ 1.93 (Score 1-0)] @ 1.9300000000000002"
+    },
+    {
+      "time": "2026-01-16 20:24:32",
+      "type": "BET",
+      "amount": -362.98,
+      "balance": 6896.61,
+      "desc": "下单: Nakhon Si Thammarat vs Esan Pattaya [Home 0.25 @ 1.77 (Score 0-0)] @ 1.77"
+    },
+    {
+      "time": "2026-01-16 20:24:28",
+      "type": "BET",
+      "amount": -101.58,
+      "balance": 7259.59,
+      "desc": "下单: Negelle Arsi vs Welayta Dicha [Away (客受 0.25) @ 1.75] @ 1.75"
+    },
+    {
+      "time": "2026-01-16 20:24:20",
+      "type": "BET",
+      "amount": -387.43,
+      "balance": 7361.18,
+      "desc": "下单: PSPS vs Persekat [Home -0.5 @ 2.02 (Score 1-0)] @ 2.02"
+    },
+    {
+      "time": "2026-01-16 20:24:15",
+      "type": "BET",
+      "amount": -407.82,
+      "balance": 7748.61,
+      "desc": "下单: Maccabi Nujeidat Ahmed vs Araba [Home 0.25 @ 1.90 (Score 0-0)] @ 1.9"
+    },
+    {
+      "time": "2026-01-16 20:23:49",
+      "type": "WIN",
+      "amount": 179.91,
+      "balance": 8156.43,
+      "desc": "结算 (WIN): 墨尔本城 vs 奥克兰 PnL: +82.66"
+    },
+    {
+      "time": "2026-01-16 20:23:49",
+      "type": "WIN",
+      "amount": 761.96,
+      "balance": 7976.52,
+      "desc": "结算 (WIN): Tzeirei Umm al-Fahm vs Hapoel Tirat HaCarmel PnL: +377.13"
+    },
+    {
+      "time": "2026-01-16 16:40:20",
+      "type": "BET",
+      "amount": -97.25,
+      "balance": 7214.55,
+      "desc": "下单: 墨尔本城 vs 奥克兰 [Home (平手 0) @ 1.85] @ 1.85"
+    },
+    {
+      "time": "2026-01-16 16:40:01",
+      "type": "BET",
+      "amount": -384.83,
+      "balance": 7311.8,
+      "desc": "下单: Tzeirei Umm al-Fahm vs Hapoel Tirat HaCarmel [Home 0.75 @ 1.98 (Score 0-0)] @ 1.98"
+    },
     {
       "time": "2026-01-16 13:40:20",
       "type": "LOSS",

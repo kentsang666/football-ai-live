@@ -27,6 +27,20 @@ import random
 import copy
 import hashlib # Moved from inner loop
 import time
+import redis
+
+# Redis Configuration
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_DB = 0
+REDIS_KEY = "recommendation_history"
+
+try:
+    pool = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+    redis_client = redis.Redis(connection_pool=pool)
+except Exception as e:
+    redis_client = None
+    print(f"Redis Init Warning: {e}")
 
 # ================= Configuration =================
 # 您的 API 配置 (API-Football.com / API-SPORTS)
@@ -37,10 +51,29 @@ API_URL = "https://v3.football.api-sports.io/fixtures"
 # OpenWeatherMap Key (Please set via env var or replace here)
 OWM_API_KEY = os.getenv("OWM_API_KEY", "a6967e0888abfd4d1cf9a629657617b5") # 填入您的 OpenWeatherMap Key
 
+# 详细记录API原始数据的开关
+LOG_RAW_MATCH_DATA = False # 设置为 True 以开启 JSON 日志记录，False 关闭
+
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 配置单独的原始数据日志
+raw_logger = logging.getLogger("raw_match_data")
+raw_logger.setLevel(logging.INFO)
+raw_logger.propagate = False # 不传播到主日志
+
+# 确保 logs 目录存在
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+# 设置文件处理器
+raw_file_handler = logging.FileHandler("logs/raw_matches.log", encoding='utf-8')
+# 设置格式，包含时间
+raw_formatter = logging.Formatter('%(asctime)s - %(message)s')
+raw_file_handler.setFormatter(raw_formatter)
+raw_logger.addHandler(raw_file_handler)
 
 # --- Engines ---
 momentum_engine = PressureModel()
@@ -103,22 +136,56 @@ NO_ODDS_TRACKER = {} # 记录无赔率比赛的持续时间 {fixture_id: start_t
 HISTORY_FILE = "recommendation_history.json"
 RECOMMENDATION_HISTORY = []
 
+def save_record_to_redis(record):
+    if redis_client:
+        try:
+            redis_client.hset(REDIS_KEY, record['key'], json.dumps(record, ensure_ascii=False))
+        except Exception as e:
+            logger.error(f"Redis Save Error: {e}")
+
 def load_history():
-    if os.path.exists(HISTORY_FILE):
+    records = []
+    # 1. Try Redis
+    if redis_client:
+        try:
+            # Check connection
+            redis_client.ping()
+            raw = redis_client.hgetall(REDIS_KEY)
+            if raw:
+                for k,v in raw.items():
+                    try:
+                        records.append(json.loads(v))
+                    except: pass
+                logger.info(f"Loaded {len(records)} records from Redis.")
+                return records
+        except Exception as e:
+            logger.error(f"Redis Load Error: {e}")
+            
+    # 2. Redis empty or failed? Try File (Migration context)
+    if not records and os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data if isinstance(data, list) else []
+                records = data if isinstance(data, list) else []
+                # Migration: File -> Redis
+                if records and redis_client:
+                    logger.info("Migrating history from JSON to Redis...")
+                    try:
+                        pipe = redis_client.pipeline()
+                        for r in records:
+                            if 'key' in r:
+                                pipe.hset(REDIS_KEY, r['key'], json.dumps(r, ensure_ascii=False))
+                        pipe.execute()
+                    except Exception as me:
+                        logger.error(f"Migration Error: {me}")
         except:
-            return []
-    return []
+             records = []
+             
+    return records
 
 def save_history_to_disk():
-    try:
-        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(RECOMMENDATION_HISTORY, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"Failed to save history: {e}")
+    # Deprecated for Redis
+    pass
 
 def add_recommendation_record(record):
     global RECOMMENDATION_HISTORY
@@ -127,7 +194,7 @@ def add_recommendation_record(record):
     if existing:
         return
     RECOMMENDATION_HISTORY.append(record)
-    save_history_to_disk()
+    save_record_to_redis(record)
 
 # Check & Load history on startup
 RECOMMENDATION_HISTORY = load_history()
@@ -291,8 +358,6 @@ async def settle_pending_records():
         'x-rapidapi-host': "v3.football.api-sports.io"
     }
 
-    dirty = False
-    
     for chunk in chunks:
         ids_str = '-'.join(chunk)
         url = f"{API_URL}?ids={ids_str}"
@@ -328,7 +393,6 @@ async def settle_pending_records():
 
                         rec['final_score'] = f"{h_s}-{a_s}"
                         rec['settled_at'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        dirty = True
 
                         try:
                             if '主' in rec['bet_type'] or '客' in rec['bet_type'] or '平' in rec['bet_type']:
@@ -369,6 +433,9 @@ async def settle_pending_records():
 
                         except Exception as e:
                             logger.error(f"Settlement calc error for {rec['key']}: {e}")
+                            
+                        # Save updated record to Redis
+                        save_record_to_redis(rec)
                 
                 # --- Paper Trading Settlement ---
                 # Also settle anything in paper trader for these matches
@@ -384,9 +451,6 @@ async def settle_pending_records():
             
         except Exception as e:
             logger.error(f"Settlement request failed: {e}")
-            
-    if dirty:
-        save_history_to_disk()
 
 def sanitize_data(data):
     """
@@ -639,6 +703,9 @@ async def poll_live_data_task():
                         if len(data_365) == 0:
                             logger.warning(f"DEBUG: Odds Response Body (Empty Results): {json_resp}")
                         for o in data_365:
+                            fixture_status = o.get('status', {})
+                            if fixture_status['stopped'] == True or fixture_status['finished'] == True or fixture_status['blocked'] == True:
+                                continue # Skip closed markets
                             odds_map[o['fixture']['id']] = o['odds']
                         # logger.info(f">>> Fetched {len(odds_map)} odds from Bet365")
                      else:
@@ -676,6 +743,25 @@ async def poll_live_data_task():
                 current_cycle_leagues_raw = [] # 收集本轮所有联赛(原始信息)
                 
                 for item in raw_matches:
+                    # --- 新增：详细日志记录 ---
+                    if LOG_RAW_MATCH_DATA:
+                        try:
+                            f_id = item.get('fixture', {}).get('id', 'unknown')
+                            # 用户的特殊要求：确保不含可能的天气字段
+                            item_to_log = item.copy()
+                            item_to_log.pop('weather', None) 
+                            
+                            # [New] 补充记录原始盘口信息
+                            if f_id != 'unknown':
+                                # odds_map 在循环外获取，包含本轮所有比赛的实时赔率
+                                item_to_log['live_odds'] = odds_map.get(f_id, [])
+
+                            # 使用 raw_logger 记录 json，配置好的 logger 已包含时间
+                            raw_logger.info(f"Fixture_{f_id}: {json.dumps(item_to_log, ensure_ascii=False)}")
+                        except Exception as e:
+                            logger.error(f"Failed to log raw match data: {e}")
+                    # -------------------------
+
                     # 日志收集
                     def log_algo(msg):
                         ts = datetime.now().strftime('%H:%M:%S')
@@ -688,7 +774,7 @@ async def poll_live_data_task():
                     fixture_id = fixture['id']
                     teams = item['teams']
                     league = item['league']
-                    
+
                     # [Pre-Calculate Translation] Fix NameError in Red Card / Momentum logs
                     home_cn = trans_team(teams['home']['name'])
                     away_cn = trans_team(teams['away']['name'])
@@ -944,14 +1030,14 @@ async def poll_live_data_task():
                         if book['id'] in [2, 4, 33]:
                             # 寻找最均衡的盘口 (Main=true 优先, 其次找 odds 离 2.0 最近的)
                             # 1. 尝试找 main
-                            main_lines = [v for v in book['values'] if v.get('main')]
+                            # main_lines = [v for v in book['values'] if v.get('main')]
                             
                             # 2. 智能重构：分离主客队数据进行精准匹配
                             # (API 返回数据中 handicap 字符串可能不一致，如 "3.75" 和 "-3.75"，导致不能简单分组)
                             
                             all_bets = book['values']
-                            home_bets = [b for b in all_bets if b['value'] == 'Home']
-                            away_bets = [b for b in all_bets if b['value'] == 'Away']
+                            home_bets = [b for b in all_bets if b['value'] == 'Home' and b['suspended'] == False]
+                            away_bets = [b for b in all_bets if b['value'] == 'Away' and b['suspended'] == False]
                             
                             if home_bets:
                                 # A. 寻找最佳主队盘口 (标记Main > 赔率接近1.95)
@@ -2429,7 +2515,21 @@ async def clear_history_api():
     """
     global RECOMMENDATION_HISTORY
     RECOMMENDATION_HISTORY = []
-    save_history_to_disk()
+    
+    # Clear Redis
+    if redis_client:
+        try:
+            redis_client.delete(REDIS_KEY)
+        except Exception as e:
+            logger.error(f"Failed to clear Redis: {e}")
+
+    # Clear File (to prevent reload on restart)
+    if os.path.exists(HISTORY_FILE):
+        try:
+            os.remove(HISTORY_FILE)
+        except Exception as e:
+            logger.error(f"Failed to delete history file: {e}")
+
     return {"status": "success", "message": "History cleared"}
 
 @app.get("/api/schedule")
@@ -2452,6 +2552,8 @@ async def get_schedule_data():
         "updated_at": datetime.now().strftime("%H:%M:%S")
     }
 
+def start(): 
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
 # 启动入口 (开发环境)
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
+    start()

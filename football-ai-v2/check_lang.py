@@ -24,7 +24,7 @@ except Exception as e:
 print("\n--- Team (Man City) with lang=zh ---")
 try:
     # Try search param
-    resp = requests.get('https://v3.football.api-sports.io/teams?id=50&lang=zh', headers=headers)
+    resp = requests.get('https://v3.football.api-sports.io/teams?lang=zh', headers=headers)
     print(resp.json()) # Print full check
 except:
     pass

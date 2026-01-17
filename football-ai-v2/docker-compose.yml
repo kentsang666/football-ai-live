@@ -16,3 +16,15 @@ services:
       - ./auto_translations.json:/app/auto_translations.json
     environment:
       - TZ=Asia/Shanghai
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  redis:
+    image: redis:7-alpine
+    container_name: football-ai-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    command: redis-server --appendonly yes
